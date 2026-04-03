@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>창업지원 통합관리 | 울산경제일자리진흥원</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Sans:wght@400;500;600&display=swap');
+
+:root {
+  --navy:   #0D1B2A;
+  --blue:   #1F4E79;
+  --accent: #2E75B6;
+  --teal:   #17627A;
+  --green:  #1E5631;
+  --gold:   #8B6914;
+  --orange: #C55A11;
+  --red:    #C00000;
+  --gray1:  #F7F8FA;
+  --gray2:  #EEF0F3;
+  --gray3:  #D1D5DB;
+  --gray4:  #9CA3AF;
+  --gray5:  #6B7280;
+  --gray6:  #374151;
+  --text:   #111827;
+  --white:  #FFFFFF;
+  --sidebar-w: 220px;
+  --header-h:  56px;
+  --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.10);
+  --radius: 8px;
+  --radius-lg: 12px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Noto Sans KR', sans-serif; background: var(--gray1); color: var(--text); font-size: 14px; line-height: 1.5; }
+button { cursor: pointer; font-family: inherit; }
+input, select, textarea { font-family: inherit; font-size: 13px; }
+
+/* ── 레이아웃 ─────────────────────────────────────────── */
+.app { display: flex; height: 100vh; overflow: hidden; }
+
+/* ── 사이드바 ─────────────────────────────────────────── */
+.sidebar {
+  width: var(--sidebar-w); min-width: var(--sidebar-w);
+  background: var(--navy);
+  display: flex; flex-direction: column;
+  height: 100vh; overflow-y: auto;
+  z-index: 100;
+}
+.sidebar-logo {
+  padding: 18px 16px 14px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.sidebar-logo-main { font-size: 13px; font-weight: 700; color: #fff; letter-spacing: -.2px; }
+.sidebar-logo-sub  { font-size: 11px; color: rgba(255,255,255,.45); margin-top: 2px; }
+
+.nav-group { padding: 16px 0 4px; }
+.nav-group-label {
+  padding: 0 16px 6px;
+  font-size: 10px; font-weight: 500;
+  color: rgba(255,255,255,.3);
+  letter-spacing: .08em; text-transform: uppercase;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 16px; margin: 1px 8px;
+  border-radius: 6px;
+  font-size: 13px; color: rgba(255,255,255,.65);
+  cursor: pointer; transition: all .15s;
+  border: none; background: none; width: calc(100% - 16px);
+  text-align: left;
+}
+.nav-item:hover  { background: rgba(255,255,255,.08); color: #fff; }
+.nav-item.active { background: var(--accent); color: #fff; font-weight: 500; }
+.nav-item svg    { width: 15px; height: 15px; flex-shrink: 0; opacity: .8; }
+.nav-item.active svg { opacity: 1; }
+
+.sidebar-bottom {
+  margin-top: auto;
+  padding: 12px;
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+.user-chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 6px;
+  background: rgba(255,255,255,.06);
+}
+.user-avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.user-name  { font-size: 12px; font-weight: 500; color: #fff; }
+.user-role  { font-size: 10px; color: rgba(255,255,255,.45); }
+
+/* ── 메인 영역 ────────────────────────────────────────── */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+.topbar {
+  height: var(--header-h); min-height: var(--header-h);
+  background: var(--white);
+  border-bottom: 1px solid var(--gray2);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px;
+  box-shadow: var(--shadow);
+}
+.topbar-left  { display: flex; align-items: center; gap: 12px; }
+.topbar-title { font-size: 16px; font-weight: 700; color: var(--text); }
+.topbar-badge {
+  font-size: 11px; padding: 2px 8px; border-radius: 20px;
+  background: var(--gray2); color: var(--gray5);
+}
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+
+.content { flex: 1; overflow-y: auto; padding: 24px; }
+
+/* ── 버튼 ──────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 7px 14px; border-radius: var(--radius);
+  font-size: 13px; font-weight: 500;
+  border: 1px solid var(--gray3);
+  background: var(--white); color: var(--gray6);
+  transition: all .15s;
+}
+.btn:hover { background: var(--gray1); border-color: var(--gray4); }
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-primary:hover { background: var(--blue); border-color: var(--blue); }
+.btn-danger  { background: #FEF2F2; color: var(--red); border-color: #FECACA; }
+.btn-danger:hover  { background: #FEE2E2; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-icon { padding: 6px; }
+.btn svg { width: 14px; height: 14px; }
+
+/* ── 카드 ──────────────────────────────────────────────── */
+.card {
+  background: var(--white);
+  border: 1px solid var(--gray2);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px 10px;
+  border-bottom: 1px solid var(--gray2);
+}
+.card-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.card-body  { padding: 16px 18px; }
+
+/* ── 통계 카드 ────────────────────────────────────────── */
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+.stat-card {
+  background: var(--white);
+  border: 1px solid var(--gray2);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  box-shadow: var(--shadow);
+  position: relative; overflow: hidden;
+}
+.stat-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+}
+.stat-blue::before   { background: var(--accent); }
+.stat-green::before  { background: var(--green); }
+.stat-orange::before { background: var(--orange); }
+.stat-teal::before   { background: var(--teal); }
+.stat-red::before    { background: var(--red); }
+.stat-label { font-size: 11px; color: var(--gray5); font-weight: 500; margin-bottom: 6px; }
+.stat-value { font-size: 26px; font-weight: 700; color: var(--text); letter-spacing: -1px; }
+.stat-sub   { font-size: 11px; color: var(--gray4); margin-top: 4px; }
+
+/* ── 배지 ──────────────────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 500;
+  padding: 2px 8px; border-radius: 20px;
+  white-space: nowrap;
+}
+.badge-blue   { background: #EFF6FF; color: #1D4ED8; }
+.badge-green  { background: #F0FDF4; color: #166534; }
+.badge-amber  { background: #FFFBEB; color: #92400E; }
+.badge-red    { background: #FEF2F2; color: #991B1B; }
+.badge-gray   { background: var(--gray2); color: var(--gray5); }
+.badge-teal   { background: #F0FDFA; color: #115E59; }
+.badge-purple { background: #F5F3FF; color: #5B21B6; }
+
+/* ── 테이블 ────────────────────────────────────────────── */
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+thead th {
+  background: var(--gray1);
+  font-size: 11px; font-weight: 600;
+  color: var(--gray5); text-transform: uppercase; letter-spacing: .05em;
+  padding: 9px 12px; text-align: left;
+  border-bottom: 1px solid var(--gray2);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--gray2);
+  font-size: 13px; color: var(--text);
+  vertical-align: middle;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--gray1); }
+
+/* ── 폼 ────────────────────────────────────────────────── */
+.form-grid { display: grid; gap: 14px; }
+.form-grid-2 { grid-template-columns: 1fr 1fr; }
+.form-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+.form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--gray6); margin-bottom: 5px; }
+.form-group label span { color: var(--red); margin-left: 2px; }
+.form-control {
+  width: 100%; padding: 8px 11px;
+  border: 1px solid var(--gray3); border-radius: var(--radius);
+  font-size: 13px; color: var(--text);
+  background: var(--white); outline: none;
+  transition: border-color .15s;
+}
+.form-control:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(46,117,182,.1); }
+textarea.form-control { resize: vertical; min-height: 80px; }
+
+/* ── 탭 ────────────────────────────────────────────────── */
+.tabs {
+  display: flex; gap: 2px;
+  background: var(--gray2);
+  border-radius: 8px; padding: 3px;
+  width: fit-content; margin-bottom: 18px;
+}
+.tab-btn {
+  padding: 6px 16px; border-radius: 6px;
+  font-size: 13px; font-weight: 500;
+  border: none; background: none; color: var(--gray5);
+  cursor: pointer; transition: all .15s;
+}
+.tab-btn.active { background: var(--white); color: var(--text); box-shadow: var(--shadow); }
+
+/* ── 필터바 ────────────────────────────────────────────── */
+.filter-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+.filter-bar .form-control { width: auto; }
+.search-box { position: relative; }
+.search-box .form-control { padding-left: 32px; width: 220px; }
+.search-box svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--gray4); }
+
+/* ── 아바타 ────────────────────────────────────────────── */
+.avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; flex-shrink: 0;
+}
+.av-blue   { background: #DBEAFE; color: #1E40AF; }
+.av-green  { background: #DCFCE7; color: #15803D; }
+.av-amber  { background: #FEF3C7; color: #B45309; }
+.av-teal   { background: #CCFBF1; color: #0F766E; }
+.av-purple { background: #EDE9FE; color: #6D28D9; }
+
+/* ── 모달 ──────────────────────────────────────────────── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.45); z-index: 1000;
+  align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--white); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  width: 580px; max-width: 95vw; max-height: 90vh;
+  display: flex; flex-direction: column;
+  animation: slideUp .2s ease;
+}
+.modal-lg { width: 780px; }
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--gray2);
+}
+.modal-title { font-size: 15px; font-weight: 700; }
+.modal-close { background: none; border: none; font-size: 20px; color: var(--gray4); cursor: pointer; line-height: 1; padding: 4px; border-radius: 4px; }
+.modal-close:hover { background: var(--gray2); color: var(--gray6); }
+.modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+.modal-footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--gray2);
+  display: flex; justify-content: flex-end; gap: 8px;
+}
+
+/* ── 빈 상태 ───────────────────────────────────────────── */
+.empty-state { text-align: center; padding: 48px 20px; color: var(--gray4); }
+.empty-state svg { width: 48px; height: 48px; margin: 0 auto 12px; display: block; opacity: .4; }
+.empty-state p { font-size: 14px; }
+
+/* ── Q 판정 ────────────────────────────────────────────── */
+.q-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: var(--radius);
+  background: var(--gray1); margin-bottom: 6px;
+}
+.q-label { font-size: 11px; font-weight: 700; color: var(--accent); min-width: 22px; }
+.q-text  { flex: 1; font-size: 12px; color: var(--gray6); }
+.q-select { width: 75px; flex-shrink: 0; }
+.verdict-box {
+  margin-top: 12px; padding: 12px 16px;
+  border-radius: var(--radius); text-align: center;
+  background: var(--gray1); border: 1px dashed var(--gray3);
+}
+.verdict-box.tech   { background: #EFF6FF; border: 1px solid #BFDBFE; }
+.verdict-box.local  { background: #F0FDF4; border: 1px solid #BBF7D0; }
+.verdict-box.hybrid { background: #FFFBEB; border: 1px solid #FDE68A; }
+.verdict-label { font-size: 11px; color: var(--gray4); margin-bottom: 4px; }
+.verdict-value { font-size: 17px; font-weight: 700; }
+
+/* ── 진행 단계 ────────────────────────────────────────── */
+.stage-bar { display: flex; gap: 2px; margin-top: 6px; }
+.stage-step {
+  flex: 1; height: 4px; border-radius: 2px; background: var(--gray2);
+  position: relative;
+}
+.stage-step.done { background: var(--green); }
+.stage-step.curr { background: var(--accent); }
+
+/* ── 태블릿·모바일 최적화 ──────────────────────────────── */
+
+/* 사이드바 토글 버튼 (태블릿용) */
+.sidebar-toggle {
+  display: none;
+  position: fixed; top: 12px; left: 12px; z-index: 200;
+  width: 40px; height: 40px; border-radius: 10px;
+  background: var(--navy); border: none;
+  align-items: center; justify-content: center; cursor: pointer;
+  box-shadow: var(--shadow-md);
+}
+.sidebar-toggle svg { width: 20px; height: 20px; color: #fff; }
+
+/* 태블릿 오버레이 */
+.sidebar-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.5); z-index: 99;
+}
+.sidebar-overlay.open { display: block; }
+
+/* 하단 탭바 (태블릿 현장상담 모드) */
+.bottom-tabbar {
+  display: none;
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: 60px; background: var(--white);
+  border-top: 1px solid var(--gray2);
+  z-index: 150; padding: 0;
+  box-shadow: 0 -2px 8px rgba(0,0,0,.08);
+}
+.bottom-tabbar-inner {
+  display: flex; height: 100%;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+.bottom-tab {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 3px;
+  min-width: 72px; padding: 0 8px;
+  border: none; background: none; cursor: pointer;
+  color: var(--gray4); font-size: 10px; font-family: inherit;
+  transition: color .15s; flex-shrink: 0;
+}
+.bottom-tab svg { width: 20px; height: 20px; }
+.bottom-tab.active { color: var(--accent); }
+.bottom-tab.active svg { stroke: var(--accent); }
+
+/* 태블릿 모드 전용 큰 버튼 */
+.btn-tablet {
+  padding: 12px 20px !important;
+  font-size: 15px !important;
+  border-radius: 10px !important;
+  min-height: 48px;
+}
+.btn-tablet svg { width: 18px; height: 18px; }
+
+/* 현장상담 퀵 액션 패널 */
+.quick-panel {
+  display: none;
+  position: fixed; bottom: 68px; left: 0; right: 0;
+  background: var(--white); border-top: 1px solid var(--gray2);
+  z-index: 140; padding: 12px 16px;
+  box-shadow: 0 -4px 16px rgba(0,0,0,.1);
+  animation: slideUp .2s ease;
+}
+.quick-panel.open { display: block; }
+.quick-actions {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+}
+.quick-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 12px 8px; border-radius: var(--radius-lg);
+  border: 1px solid var(--gray2); background: var(--gray1);
+  cursor: pointer; font-size: 11px; font-weight: 500;
+  color: var(--gray6); font-family: inherit;
+  transition: all .15s;
+}
+.quick-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+.quick-btn svg { width: 22px; height: 22px; }
+
+/* 태블릿 반응형 미디어쿼리 */
+@media (max-width: 1024px) {
+  :root { --sidebar-w: 0px; }
+  .sidebar {
+    position: fixed; left: -240px; width: 240px;
+    transition: left .25s ease; z-index: 100;
+  }
+  .sidebar.open { left: 0; }
+  .sidebar-toggle { display: flex; }
+  .bottom-tabbar { display: flex; }
+  .content { padding-bottom: 72px !important; }
+  .topbar { padding-left: 60px; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 768px) {
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .form-grid-2 { grid-template-columns: 1fr; }
+  .form-grid-3 { grid-template-columns: 1fr; }
+  .modal { width: 96vw !important; max-width: 96vw !important; }
+  .modal-lg { width: 96vw !important; }
+  thead th { font-size: 10px; padding: 7px 8px; }
+  tbody td { font-size: 12px; padding: 8px 8px; }
+  .btn { padding: 9px 14px; font-size: 13px; }
+  .topbar-title { font-size: 14px; }
+}
+
+/* 태블릿 현장상담 최적화 - 터치 영역 확대 */
+@media (max-width: 1024px) {
+  .nav-item { padding: 11px 16px; font-size: 14px; }
+  .btn-sm { padding: 7px 12px; font-size: 12px; }
+  tbody tr { min-height: 48px; }
+  .form-control { padding: 10px 12px; font-size: 14px; min-height: 44px; }
+  select.form-control { min-height: 44px; }
+}
+</style>
+</head>
+<body>
+
+<!-- 사이드바 토글 버튼 (태블릿) -->
+<button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()">
+  <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+    <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+  </svg>
+</button>
+
+<!-- 사이드바 오버레이 -->
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<!-- 현장상담 퀵 액션 패널 -->
+<div class="quick-panel" id="quick-panel">
+  <div style="font-size:11px;color:var(--gray4);margin-bottom:8px;font-weight:600">현장 빠른 실행</div>
+  <div class="quick-actions">
+    <button class="quick-btn" onclick="closeQuickPanel();navigate('intake')">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+      창업자 접수
+    </button>
+    <button class="quick-btn" onclick="closeQuickPanel();navigate('consult');setTimeout(()=>openConsultModal(),200)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+      상담일지 작성
+    </button>
+    <button class="quick-btn" onclick="closeQuickPanel();navigate('mentoring');setTimeout(()=>openMentoringModal(),200)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      멘토링 등록
+    </button>
+    <button class="quick-btn" onclick="closeQuickPanel();navigate('support');setTimeout(()=>openSupportModal(),200)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>
+      지원사업 연계
+    </button>
+  </div>
+</div>
+
+<div class="app">
+  <!-- ── 사이드바 ── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-main">울산경제일자리진흥원</div>
+      <div class="sidebar-logo-sub">창업지원 통합관리 시스템</div>
+    </div>
+
+    <nav>
+      <div class="nav-group">
+        <div class="nav-group-label">메인</div>
+        <button class="nav-item active" data-page="dashboard">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          대시보드
+        </button>
+        <button class="nav-item" data-page="stats">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><path d="M3 20h18"/></svg>
+          통계 현황
+        </button>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-label">상담 관리</div>
+        <button class="nav-item" data-page="intake">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+          창업자 접수
+        </button>
+        <button class="nav-item" data-page="consult">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+          상담일지
+        </button>
+        <button class="nav-item" data-page="db">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          창업자 DB
+        </button>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-label">전문가 상담·멘토링</div>
+        <button class="nav-item" data-page="experts">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          전문가 DB
+        </button>
+        <button class="nav-item" data-page="mentoring">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          전문가 상담·멘토링
+        </button>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-label">지원 관리</div>
+        <button class="nav-item" data-page="support">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>
+          지원사업 연계
+        </button>
+        <button class="nav-item" data-page="selected">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          선정기업 관리
+        </button>
+        <button class="nav-item" data-page="startup">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+          창업 현황
+        </button>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-label">성장 관리</div>
+        <button class="nav-item" data-page="growth">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          기업 성장 지표
+        </button>
+        <button class="nav-item" data-page="report">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          성과 보고
+        </button>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-label">설정</div>
+        <button class="nav-item" data-page="settings">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          팀 설정
+        </button>
+      </div>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="user-chip">
+        <div class="user-avatar">팀</div>
+        <div>
+          <div class="user-name">창업지원부</div>
+          <div class="user-role">울산경제일자리진흥원</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── 메인 ── -->
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="topbar-title" id="page-title">대시보드</span>
+        <span class="topbar-badge" id="page-badge">전체 현황</span>
+      </div>
+      <div class="topbar-right">
+        <span style="font-size:12px;color:var(--gray4)" id="today-date"></span>
+        <button class="btn btn-sm" onclick="exportData()" style="margin-left:8px" title="데이터 백업">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          백업
+        </button>
+        <label class="btn btn-sm" style="cursor:pointer;margin-left:4px" title="데이터 복원">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          복원
+          <input type="file" accept=".json" style="display:none" onchange="importData(event)">
+        </label>
+      </div>
+    </header>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<!-- 하단 탭바 (태블릿용) -->
+<div class="bottom-tabbar">
+  <div class="bottom-tabbar-inner">
+    <button class="bottom-tab active" id="btab-dashboard" onclick="navigate('dashboard');setBottomTab('dashboard')">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      대시보드
+    </button>
+    <button class="bottom-tab" id="btab-intake" onclick="navigate('intake');setBottomTab('intake')">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+      접수
+    </button>
+    <button class="bottom-tab" id="btab-consult" onclick="navigate('consult');setBottomTab('consult')">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+      상담
+    </button>
+    <button class="bottom-tab" id="btab-quick" onclick="toggleQuickPanel()">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      빠른 실행
+    </button>
+    <button class="bottom-tab" id="btab-support" onclick="navigate('support');setBottomTab('support')">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>
+      지원사업
+    </button>
+    <button class="bottom-tab" id="btab-growth" onclick="navigate('growth');setBottomTab('growth')">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      성장
+    </button>
+    <button class="bottom-tab" id="btab-report" onclick="navigate('report');setBottomTab('report')">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/></svg>
+      보고
+    </button>
+    <button class="bottom-tab" id="btab-settings" onclick="navigate('settings');setBottomTab('settings')">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      설정
+    </button>
+  </div>
+</div>
+
+<!-- ── 모달들 ── -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" id="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title"></span>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

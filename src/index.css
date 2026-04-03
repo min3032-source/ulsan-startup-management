@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+* {
+  box-sizing: border-box;
+}
+
+/* Reusable form input */
+.form-input {
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 13px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  outline: none;
+  background: #fff;
+  transition: box-shadow 0.15s;
+}
+.form-input:focus {
+  border-color: #2E75B6;
+  box-shadow: 0 0 0 2px rgba(46,117,182,0.15);
+}
+textarea.form-input {
+  min-height: 72px;
+  resize: vertical;
+}
+select.form-input {
+  cursor: pointer;
+}
+
+body {
+  margin: 0;
+  font-family: 'Pretendard', 'Noto Sans KR', system-ui, sans-serif;
+  background: #f5f6fa;
+  color: #1a1a2e;
+}
+
+#root {
+  min-height: 100vh;
+}
