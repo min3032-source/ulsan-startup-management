@@ -29,6 +29,8 @@ export default function Consult() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState(emptyForm())
+  const [privacyAgreed, setPrivacyAgreed] = useState(false)
+  const [showPrivacyDetail, setShowPrivacyDetail] = useState(false)
 
   useEffect(() => { loadData() }, [])
 
@@ -55,11 +57,15 @@ export default function Consult() {
   function openAdd() {
     setEditingId(null)
     setForm(emptyForm())
+    setPrivacyAgreed(false)
+    setShowPrivacyDetail(false)
     setModalOpen(true)
   }
 
   function openEdit(c) {
     setEditingId(c.id)
+    setPrivacyAgreed(false)
+    setShowPrivacyDetail(false)
     setForm({
       founder_id: c.founder_id || '', date: c.date || today(),
       staff: c.staff || '', method: c.method || '',
@@ -207,7 +213,14 @@ export default function Consult() {
         footer={
           <>
             <button onClick={() => setModalOpen(false)} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
-            <button onClick={handleSave} className="px-4 py-1.5 text-sm text-white rounded-lg" style={{ background: '#2E75B6' }}>저장</button>
+            <button
+              onClick={handleSave}
+              disabled={!privacyAgreed}
+              className="px-4 py-1.5 text-sm text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: '#2E75B6' }}
+            >
+              저장
+            </button>
           </>
         }
       >
@@ -294,6 +307,36 @@ export default function Consult() {
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">메모</label>
             <textarea className="form-input" value={form.memo} onChange={e => setField('memo', e.target.value)} />
+          </div>
+
+          {/* 개인정보 수집·이용 동의 */}
+          <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="privacy-agree"
+                checked={privacyAgreed}
+                onChange={e => setPrivacyAgreed(e.target.checked)}
+                className="w-4 h-4 accent-blue-600"
+              />
+              <label htmlFor="privacy-agree" className="text-xs text-gray-700 cursor-pointer">
+                개인정보 수집·이용에 동의합니다. <span className="text-red-500">(필수)</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowPrivacyDetail(v => !v)}
+                className="text-xs text-blue-500 hover:text-blue-700 underline ml-1"
+              >
+                {showPrivacyDetail ? '닫기' : '내용보기'}
+              </button>
+            </div>
+            {showPrivacyDetail && (
+              <div className="text-xs text-gray-600 bg-white border border-gray-200 rounded p-3 space-y-1 leading-relaxed">
+                <div><span className="font-medium">수집 항목:</span> 성명, 연락처, 이메일, 사업 관련 정보</div>
+                <div><span className="font-medium">수집 목적:</span> 창업 상담 서비스 제공</div>
+                <div><span className="font-medium">보유 기간:</span> 상담 종료 후 3년</div>
+              </div>
+            )}
           </div>
         </div>
       </Modal>
