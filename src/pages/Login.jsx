@@ -24,21 +24,21 @@ export default function Login() {
   const [forgotPassword, setForgotPassword] = useState(false)
 
   // 로그인 폼
-  const [loginEmail, setLoginEmail] = useState('')
-  const [loginPassword, setLoginPassword] = useState('')
+  const loginEmailRef = useRef()
+  const loginPasswordRef = useRef()
   const [loginError, setLoginError] = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
 
   // 회원가입 폼
-  const nameRef = useRef()
-  const emailRef = useRef()
-  const passwordRef = useRef()
-  const confirmPasswordRef = useRef()
+  const nameRef = useRef(null)
+  const emailRef = useRef(null)
+  const passwordRef = useRef(null)
+  const confirmRef = useRef(null)
   const [signupError, setSignupError] = useState('')
   const [signupLoading, setSignupLoading] = useState(false)
 
   // 비밀번호 재설정 폼
-  const [resetEmail, setResetEmail] = useState('')
+  const resetEmailRef = useRef()
   const [resetMsg, setResetMsg] = useState('')
   const [resetError, setResetError] = useState('')
   const [resetLoading, setResetLoading] = useState(false)
@@ -61,7 +61,7 @@ export default function Login() {
   async function handleLogin(e) {
     e.preventDefault()
     setLoginLoading(true); setLoginError('')
-    const { error } = await signIn(loginEmail, loginPassword)
+    const { error } = await signIn(loginEmailRef.current.value, loginPasswordRef.current.value)
     if (error) {
       setLoginError('이메일 또는 비밀번호가 올바르지 않습니다.')
       setLoginLoading(false)
@@ -77,7 +77,7 @@ export default function Login() {
     const name = nameRef.current.value
     const email = emailRef.current.value
     const password = passwordRef.current.value
-    const confirmPassword = confirmPasswordRef.current.value
+    const confirmPassword = confirmRef.current.value
 
     if (!name.trim()) return setSignupError('이름을 입력해주세요.')
     if (password.length < 8) return setSignupError('비밀번호는 8자 이상이어야 합니다.')
@@ -125,7 +125,7 @@ export default function Login() {
     e.preventDefault()
     setResetMsg(''); setResetError('')
     setResetLoading(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail)
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmailRef.current.value)
     setResetLoading(false)
     if (error) {
       setResetError('오류가 발생했습니다: ' + error.message)
@@ -146,7 +146,7 @@ export default function Login() {
             관리자 승인 후 이용 가능합니다.
           </p>
           <button
-            onClick={goToLogin}
+            onClick={() => { setSignupComplete(false); setTab('login') }}
             className="w-full py-2.5 rounded-lg text-sm font-semibold text-white"
             style={{ background: '#2E75B6' }}
           >
@@ -171,8 +171,7 @@ export default function Login() {
               <label className="block text-sm font-medium text-gray-700 mb-1">이메일</label>
               <input
                 type="email"
-                value={resetEmail}
-                onChange={e => setResetEmail(e.target.value)}
+                ref={resetEmailRef}
                 required
                 placeholder="example@ulsan.go.kr"
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -231,8 +230,7 @@ export default function Login() {
             <label className="block text-sm font-medium text-gray-700 mb-1">이메일</label>
             <input
               type="email"
-              value={loginEmail}
-              onChange={e => setLoginEmail(e.target.value)}
+              ref={loginEmailRef}
               required
               placeholder="example@ulsan.go.kr"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -242,8 +240,7 @@ export default function Login() {
             <label className="block text-sm font-medium text-gray-700 mb-1">비밀번호</label>
             <input
               type="password"
-              value={loginPassword}
-              onChange={e => setLoginPassword(e.target.value)}
+              ref={loginPasswordRef}
               required
               placeholder="비밀번호를 입력하세요"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -309,7 +306,7 @@ export default function Login() {
             <label className="block text-sm font-medium text-gray-700 mb-1">비밀번호 확인</label>
             <input
               type="password"
-              ref={confirmPasswordRef}
+              ref={confirmRef}
               required
               placeholder="비밀번호 재입력"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"

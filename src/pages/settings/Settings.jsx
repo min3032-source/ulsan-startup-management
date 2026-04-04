@@ -4,7 +4,7 @@ import { useAuth, ROLES } from '../../context/AuthContext'
 import { DEFAULT_SETTINGS } from '../../lib/constants'
 import Modal from '../../components/common/Modal'
 import Avatar from '../../components/common/Avatar'
-import { Save, Plus, Trash2, UserCog, Settings2, Users, PowerOff, UserX } from 'lucide-react'
+import { Save, Plus, Trash2, UserCog, Settings2, Users, PowerOff, UserX, KeyRound } from 'lucide-react'
 
 const ROLE_OPTIONS = [
   { value: 'master',  label: '마스터(팀장)' },
@@ -43,6 +43,12 @@ export default function Settings() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
+
+  // ── 비밀번호 변경 ─────────────────────────────────
+  const [newPw, setNewPw] = useState('')
+  const [confirmPw, setConfirmPw] = useState('')
+  const [pwMsg, setPwMsg] = useState('')
+  const [pwLoading, setPwLoading] = useState(false)
 
   const [newTeamName, setNewTeamName] = useState('')
 
@@ -127,6 +133,22 @@ export default function Settings() {
 
   function removeTeam(idx) {
     setSettings(prev => ({ ...prev, teams: prev.teams.filter((_, i) => i !== idx) }))
+  }
+
+  async function changePassword() {
+    setPwMsg('')
+    if (newPw.length < 8) { setPwMsg('비밀번호는 8자 이상이어야 합니다.'); return }
+    if (newPw !== confirmPw) { setPwMsg('비밀번호가 일치하지 않습니다.'); return }
+    setPwLoading(true)
+    const { error } = await supabase.auth.updateUser({ password: newPw })
+    setPwLoading(false)
+    if (error) {
+      setPwMsg('변경 실패: ' + error.message)
+    } else {
+      setPwMsg('비밀번호가 변경됐습니다.')
+      setNewPw('')
+      setConfirmPw('')
+    }
   }
 
   function openRoleModal(u) {
@@ -243,8 +265,9 @@ export default function Settings() {
       {/* 탭 */}
       <div className="flex border-b border-gray-200 mb-6 gap-1">
         {[
-          { key: 'team',  label: '팀 설정',    icon: Settings2 },
+          { key: 'team',     label: '팀 설정',      icon: Settings2 },
           ...(canManageUsers ? [{ key: 'users', label: '사용자 관리', icon: Users }] : []),
+          { key: 'password', label: '비밀번호 변경', icon: KeyRound },
         ].map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -452,6 +475,45 @@ export default function Settings() {
               이 화면에서 권한을 변경해 주세요.
             </p>
           </div>
+        </div>
+      )}
+
+      {/* ── 비밀번호 변경 탭 ── */}
+      {activeTab === 'password' && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-sm space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">새 비밀번호</label>
+            <input
+              type="password"
+              value={newPw}
+              onChange={e => setNewPw(e.target.value)}
+              placeholder="8자 이상 입력"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">새 비밀번호 확인</label>
+            <input
+              type="password"
+              value={confirmPw}
+              onChange={e => setConfirmPw(e.target.value)}
+              placeholder="비밀번호 재입력"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          {pwMsg && (
+            <p className={`text-sm ${pwMsg.includes('변경됐습니다') ? 'text-green-600' : 'text-red-500'}`}>
+              {pwMsg}
+            </p>
+          )}
+          <button
+            onClick={changePassword}
+            disabled={pwLoading}
+            className="w-full py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50"
+            style={{ background: '#2E75B6' }}
+          >
+            {pwLoading ? '변경 중...' : '변경하기'}
+          </button>
         </div>
       )}
 
