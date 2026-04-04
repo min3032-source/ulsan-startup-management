@@ -137,23 +137,24 @@ export default function Login() {
   // ── 승인 대기 화면 ────────────────────────────────
   if (signupComplete) {
     return (
-      <Card>
-        <div className="px-8 py-10 text-center space-y-4">
-          <div className="text-6xl">⏳</div>
-          <h2 className="text-xl font-bold text-gray-800">가입 신청 완료</h2>
-          <p className="text-sm text-gray-500 leading-relaxed">
+      <div className="min-h-screen flex items-center justify-center"
+        style={{ background: 'linear-gradient(135deg, #0D1B2A 0%, #1F4E79 100%)' }}>
+        <div className="bg-white rounded-2xl p-10 text-center shadow-xl max-w-sm w-full mx-4">
+          <div style={{ fontSize: '64px', marginBottom: '16px' }}>⏳</div>
+          <h2 className="text-2xl font-bold mb-3">가입 신청 완료</h2>
+          <p className="text-gray-500 mb-6">
             승인 대기 중입니다.<br />
             관리자 승인 후 이용 가능합니다.
           </p>
           <button
             onClick={() => { setSignupComplete(false); setTab('login') }}
-            className="w-full py-2.5 rounded-lg text-sm font-semibold text-white"
+            className="w-full py-2 rounded-lg text-white font-medium"
             style={{ background: '#2E75B6' }}
           >
-            로그인 화면으로
+            로그인 화면으로 돌아가기
           </button>
         </div>
-      </Card>
+      </div>
     )
   }
 

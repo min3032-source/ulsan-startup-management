@@ -42,7 +42,7 @@ const navGroups = [
     label: '보고·설정',
     items: [
       { to: '/report',   icon: FileText, label: '성과 보고' },
-      { to: '/settings', icon: Settings, label: '팀 설정' },
+      { to: '/settings', icon: Settings, label: '환경 설정' },
     ]
   },
 ]

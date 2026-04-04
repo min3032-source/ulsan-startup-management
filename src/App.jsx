@@ -29,7 +29,7 @@ function PrivateRoute({ children }) {
 }
 
 function AppRoutes() {
-  const { user, loading } = useAuth()
+  const { user, profile, loading } = useAuth()
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="text-gray-400">로딩 중...</div>
@@ -38,7 +38,7 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/login" element={(user && profile) ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/apply" element={<Apply />} />
       <Route path="/expert-apply" element={<ExpertApply />} />
       <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
