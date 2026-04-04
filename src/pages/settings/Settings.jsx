@@ -25,7 +25,7 @@ export default function Settings() {
   const canEdit  = hasRole('admin')
   const canManageUsers = hasRole('master')
 
-  const [activeTab, setActiveTab] = useState('team')
+  const [activeTab, setActiveTab] = useState('consult')
 
   // ── 팀 설정 ──────────────────────────────────────
   const [settings, setSettings] = useState({ ...DEFAULT_SETTINGS, teams: [] })
@@ -43,6 +43,20 @@ export default function Settings() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
+
+  // ── 팀 목록 ──────────────────────────────────────
+  const [newTeamName, setNewTeamName] = useState('')
+
+  function addTeam() {
+    const name = newTeamName.trim()
+    if (!name) return
+    setSettings(prev => ({ ...prev, teams: [...(prev.teams || []), name] }))
+    setNewTeamName('')
+  }
+
+  function removeTeam(idx) {
+    setSettings(prev => ({ ...prev, teams: (prev.teams || []).filter((_, i) => i !== idx) }))
+  }
 
   // ── 비밀번호 변경 ─────────────────────────────────
   const [newPw, setNewPw] = useState('')
@@ -85,6 +99,7 @@ export default function Settings() {
       programs: settings.programs,
       stages:   settings.stages,
       methods:  settings.methods,
+      teams:    settings.teams || [],
       updated_at: new Date().toISOString(),
     }
     let error
@@ -251,9 +266,10 @@ export default function Settings() {
       {/* 탭 */}
       <div className="flex border-b border-gray-200 mb-6 gap-1">
         {[
-          { key: 'team',     label: '팀 설정',      icon: Settings2 },
+          { key: 'consult',  label: '상담 설정',    icon: Settings2 },
+          { key: 'team',     label: '팀 설정',      icon: Users },
           { key: 'programs', label: '지원사업 등록', icon: Briefcase },
-          ...(canManageUsers ? [{ key: 'users', label: '사용자 관리', icon: Users }] : []),
+          ...(canManageUsers ? [{ key: 'users', label: '사용자 관리', icon: UserCog }] : []),
           { key: 'password', label: '비밀번호 변경', icon: KeyRound },
         ].map(({ key, label, icon: Icon }) => (
           <button
@@ -271,12 +287,12 @@ export default function Settings() {
         ))}
       </div>
 
-      {/* ── 팀 설정 탭 ── */}
-      {activeTab === 'team' && (
+      {/* ── 상담 설정 탭 ── */}
+      {activeTab === 'consult' && (
         <div className="space-y-6">
           {!canEdit && (
             <div className="bg-amber-50 border border-amber-200 text-amber-700 text-sm px-4 py-2.5 rounded-lg">
-              열람자 권한으로는 설정을 수정할 수 없습니다.
+              관리자 권한이 필요합니다.
             </div>
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -289,17 +305,66 @@ export default function Settings() {
           </div>
           {(canEdit || canManageUsers) && (
             <div className="flex items-center gap-3">
-              <button
-                onClick={saveSettings}
-                disabled={saving}
-                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-              >
+              <button onClick={saveSettings} disabled={saving}
+                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
                 <Save size={15} />
                 {saving ? '저장 중...' : '저장'}
               </button>
-              {saveMsg && (
-                <span className={`text-sm ${saveMsg.includes('실패') ? 'text-red-600' : 'text-green-600'}`}>{saveMsg}</span>
-              )}
+              {saveMsg && <span className={`text-sm ${saveMsg.includes('실패') ? 'text-red-600' : 'text-green-600'}`}>{saveMsg}</span>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── 팀 설정 탭 ── */}
+      {activeTab === 'team' && (
+        <div className="space-y-6">
+          {!canManageUsers && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-700 text-sm px-4 py-2.5 rounded-lg">
+              마스터 권한이 필요합니다.
+            </div>
+          )}
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-gray-700">팀 목록</span>
+            </div>
+            {canManageUsers && (
+              <div className="flex gap-2 mb-3">
+                <input
+                  value={newTeamName}
+                  onChange={e => setNewTeamName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addTeam()}
+                  placeholder="팀 이름 입력"
+                  className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+                <button onClick={addTeam} disabled={!newTeamName.trim()}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors">
+                  <Plus size={13} /> 추가
+                </button>
+              </div>
+            )}
+            <div className="space-y-1.5">
+              {(settings.teams || []).length === 0 && <p className="text-xs text-gray-400 py-1">등록된 팀이 없습니다.</p>}
+              {(settings.teams || []).map((team, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <span className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-gray-50 text-gray-700">{team}</span>
+                  {canManageUsers && (
+                    <button onClick={() => removeTeam(idx)} className="text-gray-300 hover:text-red-500">
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+          {canManageUsers && (
+            <div className="flex items-center gap-3">
+              <button onClick={saveSettings} disabled={saving}
+                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                <Save size={15} />
+                {saving ? '저장 중...' : '저장'}
+              </button>
+              {saveMsg && <span className={`text-sm ${saveMsg.includes('실패') ? 'text-red-600' : 'text-green-600'}`}>{saveMsg}</span>}
             </div>
           )}
         </div>

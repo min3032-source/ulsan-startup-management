@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext'
 import { Plus, Search, Pencil, Trash2, ClipboardList, CheckCircle, XCircle, Users } from 'lucide-react'
 
 const emptyForm = () => ({
-  name: '', phone: '', biz: '', region: '', gender: '', stage: '',
+  name: '', phone: '', biz: '', region: '', region_detail: '', gender: '', stage: '',
   q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '',
   verdict: '', date: today(),
 })
@@ -102,7 +102,7 @@ export default function Intake() {
     setEditingId(f.id)
     setForm({
       name: f.name || '', phone: f.phone || '', biz: f.biz || '',
-      region: f.region || '', gender: f.gender || '', stage: f.stage || '',
+      region: f.region || '', region_detail: f.region_detail || '', gender: f.gender || '', stage: f.stage || '',
       q1: f.q1 || '', q2: f.q2 || '', q3: f.q3 || '',
       q4: f.q4 || '', q5: f.q5 || '', q6: f.q6 || '', q7: f.q7 || '',
       verdict: f.verdict || '', date: f.date || today(),
@@ -127,7 +127,8 @@ export default function Intake() {
     if (!form.name.trim()) { alert('이름을 입력해주세요'); return }
     const payload = {
       name: form.name, phone: form.phone, biz: form.biz,
-      region: form.region, gender: form.gender, stage: form.stage,
+      region: form.region, region_detail: form.region === '기타(타지역)' ? form.region_detail : '',
+      gender: form.gender, stage: form.stage,
       q1: form.q1, q2: form.q2, q3: form.q3, q4: form.q4,
       q5: form.q5, q6: form.q6, q7: form.q7,
       verdict: form.verdict, date: form.date || today(),
@@ -399,6 +400,14 @@ export default function Intake() {
                 <option value="">선택</option>
                 {ULSAN_REGIONS.map(r => <option key={r}>{r}</option>)}
               </select>
+              {form.region === '기타(타지역)' && (
+                <input
+                  className="form-input mt-1.5"
+                  placeholder="어느 지역인지 입력해주세요"
+                  value={form.region_detail}
+                  onChange={e => handleFormChange('region_detail', e.target.value)}
+                />
+              )}
             </FormField>
             <FormField label="성별">
               <select className="form-input" value={form.gender} onChange={e => handleFormChange('gender', e.target.value)}>
