@@ -50,8 +50,6 @@ export default function Settings() {
   const [pwMsg, setPwMsg] = useState('')
   const [pwLoading, setPwLoading] = useState(false)
 
-  const [newTeamName, setNewTeamName] = useState('')
-
   useEffect(() => {
     loadSettings()
     if (canManageUsers) loadUsers()
@@ -87,7 +85,6 @@ export default function Settings() {
       programs: settings.programs,
       stages:   settings.stages,
       methods:  settings.methods,
-      teams:    settings.teams,
       updated_at: new Date().toISOString(),
     }
     let error
@@ -122,17 +119,6 @@ export default function Settings() {
       ...prev,
       [key]: prev[key].filter((_, i) => i !== idx),
     }))
-  }
-
-  function addTeam() {
-    const name = newTeamName.trim()
-    if (!name) return
-    setSettings(prev => ({ ...prev, teams: [...prev.teams, name] }))
-    setNewTeamName('')
-  }
-
-  function removeTeam(idx) {
-    setSettings(prev => ({ ...prev, teams: prev.teams.filter((_, i) => i !== idx) }))
   }
 
   async function changePassword() {
@@ -299,43 +285,6 @@ export default function Settings() {
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-5">
               <ListEditor label="창업 단계" stateKey="stages" />
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-gray-700">팀 목록</span>
-              {!canManageUsers && <span className="text-xs text-gray-400">마스터 권한만 수정 가능</span>}
-            </div>
-            {canManageUsers && (
-              <div className="flex gap-2 mb-3">
-                <input
-                  value={newTeamName}
-                  onChange={e => setNewTeamName(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addTeam()}
-                  placeholder="팀 이름 입력"
-                  className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400"
-                />
-                <button
-                  onClick={addTeam}
-                  disabled={!newTeamName.trim()}
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
-                >
-                  <Plus size={13} /> 추가
-                </button>
-              </div>
-            )}
-            <div className="space-y-1.5">
-              {settings.teams.length === 0 && <p className="text-xs text-gray-400 py-1">등록된 팀이 없습니다.</p>}
-              {settings.teams.map((team, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <span className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-gray-50 text-gray-700">{team}</span>
-                  {canManageUsers && (
-                    <button onClick={() => removeTeam(idx)} className="text-gray-300 hover:text-red-500">
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
-              ))}
             </div>
           </div>
           {(canEdit || canManageUsers) && (
