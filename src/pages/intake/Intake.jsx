@@ -237,6 +237,13 @@ export default function Intake() {
     setFounders(prev => prev.map(f => f.id === id ? { ...f, is_founder: true } : f))
   }
 
+  async function handleCancelFounder(id) {
+    if (!confirm('창업자 등록을 취소하시겠습니까?')) return
+    const { error } = await supabase.from('founders').update({ is_founder: false }).eq('id', id)
+    if (error) { alert('등록 취소 실패: ' + error.message); return }
+    setFounders(prev => prev.map(f => f.id === id ? { ...f, is_founder: false } : f))
+  }
+
   const filtered = founders.filter(f => {
     const matchSearch = !search || f.name?.includes(search) || f.phone?.includes(search) || f.biz?.includes(search)
     const matchVerdict = !filterVerdict || f.verdict === filterVerdict
@@ -420,7 +427,7 @@ export default function Intake() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  {['이름', '연락처', '창업유형', '지역', '창업단계', '담당자', '상담상태', '접수일', '관리'].concat(founderFilter !== 'founder' ? ['창업자등록'] : []).map(h => (
+                  {['이름', '연락처', '창업유형', '지역', '창업단계', '담당자', '상담상태', '접수일', '관리', '창업자등록'].map(h => (
                     <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
                   ))}
                 </tr>
@@ -483,21 +490,26 @@ export default function Intake() {
                         )}
                       </div>
                     </td>
-                    {founderFilter !== 'founder' && (
-                      <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
-                        {f.is_founder ? (
-                          <span className="text-xs text-green-600 font-medium">창업자</span>
-                        ) : canWrite ? (
+                    <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
+                      {f.is_founder ? (
+                        canWrite ? (
                           <button
-                            onClick={() => handleRegisterFounder(f.id)}
-                            className="text-xs px-2 py-0.5 text-white rounded"
-                            style={{ background: '#1E5631' }}
+                            onClick={() => handleCancelFounder(f.id)}
+                            className="text-xs px-2 py-0.5 border border-red-300 text-red-600 rounded hover:bg-red-50"
                           >
-                            등록
+                            등록 취소
                           </button>
-                        ) : null}
-                      </td>
-                    )}
+                        ) : <span className="text-xs text-green-600 font-medium">창업자 ✓</span>
+                      ) : (f.verdict && canWrite) ? (
+                        <button
+                          onClick={() => handleRegisterFounder(f.id)}
+                          className="text-xs px-2 py-0.5 text-white rounded"
+                          style={{ background: '#1E5631' }}
+                        >
+                          등록
+                        </button>
+                      ) : <span className="text-xs text-gray-300">-</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>

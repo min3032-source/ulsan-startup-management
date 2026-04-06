@@ -17,6 +17,7 @@ import Report from './pages/report/Report'
 import Settings from './pages/settings/Settings'
 import Apply from './pages/apply/Apply'
 import ExpertApply from './pages/expert-apply/ExpertApply'
+import Founders from './pages/founders/Founders'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -45,6 +46,7 @@ function AppRoutes() {
         <Route index element={<Dashboard />} />
         <Route path="stats" element={<Stats />} />
         <Route path="intake" element={<Intake />} />
+        <Route path="founders" element={<Founders />} />
         <Route path="consult" element={<Consult />} />
         <Route path="founderdb" element={<FounderDB />} />
         <Route path="experts" element={<Experts />} />

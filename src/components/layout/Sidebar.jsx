@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, BarChart3, UserPlus, MessageSquare, Database,
   Users, UserCheck, Link2, Building, TrendingUp, LineChart,
-  FileText, Settings, LogOut, ChevronRight, X
+  FileText, Settings, LogOut, ChevronRight, X, Award
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
@@ -14,6 +14,7 @@ const navGroups = [
       { to: '/stats',     icon: BarChart3,        label: '통계 현황' },
       { to: '/intake',    icon: UserPlus,         label: '상담 접수' },
       { to: '/consult',   icon: MessageSquare,    label: '상담일지' },
+      { to: '/founders',  icon: Award,            label: '창업자 관리' },
       { to: '/founderdb', icon: Database,         label: '창업자 DB' },
     ]
   },
