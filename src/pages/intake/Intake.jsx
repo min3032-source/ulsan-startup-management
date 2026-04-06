@@ -74,7 +74,7 @@ export default function Intake() {
     const { data } = await supabase
       .from('startup_applications')
       .select('*')
-      .neq('status', 'approved')
+      .is('approved_at', null)
       .order('created_at', { ascending: false })
     setApplications(data || [])
     setAppsLoading(false)
@@ -98,10 +98,10 @@ export default function Intake() {
       .single()
     if (insertError) { alert('상담 목록 추가 실패: ' + insertError.message); return }
 
-    // 2. insert 성공 후 신청 status를 'approved'로 업데이트
+    // 2. insert 성공 후 approved_at 타임스탬프 기록
     const { error: updateError } = await supabase
       .from('startup_applications')
-      .update({ status: 'approved' })
+      .update({ approved_at: new Date().toISOString() })
       .eq('id', app.id)
     if (updateError) { alert('승인 처리 중 오류: ' + updateError.message); return }
 
