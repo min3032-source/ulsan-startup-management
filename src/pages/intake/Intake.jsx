@@ -81,12 +81,7 @@ export default function Intake() {
   }
 
   async function approveApplication(app) {
-    const { error: updateError } = await supabase
-      .from('startup_applications')
-      .update({ status: 'approved' })
-      .eq('id', app.id)
-    if (updateError) { alert('승인 실패: ' + updateError.message); return }
-
+    // 1. founders 테이블에 먼저 insert
     const { data: newFounder, error: insertError } = await supabase
       .from('founders')
       .insert([{
@@ -101,8 +96,15 @@ export default function Intake() {
       }])
       .select()
       .single()
-
     if (insertError) { alert('상담 목록 추가 실패: ' + insertError.message); return }
+
+    // 2. insert 성공 후 신청 status를 'approved'로 업데이트
+    const { error: updateError } = await supabase
+      .from('startup_applications')
+      .update({ status: 'approved' })
+      .eq('id', app.id)
+    if (updateError) { alert('승인 처리 중 오류: ' + updateError.message); return }
+
     setApplications(prev => prev.filter(a => a.id !== app.id))
     if (newFounder) setFounders(prev => [newFounder, ...prev])
   }

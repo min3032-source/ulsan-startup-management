@@ -196,6 +196,7 @@ export default function Apply() {
       business_name: form.biz,
       business_type: verdict,
       business_stage: form.stage,
+      status: 'pending',
       description: JSON.stringify({
         consult_method: form.consult_method,
         preferred_date: form.preferred_date || null,
