@@ -18,7 +18,7 @@ const CONSULT_STATUS_COLORS = {
 const emptyForm = () => ({
   name: '', phone: '', email: '', biz: '',
   region: '', region_detail: '', gender: '', stage: '',
-  staff: '', consult_status: '대기중',
+  assignee: '', consult_status: '대기중',
   programs: [], content: '',
   q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '',
   verdict: '', date: today(),
@@ -137,7 +137,7 @@ export default function Intake() {
       name: f.name || '', phone: f.phone || '', email: f.email || '',
       biz: f.biz || '', region: f.region || '', region_detail: f.region_detail || '',
       gender: f.gender || '', stage: f.stage || '',
-      staff: f.staff || '', consult_status: f.consult_status || '대기중',
+      assignee: f.assignee || '', consult_status: f.consult_status || '대기중',
       programs: f.programs || [], content: f.content || '',
       q1: f.q1 || '', q2: f.q2 || '', q3: f.q3 || '',
       q4: f.q4 || '', q5: f.q5 || '', q6: f.q6 || '', q7: f.q7 || '',
@@ -180,7 +180,7 @@ export default function Intake() {
       biz: form.biz, region: form.region,
       region_detail: form.region === '기타(타지역)' ? form.region_detail : '',
       gender: form.gender, stage: form.stage,
-      staff: form.staff, consult_status: form.consult_status,
+      assignee: form.assignee, consult_status: form.consult_status,
       programs: form.programs, content: form.content,
       q1: form.q1, q2: form.q2, q3: form.q3, q4: form.q4,
       q5: form.q5, q6: form.q6, q7: form.q7,
@@ -409,7 +409,7 @@ export default function Intake() {
                         : f.region}
                     </td>
                     <td className="px-4 py-2.5 text-xs text-gray-500">{f.stage}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-600">{f.staff || '-'}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-600">{f.assignee || '-'}</td>
                     <td className="px-4 py-2.5">
                       {f.consult_status
                         ? <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${CONSULT_STATUS_COLORS[f.consult_status] || 'bg-gray-100 text-gray-500'}`}>
@@ -456,7 +456,7 @@ export default function Intake() {
                   : selectedFounder.region
               } />
               <Detail label="창업 단계" value={selectedFounder.stage} />
-              <Detail label="담당자" value={selectedFounder.staff} />
+              <Detail label="담당자" value={selectedFounder.assignee} />
               <Detail label="상담 상태" value={selectedFounder.consult_status} />
               <Detail label="창업 유형" value={selectedFounder.verdict} />
               <Detail label="접수일" value={selectedFounder.date} />
@@ -545,7 +545,7 @@ export default function Intake() {
 
           <div className="grid grid-cols-2 gap-3">
             <FormField label="담당자">
-              <select className="form-input" value={form.staff} onChange={e => handleFormChange('staff', e.target.value)}>
+              <select className="form-input" value={form.assignee} onChange={e => handleFormChange('assignee', e.target.value)}>
                 <option value="">선택</option>
                 {settings.staff.map(s => <option key={s}>{s}</option>)}
               </select>
