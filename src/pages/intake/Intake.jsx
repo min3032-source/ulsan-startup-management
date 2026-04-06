@@ -19,7 +19,7 @@ const emptyForm = () => ({
   name: '', phone: '', email: '', biz: '',
   region: '', region_detail: '', gender: '', stage: '',
   assignee: '', consult_status: '대기중',
-  programs: [], content: '',
+  programs: [], content: '', consult_content: '',
   q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '',
   verdict: '', date: today(),
 })
@@ -91,6 +91,7 @@ export default function Intake() {
       .insert([{
         name: app.applicant_name,
         phone: app.phone,
+        email: app.email || '',
         region: app.region || '',
         gender: app.gender || '',
         stage: app.business_stage || '',
@@ -137,7 +138,7 @@ export default function Intake() {
       biz: f.biz || '', region: f.region || '', region_detail: f.region_detail || '',
       gender: f.gender || '', stage: f.stage || '',
       assignee: f.assignee || '', consult_status: f.consult_status || '대기중',
-      programs: f.programs || [], content: f.content || '',
+      programs: f.programs || [], content: f.content || '', consult_content: f.consult_content || '',
       q1: f.q1 || '', q2: f.q2 || '', q3: f.q3 || '',
       q4: f.q4 || '', q5: f.q5 || '', q6: f.q6 || '', q7: f.q7 || '',
       verdict: f.verdict || '', date: f.date || today(),
@@ -173,22 +174,31 @@ export default function Intake() {
 
   async function handleSave() {
     if (!form.name.trim()) { alert('이름을 입력해주세요'); return }
-    if (!privacyAgreed) { alert('개인정보 수집·이용에 동의해주세요'); return }
-    const payload = {
-      name: form.name, phone: form.phone,
-      biz: form.biz, region: form.region,
-      region_detail: form.region === '기타(타지역)' ? form.region_detail : '',
-      gender: form.gender, stage: form.stage,
-      assignee: form.assignee, consult_status: form.consult_status,
-      verdict: form.verdict, date: form.date || today(),
-    }
+    if (!editingId && !privacyAgreed) { alert('개인정보 수집·이용에 동의해주세요'); return }
     try {
       if (editingId) {
-        const { error } = await supabase.from('founders').update(payload).eq('id', editingId)
+        // 섹션2(담당자 관리 정보)만 저장
+        const editPayload = {
+          assignee: form.assignee,
+          consult_status: form.consult_status,
+          consult_content: form.consult_content,
+        }
+        const { error } = await supabase.from('founders').update(editPayload).eq('id', editingId)
         if (error) throw error
-        setFounders(prev => prev.map(f => f.id === editingId ? { ...f, ...payload } : f))
+        setFounders(prev => prev.map(f => f.id === editingId ? { ...f, ...editPayload } : f))
       } else {
-        const { data, error } = await supabase.from('founders').insert([payload]).select().single()
+        const insertPayload = {
+          name: form.name, phone: form.phone, email: form.email,
+          biz: form.biz, region: form.region,
+          region_detail: form.region === '기타(타지역)' ? form.region_detail : '',
+          gender: form.gender, stage: form.stage,
+          assignee: form.assignee, consult_status: form.consult_status,
+          programs: form.programs, content: form.content,
+          q1: form.q1, q2: form.q2, q3: form.q3, q4: form.q4,
+          q5: form.q5, q6: form.q6, q7: form.q7,
+          verdict: form.verdict, date: form.date || today(),
+        }
+        const { data, error } = await supabase.from('founders').insert([insertPayload]).select().single()
         if (error) throw error
         setFounders(prev => [data, ...prev])
       }
@@ -494,89 +504,156 @@ export default function Intake() {
         }
       >
         <div className="space-y-4">
-          {/* 기본 정보 */}
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="이름 *">
-              <input className="form-input" value={form.name} onChange={e => handleFormChange('name', e.target.value)} />
-            </FormField>
-            <FormField label="연락처">
-              <input className="form-input" value={form.phone} onChange={e => handleFormChange('phone', e.target.value)} />
-            </FormField>
-          </div>
-          {!editingId && (
+          {editingId ? (
             <>
+              {/* ── 섹션 1: 신청 정보 (읽기 전용) ── */}
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">신청 정보 (읽기 전용)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <Detail label="이름" value={form.name} />
+                  <Detail label="연락처" value={form.phone} />
+                  <Detail label="이메일" value={form.email} />
+                  <Detail label="성별" value={form.gender} />
+                  <Detail label="지역" value={
+                    form.region === '기타(타지역)'
+                      ? `타지역${form.region_detail ? ` (${form.region_detail})` : ''}`
+                      : form.region
+                  } />
+                  <Detail label="창업 단계" value={form.stage} />
+                  <Detail label="신청일" value={form.date} />
+                </div>
+                {form.verdict && (
+                  <div>
+                    <div className="text-xs font-medium text-gray-500 mb-1">창업 유형</div>
+                    <VerdictBadge verdict={form.verdict} />
+                  </div>
+                )}
+                {(form.q1 || form.q2 || form.q3) && (
+                  <div>
+                    <div className="text-xs font-medium text-gray-500 mb-2">창업 유형 진단 답변</div>
+                    <div className="space-y-1.5">
+                      {['q1','q2','q3','q4','q5','q6'].map((qk, i) => form[qk] && (
+                        <div key={qk} className="flex items-start gap-2 text-xs">
+                          <span className="font-semibold text-blue-600 shrink-0 w-6">Q{i+1}.</span>
+                          <span className="text-gray-600 flex-1 leading-relaxed">{Q_LABELS[qk]}</span>
+                          <span className={`shrink-0 font-medium ${form[qk] === 'yes' ? 'text-blue-600' : 'text-gray-400'}`}>
+                            {form[qk] === 'yes' ? '예' : '아니오'}
+                          </span>
+                        </div>
+                      ))}
+                      {form.q7 && (
+                        <div className="flex items-start gap-2 text-xs">
+                          <span className="font-semibold text-blue-600 shrink-0 w-6">Q7.</span>
+                          <span className="text-gray-600 flex-1 leading-relaxed">{Q_LABELS.q7}</span>
+                          <span className="shrink-0 font-medium text-gray-500">
+                            {form.q7 === 'tech' ? '기술 고도화' : '지역 운영 확대'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {form.programs?.length > 0 && (
+                  <div>
+                    <div className="text-xs font-medium text-gray-500 mb-1">희망 지원사업</div>
+                    <div className="flex flex-wrap gap-1">
+                      {form.programs.map(p => (
+                        <span key={p} className="px-2 py-0.5 text-xs bg-blue-50 text-blue-700 rounded">{p}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {form.content && <Detail label="신청 내용" value={form.content} />}
+              </div>
+
+              {/* ── 섹션 2: 담당자 관리 정보 (수정 가능) ── */}
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">담당자 관리</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField label="담당자">
+                    <select className="form-input" value={form.assignee} onChange={e => handleFormChange('assignee', e.target.value)}>
+                      <option value="">선택</option>
+                      {settings.staff.map(s => <option key={s}>{s}</option>)}
+                    </select>
+                  </FormField>
+                  <FormField label="상담 상태">
+                    <select className="form-input" value={form.consult_status} onChange={e => handleFormChange('consult_status', e.target.value)}>
+                      {['대기중', '상담중', '완료', '보류'].map(s => <option key={s}>{s}</option>)}
+                    </select>
+                  </FormField>
+                </div>
+                <FormField label="상담 메모">
+                  <textarea
+                    className="form-input"
+                    rows={4}
+                    value={form.consult_content}
+                    onChange={e => handleFormChange('consult_content', e.target.value)}
+                    placeholder="상담 내용, 진행 사항 등을 입력하세요"
+                  />
+                </FormField>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* ── 신규 등록 폼 ── */}
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="이름 *">
+                  <input className="form-input" value={form.name} onChange={e => handleFormChange('name', e.target.value)} />
+                </FormField>
+                <FormField label="연락처">
+                  <input className="form-input" value={form.phone} onChange={e => handleFormChange('phone', e.target.value)} />
+                </FormField>
+              </div>
               <FormField label="이메일">
                 <input type="email" className="form-input" value={form.email} onChange={e => handleFormChange('email', e.target.value)} placeholder="example@email.com" />
               </FormField>
               <FormField label="사업 아이디어">
                 <input className="form-input" value={form.biz} onChange={e => handleFormChange('biz', e.target.value)} placeholder="예: AI 기반 물류 최적화" />
               </FormField>
-            </>
-          )}
-
-          <div className="grid grid-cols-3 gap-3">
-            <FormField label="지역">
-              <select className="form-input" value={form.region} onChange={e => handleFormChange('region', e.target.value)}>
-                <option value="">선택</option>
-                {ULSAN_REGIONS.map(r => <option key={r}>{r}</option>)}
-              </select>
-              {form.region === '기타(타지역)' && (
-                <input
-                  className="form-input mt-1.5"
-                  placeholder="어느 지역인지 입력해주세요"
-                  value={form.region_detail}
-                  onChange={e => handleFormChange('region_detail', e.target.value)}
-                />
-              )}
-            </FormField>
-            <FormField label="성별">
-              <select className="form-input" value={form.gender} onChange={e => handleFormChange('gender', e.target.value)}>
-                <option value="">선택</option>
-                <option>남</option><option>여</option>
-              </select>
-            </FormField>
-            <FormField label="창업 단계">
-              <select className="form-input" value={form.stage} onChange={e => handleFormChange('stage', e.target.value)}>
-                <option value="">선택</option>
-                {settings.stages.map(s => <option key={s}>{s}</option>)}
-              </select>
-            </FormField>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="담당자">
-              <select className="form-input" value={form.assignee} onChange={e => handleFormChange('assignee', e.target.value)}>
-                <option value="">선택</option>
-                {settings.staff.map(s => <option key={s}>{s}</option>)}
-              </select>
-            </FormField>
-            <FormField label="상담 상태">
-              <select className="form-input" value={form.consult_status} onChange={e => handleFormChange('consult_status', e.target.value)}>
-                {['대기중', '상담중', '완료', '보류'].map(s => <option key={s}>{s}</option>)}
-              </select>
-            </FormField>
-          </div>
-
-          {!editingId && (
-            <FormField label="접수일">
-              <input type="date" className="form-input" value={form.date} onChange={e => handleFormChange('date', e.target.value)} />
-            </FormField>
-          )}
-
-          {/* 상담 내용 메모 (수정 시에도 표시) */}
-          <FormField label="상담 내용 메모">
-            <textarea
-              className="form-input"
-              rows={3}
-              value={form.content}
-              onChange={e => handleFormChange('content', e.target.value)}
-              placeholder="상담 내용을 입력하세요"
-            />
-          </FormField>
-
-          {/* 신규 등록 전용: Q1~Q7 진단, 희망지원사업, 개인정보동의 */}
-          {!editingId && (
-            <>
+              <div className="grid grid-cols-3 gap-3">
+                <FormField label="지역">
+                  <select className="form-input" value={form.region} onChange={e => handleFormChange('region', e.target.value)}>
+                    <option value="">선택</option>
+                    {ULSAN_REGIONS.map(r => <option key={r}>{r}</option>)}
+                  </select>
+                  {form.region === '기타(타지역)' && (
+                    <input
+                      className="form-input mt-1.5"
+                      placeholder="어느 지역인지 입력해주세요"
+                      value={form.region_detail}
+                      onChange={e => handleFormChange('region_detail', e.target.value)}
+                    />
+                  )}
+                </FormField>
+                <FormField label="성별">
+                  <select className="form-input" value={form.gender} onChange={e => handleFormChange('gender', e.target.value)}>
+                    <option value="">선택</option>
+                    <option>남</option><option>여</option>
+                  </select>
+                </FormField>
+                <FormField label="창업 단계">
+                  <select className="form-input" value={form.stage} onChange={e => handleFormChange('stage', e.target.value)}>
+                    <option value="">선택</option>
+                    {settings.stages.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </FormField>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="담당자">
+                  <select className="form-input" value={form.assignee} onChange={e => handleFormChange('assignee', e.target.value)}>
+                    <option value="">선택</option>
+                    {settings.staff.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </FormField>
+                <FormField label="상담 상태">
+                  <select className="form-input" value={form.consult_status} onChange={e => handleFormChange('consult_status', e.target.value)}>
+                    {['대기중', '상담중', '완료', '보류'].map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </FormField>
+              </div>
+              <FormField label="접수일">
+                <input type="date" className="form-input" value={form.date} onChange={e => handleFormChange('date', e.target.value)} />
+              </FormField>
               <div className="bg-blue-50 rounded-xl p-4 space-y-3 border border-blue-100">
                 <div className="text-sm font-semibold text-blue-800">창업 유형 진단 (Q1~Q7)</div>
                 {['q1','q2','q3','q4','q5','q6'].map((qk, i) => (
@@ -587,12 +664,7 @@ export default function Intake() {
                     <div className="flex gap-2 flex-shrink-0">
                       {['yes', 'no'].map(v => (
                         <label key={v} className="flex items-center gap-1 cursor-pointer">
-                          <input
-                            type="radio" name={qk} value={v}
-                            checked={form[qk] === v}
-                            onChange={() => handleFormChange(qk, v)}
-                            className="w-3.5 h-3.5"
-                          />
+                          <input type="radio" name={qk} value={v} checked={form[qk] === v} onChange={() => handleFormChange(qk, v)} className="w-3.5 h-3.5" />
                           <span className="text-xs">{v === 'yes' ? '예' : '아니오'}</span>
                         </label>
                       ))}
@@ -606,19 +678,13 @@ export default function Intake() {
                   <div className="flex gap-2 flex-shrink-0">
                     {[['tech', '기술 고도화'], ['local', '지역 운영 확대']].map(([v, label]) => (
                       <label key={v} className="flex items-center gap-1 cursor-pointer">
-                        <input
-                          type="radio" name="q7" value={v}
-                          checked={form.q7 === v}
-                          onChange={() => handleFormChange('q7', v)}
-                          className="w-3.5 h-3.5"
-                        />
+                        <input type="radio" name="q7" value={v} checked={form.q7 === v} onChange={() => handleFormChange('q7', v)} className="w-3.5 h-3.5" />
                         <span className="text-xs">{label}</span>
                       </label>
                     ))}
                   </div>
                 </div>
               </div>
-
               <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
                 <span className="text-sm text-gray-600">판정 결과:</span>
                 {form.verdict
@@ -626,40 +692,28 @@ export default function Intake() {
                   : <span className="text-xs text-gray-400">Q1~Q7을 모두 선택하면 자동 계산됩니다</span>
                 }
               </div>
-
               <FormField label="희망 지원사업">
                 <div className="flex flex-wrap gap-2 mt-1">
                   {settings.programs.map(p => (
                     <label key={p} className="flex items-center gap-1 cursor-pointer text-xs">
-                      <input
-                        type="checkbox"
-                        checked={(form.programs || []).includes(p)}
-                        onChange={() => toggleProgram(p)}
-                        className="w-3.5 h-3.5"
-                      />
+                      <input type="checkbox" checked={(form.programs || []).includes(p)} onChange={() => toggleProgram(p)} className="w-3.5 h-3.5" />
                       {p}
                     </label>
                   ))}
                 </div>
               </FormField>
-
+              <FormField label="신청 내용">
+                <textarea className="form-input" rows={3} value={form.content} onChange={e => handleFormChange('content', e.target.value)} placeholder="신청 내용을 입력하세요" />
+              </FormField>
               <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-2">
                 <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="intake-privacy"
-                    checked={privacyAgreed}
-                    onChange={e => setPrivacyAgreed(e.target.checked)}
-                    className="w-4 h-4 accent-blue-600"
-                  />
+                  <input type="checkbox" id="intake-privacy" checked={privacyAgreed} onChange={e => setPrivacyAgreed(e.target.checked)} className="w-4 h-4 accent-blue-600" />
                   <label htmlFor="intake-privacy" className="text-xs text-gray-700 cursor-pointer">
                     개인정보 수집·이용에 동의합니다. <span className="text-red-500">(필수)</span>
                   </label>
                 </div>
                 <p className="text-xs text-gray-400 leading-relaxed">
-                  수집 항목: 성명, 연락처, 이메일, 사업 관련 정보 ·
-                  수집 목적: 창업 상담 서비스 제공 ·
-                  보유 기간: 상담 종료 후 3년
+                  수집 항목: 성명, 연락처, 이메일, 사업 관련 정보 · 수집 목적: 창업 상담 서비스 제공 · 보유 기간: 상담 종료 후 3년
                 </p>
               </div>
             </>
