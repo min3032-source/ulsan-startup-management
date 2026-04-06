@@ -74,6 +74,7 @@ export default function Intake() {
     const { data } = await supabase
       .from('startup_applications')
       .select('*')
+      .eq('status', 'pending')
       .order('created_at', { ascending: false })
     setApplications(data || [])
     setAppsLoading(false)
@@ -113,7 +114,7 @@ export default function Intake() {
       .update({ status: 'rejected' })
       .eq('id', app.id)
     if (error) { alert('반려 실패: ' + error.message); return }
-    setApplications(prev => prev.map(a => a.id === app.id ? { ...a, status: 'rejected' } : a))
+    setApplications(prev => prev.filter(a => a.id !== app.id))
   }
 
   async function deleteApplication(app) {
