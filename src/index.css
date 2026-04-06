@@ -39,6 +39,10 @@ body {
 }
 
 /* ── A4 인쇄 스타일 ─────────────────────────────────────── */
+
+/* 화면에서 한 장 출력 요약 숨기기 */
+#print-summary { display: none; }
+
 @media print {
   @page { size: A4; margin: 15mm; }
 
@@ -62,4 +66,10 @@ body {
   /* 인쇄 여백 제거 */
   .p-6 { padding: 0 !important; }
   .max-w-5xl { max-width: 100% !important; }
+
+  /* ── 한 장 출력 모드 ── */
+  body.print-one-page #report-content  { display: none !important; }
+  body.print-one-page #print-summary   { display: block !important; }
+  /* 일반 인쇄 모드에서 요약 숨기기 */
+  body:not(.print-one-page) #print-summary { display: none !important; }
 }
