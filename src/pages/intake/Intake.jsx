@@ -91,7 +91,6 @@ export default function Intake() {
       .insert([{
         name: app.applicant_name,
         phone: app.phone,
-        email: app.email || '',
         region: app.region || '',
         gender: app.gender || '',
         stage: app.business_stage || '',
@@ -176,14 +175,11 @@ export default function Intake() {
     if (!form.name.trim()) { alert('이름을 입력해주세요'); return }
     if (!privacyAgreed) { alert('개인정보 수집·이용에 동의해주세요'); return }
     const payload = {
-      name: form.name, phone: form.phone, email: form.email,
+      name: form.name, phone: form.phone,
       biz: form.biz, region: form.region,
       region_detail: form.region === '기타(타지역)' ? form.region_detail : '',
       gender: form.gender, stage: form.stage,
       assignee: form.assignee, consult_status: form.consult_status,
-      programs: form.programs, content: form.content,
-      q1: form.q1, q2: form.q2, q3: form.q3, q4: form.q4,
-      q5: form.q5, q6: form.q6, q7: form.q7,
       verdict: form.verdict, date: form.date || today(),
     }
     try {
