@@ -37,3 +37,29 @@ body {
 #root {
   min-height: 100vh;
 }
+
+/* ── A4 인쇄 스타일 ─────────────────────────────────────── */
+@media print {
+  @page { size: A4; margin: 15mm; }
+
+  /* 사이드바·헤더 숨기기 */
+  aside, header, nav,
+  .no-print { display: none !important; }
+
+  /* 레이아웃 펼치기 */
+  body { background: white !important; }
+  #root, main { display: block !important; width: 100% !important; }
+
+  /* 그림자·라운드 제거 */
+  .shadow-sm, .shadow { box-shadow: none !important; }
+
+  /* 페이지 나눔 방지 */
+  .grid, .bg-white { page-break-inside: avoid; }
+
+  /* 필터/버튼 숨기기 */
+  select, button { display: none !important; }
+
+  /* 인쇄 여백 제거 */
+  .p-6 { padding: 0 !important; }
+  .max-w-5xl { max-width: 100% !important; }
+}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { DEFAULT_SETTINGS, today } from '../../lib/constants'
+import { DEFAULT_SETTINGS, Q_LABELS, today } from '../../lib/constants'
 import { VerdictBadge, StatusBadge } from '../../components/common/Badge'
 import Modal from '../../components/common/Modal'
 import StatCard from '../../components/common/StatCard'
@@ -22,6 +22,7 @@ export default function Consult() {
   const [consults, setConsults] = useState([])
   const [founders, setFounders] = useState([])
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
+  const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
@@ -37,14 +38,16 @@ export default function Consult() {
   async function loadData() {
     setLoading(true)
     try {
-      const [{ data: c }, { data: f }, { data: s }] = await Promise.all([
+      const [{ data: c }, { data: f }, { data: s }, { data: u }] = await Promise.all([
         supabase.from('consults').select('*').order('date', { ascending: false }),
         supabase.from('founders').select('id, name, verdict, biz'),
         supabase.from('team_settings').select('*').limit(1).single(),
+        supabase.from('profiles').select('id, name').order('name'),
       ])
       setConsults(c || [])
       setFounders(f || [])
       if (s) setSettings({ ...DEFAULT_SETTINGS, ...s })
+      setUsers(u || [])
     } catch (e) {
       console.error(e)
     } finally {
@@ -154,7 +157,7 @@ export default function Consult() {
           </select>
           <select className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5" value={filterStaff} onChange={e => setFilterStaff(e.target.value)}>
             <option value="">전체 담당자</option>
-            {settings.staff.map(s => <option key={s}>{s}</option>)}
+            {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
           </select>
         </div>
         <button onClick={openAdd} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white rounded-lg" style={{ background: '#2E75B6' }}>
@@ -237,7 +240,7 @@ export default function Consult() {
               <label className="block text-xs font-medium text-gray-600 mb-1">담당자</label>
               <select className="form-input" value={form.staff} onChange={e => setField('staff', e.target.value)}>
                 <option value="">선택</option>
-                {settings.staff.map(s => <option key={s}>{s}</option>)}
+                {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
               </select>
             </div>
           </div>

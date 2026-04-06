@@ -47,6 +47,8 @@ export default function Intake() {
 
   const [applications, setApplications] = useState([])
   const [appsLoading, setAppsLoading] = useState(false)
+  const [users, setUsers] = useState([])
+  const [founderFilter, setFounderFilter] = useState('consultee') // 'all' | 'consultee' | 'founder'
 
   useEffect(() => { loadData() }, [])
   useEffect(() => {
@@ -56,12 +58,14 @@ export default function Intake() {
   async function loadData() {
     setLoading(true)
     try {
-      const [{ data: f }, { data: s }] = await Promise.all([
+      const [{ data: f }, { data: s }, { data: u }] = await Promise.all([
         supabase.from('founders').select('*').order('date', { ascending: false }),
         supabase.from('team_settings').select('*').limit(1).single(),
+        supabase.from('profiles').select('id, name').order('name'),
       ])
       setFounders(f || [])
       if (s) setSettings({ ...DEFAULT_SETTINGS, ...s })
+      setUsers(u || [])
     } catch (e) {
       console.error(e)
     } finally {
@@ -220,11 +224,28 @@ export default function Intake() {
     setFounders(prev => prev.filter(f => f.id !== id))
   }
 
-  const filtered = founders.filter(f =>
-    (!search || f.name?.includes(search) || f.phone?.includes(search) || f.biz?.includes(search)) &&
-    (!filterVerdict || f.verdict === filterVerdict) &&
-    (!filterRegion || f.region === filterRegion)
-  )
+  async function handleAssigneeChange(id, value) {
+    const { error } = await supabase.from('founders').update({ assignee: value }).eq('id', id)
+    if (error) { alert('담당자 변경 실패: ' + error.message); return }
+    setFounders(prev => prev.map(f => f.id === id ? { ...f, assignee: value } : f))
+  }
+
+  async function handleRegisterFounder(id) {
+    if (!confirm('이 상담자를 창업자로 등록하시겠습니까?')) return
+    const { error } = await supabase.from('founders').update({ is_founder: true }).eq('id', id)
+    if (error) { alert('창업자 등록 실패: ' + error.message); return }
+    setFounders(prev => prev.map(f => f.id === id ? { ...f, is_founder: true } : f))
+  }
+
+  const filtered = founders.filter(f => {
+    const matchSearch = !search || f.name?.includes(search) || f.phone?.includes(search) || f.biz?.includes(search)
+    const matchVerdict = !filterVerdict || f.verdict === filterVerdict
+    const matchRegion = !filterRegion || f.region === filterRegion
+    const matchTab = founderFilter === 'founder' ? f.is_founder === true
+      : founderFilter === 'consultee' ? !f.is_founder
+      : true
+    return matchSearch && matchVerdict && matchRegion && matchTab
+  })
 
   const techCount  = founders.filter(f => f.verdict?.includes('테크') && !f.verdict?.includes('혼합')).length
   const localCount = founders.filter(f => f.verdict?.includes('로컬') && !f.verdict?.includes('혼합')).length
@@ -339,6 +360,16 @@ export default function Intake() {
             <StatCard label="혼합형"    value={`${mixCount}건`}        color="orange" />
           </div>
 
+          {/* 상담자 / 창업자 필터 탭 */}
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+            {[['consultee', '상담자'], ['founder', '창업자'], ['all', '전체']].map(([key, label]) => (
+              <button key={key} onClick={() => setFounderFilter(key)}
+                className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                  founderFilter === key ? 'bg-white text-gray-800 font-medium shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}>{label}</button>
+            ))}
+          </div>
+
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative">
@@ -389,7 +420,7 @@ export default function Intake() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  {['이름', '연락처', '창업유형', '지역', '창업단계', '담당자', '상담상태', '접수일', '관리'].map(h => (
+                  {['이름', '연락처', '창업유형', '지역', '창업단계', '담당자', '상담상태', '접수일', '관리'].concat(founderFilter !== 'founder' ? ['창업자등록'] : []).map(h => (
                     <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
                   ))}
                 </tr>
@@ -419,7 +450,16 @@ export default function Intake() {
                         : f.region}
                     </td>
                     <td className="px-4 py-2.5 text-xs text-gray-500">{f.stage}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-600">{f.assignee || '-'}</td>
+                    <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
+                      <select
+                        className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-transparent hover:border-gray-400 focus:outline-none focus:border-blue-400 max-w-[90px]"
+                        value={f.assignee || ''}
+                        onChange={e => handleAssigneeChange(f.id, e.target.value)}
+                      >
+                        <option value="">-</option>
+                        {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                      </select>
+                    </td>
                     <td className="px-4 py-2.5">
                       {f.consult_status
                         ? <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${CONSULT_STATUS_COLORS[f.consult_status] || 'bg-gray-100 text-gray-500'}`}>
@@ -443,6 +483,21 @@ export default function Intake() {
                         )}
                       </div>
                     </td>
+                    {founderFilter !== 'founder' && (
+                      <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
+                        {f.is_founder ? (
+                          <span className="text-xs text-green-600 font-medium">창업자</span>
+                        ) : canWrite ? (
+                          <button
+                            onClick={() => handleRegisterFounder(f.id)}
+                            className="text-xs px-2 py-0.5 text-white rounded"
+                            style={{ background: '#1E5631' }}
+                          >
+                            등록
+                          </button>
+                        ) : null}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -577,7 +632,7 @@ export default function Intake() {
                   <FormField label="담당자">
                     <select className="form-input" value={form.assignee} onChange={e => handleFormChange('assignee', e.target.value)}>
                       <option value="">선택</option>
-                      {settings.staff.map(s => <option key={s}>{s}</option>)}
+                      {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
                     </select>
                   </FormField>
                   <FormField label="상담 상태">

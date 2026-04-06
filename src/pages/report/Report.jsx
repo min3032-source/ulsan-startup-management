@@ -39,7 +39,9 @@ export default function Report() {
         supabase.from('selected_firms').select('*'),
         supabase.from('support_items').select('*'),
         supabase.from('mentorings').select('*'),
-        supabase.from('growths').select('*').eq('year', year),
+        year === '전체'
+          ? supabase.from('growths').select('*')
+          : supabase.from('growths').select('*').eq('year', year),
       ])
 
       const f  = founders      || []
@@ -51,7 +53,7 @@ export default function Report() {
 
       // 연도 필터
       const filterYear = (arr, field) =>
-        arr.filter(x => x[field] && String(x[field]).startsWith(year))
+        year === '전체' ? arr : arr.filter(x => x[field] && String(x[field]).startsWith(year))
 
       let fYear  = filterYear(f,  'date')
       let cYear  = filterYear(c,  'date')
@@ -130,11 +132,12 @@ export default function Report() {
     }
   }
 
+  const yearLabel = year === '전체' ? '전체' : `${year}년`
   const reportTitle = program
-    ? `${year}년 ${program} 성과 보고서`
-    : `${year}년 창업지원 성과 보고서`
+    ? `${yearLabel} ${program} 성과 보고서`
+    : `${yearLabel} 창업지원 성과 보고서`
 
-  const yearOptions = Array.from({ length: 5 }, (_, i) => String(CURRENT_YEAR - i))
+  const yearOptions = ['전체', ...Array.from({ length: 5 }, (_, i) => String(CURRENT_YEAR - i))]
 
   return (
     <div className="p-6 max-w-5xl">
@@ -151,7 +154,7 @@ export default function Report() {
             className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400"
           >
             {yearOptions.map(y => (
-              <option key={y} value={y}>{y}년</option>
+              <option key={y} value={y}>{y === '전체' ? '전체 연도' : `${y}년`}</option>
             ))}
           </select>
           <select

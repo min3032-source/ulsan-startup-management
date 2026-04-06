@@ -6,11 +6,17 @@ import { VerdictBadge, StatusBadge } from '../../components/common/Badge'
 import Modal from '../../components/common/Modal'
 import StatCard from '../../components/common/StatCard'
 import Avatar from '../../components/common/Avatar'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight as ChevronRightIcon } from 'lucide-react'
 
 const emptyForm = () => ({
   founder_id: '', program: '', sub_program: '', start_date: today(), end_date: '',
   stage: '신청완료', result: '-', amount: '', staff: '', memo: '',
+})
+
+const emptyFirmForm = () => ({
+  company_name: '', ceo: '', program: '', staff: '',
+  start_date: today(), end_date: '', amount: '',
+  status: '지원중', memo: '',
 })
 
 export default function Support() {
@@ -20,27 +26,38 @@ export default function Support() {
 
   const [supports, setSupports] = useState([])
   const [founders, setFounders] = useState([])
+  const [selectedFirms, setSelectedFirms] = useState([])
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
+  const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('byFounder')
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState(emptyForm())
   const [preFounderId, setPreFounderId] = useState('')
+  // 사업별 탭 상태
+  const [firmModalOpen, setFirmModalOpen] = useState(false)
+  const [firmEditId, setFirmEditId] = useState(null)
+  const [firmForm, setFirmForm] = useState(emptyFirmForm())
+  const [expandedProgram, setExpandedProgram] = useState(null)
 
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
     setLoading(true)
     try {
-      const [{ data: s }, { data: f }, { data: st }] = await Promise.all([
+      const [{ data: s }, { data: f }, { data: st }, { data: sf }, { data: u }] = await Promise.all([
         supabase.from('support_items').select('*').order('start_date', { ascending: false }),
         supabase.from('founders').select('*'),
         supabase.from('team_settings').select('*').limit(1).single(),
+        supabase.from('selected_firms').select('*').order('start_date', { ascending: false }),
+        supabase.from('profiles').select('id, name').order('name'),
       ])
       setSupports(s || [])
       setFounders(f || [])
+      setSelectedFirms(sf || [])
       if (st) setSettings({ ...DEFAULT_SETTINGS, ...st })
+      setUsers(u || [])
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
   }
@@ -96,6 +113,47 @@ export default function Support() {
     setSupports(prev => prev.filter(s => s.id !== id))
   }
 
+  function openFirmAdd(program = '') {
+    setFirmEditId(null)
+    setFirmForm({ ...emptyFirmForm(), program })
+    setFirmModalOpen(true)
+  }
+
+  function openFirmEdit(firm) {
+    setFirmEditId(firm.id)
+    setFirmForm({
+      company_name: firm.company_name || '', ceo: firm.ceo || '',
+      program: firm.program || '', staff: firm.staff || '',
+      start_date: firm.start_date || today(), end_date: firm.end_date || '',
+      amount: firm.amount || '', status: firm.status || '지원중', memo: firm.memo || '',
+    })
+    setFirmModalOpen(true)
+  }
+
+  async function handleFirmSave() {
+    if (!firmForm.company_name.trim()) { alert('기업명을 입력해주세요'); return }
+    if (!firmForm.program) { alert('지원사업을 선택해주세요'); return }
+    try {
+      if (firmEditId) {
+        const { error } = await supabase.from('selected_firms').update(firmForm).eq('id', firmEditId)
+        if (error) throw error
+        setSelectedFirms(prev => prev.map(f => f.id === firmEditId ? { ...f, ...firmForm } : f))
+      } else {
+        const { data, error } = await supabase.from('selected_firms').insert([firmForm]).select().single()
+        if (error) throw error
+        setSelectedFirms(prev => [data, ...prev])
+      }
+      setFirmModalOpen(false)
+    } catch (e) { alert('저장 실패: ' + e.message) }
+  }
+
+  async function handleFirmDelete(id) {
+    if (!confirm('이 선정기업을 삭제하시겠습니까?')) return
+    const { error } = await supabase.from('selected_firms').delete().eq('id', id)
+    if (error) { alert('삭제 실패: ' + error.message); return }
+    setSelectedFirms(prev => prev.filter(f => f.id !== id))
+  }
+
   const byFounder = {}
   supports.forEach(s => {
     if (!byFounder[s.founder_id]) byFounder[s.founder_id] = []
@@ -106,6 +164,7 @@ export default function Support() {
 
   const tabs = [
     { key: 'byFounder', label: '창업자별' },
+    { key: 'byProgram', label: '사업별' },
     { key: 'all', label: '전체 이력' },
     { key: 'timeline', label: '타임라인' },
   ]
@@ -145,13 +204,80 @@ export default function Support() {
       ) : activeTab === 'byFounder' ? (
         <ByFounderTab founders={founders} byFounder={byFounder} founderMap={founderMap}
           onAdd={openAdd} onEdit={openEdit} onDelete={handleDelete} />
+      ) : activeTab === 'byProgram' ? (
+        <ByProgramTab
+          programs={settings.programs} selectedFirms={selectedFirms}
+          expandedProgram={expandedProgram} setExpandedProgram={setExpandedProgram}
+          onAdd={openFirmAdd} onEdit={openFirmEdit} onDelete={handleFirmDelete}
+          canWrite={canWrite} canDelete={canDelete}
+        />
       ) : activeTab === 'all' ? (
         <AllTab supports={supports} founderMap={founderMap} onEdit={openEdit} onDelete={handleDelete} />
       ) : (
         <TimelineTab founders={founders} byFounder={byFounder} founderMap={founderMap} />
       )}
 
-      {/* Modal */}
+      {/* 선정기업 Modal */}
+      <Modal isOpen={firmModalOpen} onClose={() => setFirmModalOpen(false)} title={firmEditId ? '선정기업 수정' : '선정기업 등록'} wide
+        footer={
+          <>
+            <button onClick={() => setFirmModalOpen(false)} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
+            <button onClick={handleFirmSave} className="px-4 py-1.5 text-sm text-white rounded-lg" style={{ background: '#2E75B6' }}>저장</button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">기업명 *</label>
+              <input className="form-input" value={firmForm.company_name} onChange={e => setFirmForm(p => ({ ...p, company_name: e.target.value }))} placeholder="(주)예시기업" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">대표자</label>
+              <input className="form-input" value={firmForm.ceo} onChange={e => setFirmForm(p => ({ ...p, ceo: e.target.value }))} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">지원사업 *</label>
+            <select className="form-input" value={firmForm.program} onChange={e => setFirmForm(p => ({ ...p, program: e.target.value }))}>
+              <option value="">선택</option>
+              {settings.programs.map(p => <option key={p}>{p}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">시작일</label>
+              <input type="date" className="form-input" value={firmForm.start_date} onChange={e => setFirmForm(p => ({ ...p, start_date: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">종료일</label>
+              <input type="date" className="form-input" value={firmForm.end_date} onChange={e => setFirmForm(p => ({ ...p, end_date: e.target.value }))} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">지원 금액 (만원)</label>
+              <input type="number" className="form-input" value={firmForm.amount} onChange={e => setFirmForm(p => ({ ...p, amount: e.target.value }))} placeholder="예: 5000" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">상태</label>
+              <select className="form-input" value={firmForm.status} onChange={e => setFirmForm(p => ({ ...p, status: e.target.value }))}>
+                {['지원중', '선정', '미선정', '완료'].map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">담당자</label>
+            <input className="form-input" value={firmForm.staff} onChange={e => setFirmForm(p => ({ ...p, staff: e.target.value }))} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">메모</label>
+            <textarea className="form-input" rows={2} value={firmForm.memo} onChange={e => setFirmForm(p => ({ ...p, memo: e.target.value }))} />
+          </div>
+        </div>
+      </Modal>
+
+      {/* 지원사업 연계 Modal */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? '지원사업 수정' : '지원사업 등록'} wide
         footer={
           <>
@@ -173,7 +299,7 @@ export default function Support() {
               <label className="block text-xs font-medium text-gray-600 mb-1">담당자</label>
               <select className="form-input" value={form.staff} onChange={e => setField('staff', e.target.value)}>
                 <option value="">선택</option>
-                {settings.staff.map(s => <option key={s}>{s}</option>)}
+                {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
               </select>
             </div>
           </div>
@@ -219,6 +345,83 @@ export default function Support() {
           </div>
         </div>
       </Modal>
+    </div>
+  )
+}
+
+function ByProgramTab({ programs, selectedFirms, expandedProgram, setExpandedProgram, onAdd, onEdit, onDelete, canWrite, canDelete }) {
+  if (!programs || programs.length === 0) return (
+    <div className="text-center py-16 text-gray-400">환경설정에서 지원사업을 먼저 등록해주세요</div>
+  )
+  return (
+    <div className="space-y-3">
+      {programs.map(prog => {
+        const firms = selectedFirms.filter(f => f.program === prog)
+        const isOpen = expandedProgram === prog
+        const totalAmt = firms.reduce((a, f) => a + (Number(f.amount) || 0), 0)
+        return (
+          <div key={prog} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <button
+              className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors"
+              onClick={() => setExpandedProgram(isOpen ? null : prog)}
+            >
+              <div className="flex items-center gap-3">
+                {isOpen ? <ChevronDown size={16} className="text-gray-400" /> : <ChevronRightIcon size={16} className="text-gray-400" />}
+                <span className="font-semibold text-gray-800 text-sm">{prog}</span>
+                <span className="text-xs text-gray-400">선정기업 {firms.length}개사</span>
+                {totalAmt > 0 && <span className="text-xs font-bold text-green-700">총 {totalAmt.toLocaleString()}만원</span>}
+              </div>
+              {canWrite && (
+                <span
+                  className="text-xs px-2.5 py-1 text-white rounded-lg"
+                  style={{ background: '#2E75B6' }}
+                  onClick={e => { e.stopPropagation(); onAdd(prog) }}
+                >
+                  + 기업 추가
+                </span>
+              )}
+            </button>
+            {isOpen && (
+              <div className="border-t border-gray-100">
+                {firms.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400 text-sm">등록된 선정기업이 없습니다</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-100">
+                          {['기업명', '대표자', '시작일', '종료일', '지원금(만원)', '상태', '담당자', '관리'].map(h => (
+                            <th key={h} className="text-left px-4 py-2 text-xs font-medium text-gray-500">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {firms.map(firm => (
+                          <tr key={firm.id} className="border-b border-gray-50 hover:bg-gray-50">
+                            <td className="px-4 py-2.5 font-medium text-xs text-gray-800">{firm.company_name}</td>
+                            <td className="px-4 py-2.5 text-xs text-gray-500">{firm.ceo || '-'}</td>
+                            <td className="px-4 py-2.5 text-xs text-gray-500">{firm.start_date || '-'}</td>
+                            <td className="px-4 py-2.5 text-xs text-gray-500">{firm.end_date || <span className="text-orange-500">진행중</span>}</td>
+                            <td className="px-4 py-2.5 text-xs font-bold text-green-700">{firm.amount ? Number(firm.amount).toLocaleString() : '-'}</td>
+                            <td className="px-4 py-2.5"><StatusBadge status={firm.status} /></td>
+                            <td className="px-4 py-2.5 text-xs text-gray-500">{firm.staff || '-'}</td>
+                            <td className="px-4 py-2.5">
+                              <div className="flex gap-1">
+                                {canWrite && <button onClick={() => onEdit(firm)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-600"><Pencil size={12} /></button>}
+                                {canDelete && <button onClick={() => onDelete(firm.id)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-red-600"><Trash2 size={12} /></button>}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { ULSAN_REGIONS } from '../../lib/constants'
+import { ULSAN_REGIONS, today } from '../../lib/constants'
 import { CheckCircle, ChevronRight, ChevronLeft } from 'lucide-react'
 import PublicHeader from '../../components/common/PublicHeader'
 
@@ -47,6 +47,29 @@ const VERDICT_INFO = {
 }
 
 const STEPS = ['창업 유형 자가진단', '상담 신청서 작성', '접수 완료']
+
+// ── 상담 일정 제한 ────────────────────────────────────────
+const HOLIDAYS_2026 = [
+  '2026-01-01', '2026-02-16', '2026-02-17', '2026-02-18',
+  '2026-03-01', '2026-05-01', '2026-05-05', '2026-05-24',
+  '2026-06-06', '2026-08-15', '2026-09-30', '2026-10-01',
+  '2026-10-02', '2026-10-03', '2026-10-09', '2026-12-25',
+]
+
+const TIME_SLOTS = [
+  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+  '13:00', '13:30', '14:00', '14:30', '15:00', '15:30',
+  '16:00', '16:30', '17:00', '17:30',
+]
+
+function isValidConsultDate(dateStr) {
+  if (!dateStr) return false
+  const d = new Date(dateStr + 'T12:00:00')
+  const day = d.getDay() // 0=일, 6=토
+  if (day === 0 || day === 6) return false
+  if (HOLIDAYS_2026.includes(dateStr)) return false
+  return true
+}
 
 function emptyForm() {
   return {
@@ -456,12 +479,25 @@ export default function Apply() {
               </Field>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="희망 상담일">
-                  <input type="date" value={form.preferred_date} onChange={e => set('preferred_date', e.target.value)}
+                  <input type="date"
+                    value={form.preferred_date}
+                    min={today()}
+                    onChange={e => { set('preferred_date', e.target.value); set('preferred_time', '') }}
                     className={input()} />
+                  {form.preferred_date && !isValidConsultDate(form.preferred_date) && (
+                    <p className="text-red-500 text-xs mt-1">주말 및 공휴일은 선택할 수 없습니다.</p>
+                  )}
                 </Field>
                 <Field label="희망 시간">
-                  <input type="time" value={form.preferred_time} onChange={e => set('preferred_time', e.target.value)}
-                    className={input()} />
+                  <select
+                    value={form.preferred_time}
+                    onChange={e => set('preferred_time', e.target.value)}
+                    disabled={!form.preferred_date || !isValidConsultDate(form.preferred_date)}
+                    className={input()}
+                  >
+                    <option value="">선택 (09:00~17:30, 점심 제외)</option>
+                    {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
                 </Field>
               </div>
               <Field label="상담 신청 내용">
