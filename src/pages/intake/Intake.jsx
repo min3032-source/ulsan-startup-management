@@ -81,7 +81,15 @@ export default function Intake() {
   }
 
   async function approveApplication(app) {
-    // 1. founders 테이블에 먼저 insert
+    // 1. status 업데이트 먼저
+    const { error: statusError } = await supabase
+      .from('startup_applications')
+      .update({ status: 'approved', approved_at: new Date().toISOString() })
+      .eq('id', app.id)
+    console.log('status 업데이트 결과:', statusError)
+    if (statusError) { alert('상태 업데이트 실패: ' + statusError.message); return }
+
+    // 2. status 업데이트 성공 후 founders insert
     const { data: newFounder, error: insertError } = await supabase
       .from('founders')
       .insert([{
@@ -97,13 +105,6 @@ export default function Intake() {
       .select()
       .single()
     if (insertError) { alert('상담 목록 추가 실패: ' + insertError.message); return }
-
-    // 2. insert 성공 후 approved_at 타임스탬프 기록
-    const { error: updateError } = await supabase
-      .from('startup_applications')
-      .update({ approved_at: new Date().toISOString() })
-      .eq('id', app.id)
-    if (updateError) { alert('승인 처리 중 오류: ' + updateError.message); return }
 
     setApplications(prev => prev.filter(a => a.id !== app.id))
     if (newFounder) setFounders(prev => [newFounder, ...prev])
