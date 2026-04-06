@@ -101,7 +101,7 @@ export default function Intake() {
       .single()
 
     if (insertError) { alert('상담 목록 추가 실패: ' + insertError.message); return }
-    setApplications(prev => prev.map(a => a.id === app.id ? { ...a, status: 'approved' } : a))
+    setApplications(prev => prev.filter(a => a.id !== app.id))
     if (newFounder) setFounders(prev => [newFounder, ...prev])
   }
 
@@ -484,7 +484,7 @@ export default function Intake() {
             <button onClick={() => setModalOpen(false)} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
             <button
               onClick={handleSave}
-              disabled={!privacyAgreed}
+              disabled={!editingId && !privacyAgreed}
               className="px-4 py-1.5 text-sm text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: '#2E75B6' }}
             >
@@ -503,12 +503,16 @@ export default function Intake() {
               <input className="form-input" value={form.phone} onChange={e => handleFormChange('phone', e.target.value)} />
             </FormField>
           </div>
-          <FormField label="이메일">
-            <input type="email" className="form-input" value={form.email} onChange={e => handleFormChange('email', e.target.value)} placeholder="example@email.com" />
-          </FormField>
-          <FormField label="사업 아이디어">
-            <input className="form-input" value={form.biz} onChange={e => handleFormChange('biz', e.target.value)} placeholder="예: AI 기반 물류 최적화" />
-          </FormField>
+          {!editingId && (
+            <>
+              <FormField label="이메일">
+                <input type="email" className="form-input" value={form.email} onChange={e => handleFormChange('email', e.target.value)} placeholder="example@email.com" />
+              </FormField>
+              <FormField label="사업 아이디어">
+                <input className="form-input" value={form.biz} onChange={e => handleFormChange('biz', e.target.value)} placeholder="예: AI 기반 물류 최적화" />
+              </FormField>
+            </>
+          )}
 
           <div className="grid grid-cols-3 gap-3">
             <FormField label="지역">
@@ -553,80 +557,14 @@ export default function Intake() {
             </FormField>
           </div>
 
-          <FormField label="접수일">
-            <input type="date" className="form-input" value={form.date} onChange={e => handleFormChange('date', e.target.value)} />
-          </FormField>
+          {!editingId && (
+            <FormField label="접수일">
+              <input type="date" className="form-input" value={form.date} onChange={e => handleFormChange('date', e.target.value)} />
+            </FormField>
+          )}
 
-          {/* Q1~Q7 창업 유형 진단 */}
-          <div className="bg-blue-50 rounded-xl p-4 space-y-3 border border-blue-100">
-            <div className="text-sm font-semibold text-blue-800">창업 유형 진단 (Q1~Q7)</div>
-            {['q1','q2','q3','q4','q5','q6'].map((qk, i) => (
-              <div key={qk} className="flex items-start gap-3">
-                <div className="text-xs text-gray-600 flex-1 pt-0.5">
-                  <span className="font-bold text-blue-600">Q{i + 1}.</span> {Q_LABELS[qk]}
-                </div>
-                <div className="flex gap-2 flex-shrink-0">
-                  {['yes', 'no'].map(v => (
-                    <label key={v} className="flex items-center gap-1 cursor-pointer">
-                      <input
-                        type="radio" name={qk} value={v}
-                        checked={form[qk] === v}
-                        onChange={() => handleFormChange(qk, v)}
-                        className="w-3.5 h-3.5"
-                      />
-                      <span className="text-xs">{v === 'yes' ? '예' : '아니오'}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            ))}
-            <div className="flex items-start gap-3">
-              <div className="text-xs text-gray-600 flex-1 pt-0.5">
-                <span className="font-bold text-blue-600">Q7.</span> {Q_LABELS.q7}
-              </div>
-              <div className="flex gap-2 flex-shrink-0">
-                {[['tech', '기술 고도화'], ['local', '지역 운영 확대']].map(([v, label]) => (
-                  <label key={v} className="flex items-center gap-1 cursor-pointer">
-                    <input
-                      type="radio" name="q7" value={v}
-                      checked={form.q7 === v}
-                      onChange={() => handleFormChange('q7', v)}
-                      className="w-3.5 h-3.5"
-                    />
-                    <span className="text-xs">{label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
-            <span className="text-sm text-gray-600">판정 결과:</span>
-            {form.verdict
-              ? <VerdictBadge verdict={form.verdict} />
-              : <span className="text-xs text-gray-400">Q1~Q7을 모두 선택하면 자동 계산됩니다</span>
-            }
-          </div>
-
-          {/* 희망 지원사업 */}
-          <FormField label="희망 지원사업">
-            <div className="flex flex-wrap gap-2 mt-1">
-              {settings.programs.map(p => (
-                <label key={p} className="flex items-center gap-1 cursor-pointer text-xs">
-                  <input
-                    type="checkbox"
-                    checked={(form.programs || []).includes(p)}
-                    onChange={() => toggleProgram(p)}
-                    className="w-3.5 h-3.5"
-                  />
-                  {p}
-                </label>
-              ))}
-            </div>
-          </FormField>
-
-          {/* 상담 내용 */}
-          <FormField label="상담 내용">
+          {/* 상담 내용 메모 (수정 시에도 표시) */}
+          <FormField label="상담 내용 메모">
             <textarea
               className="form-input"
               rows={3}
@@ -636,26 +574,96 @@ export default function Intake() {
             />
           </FormField>
 
-          {/* 개인정보 동의 */}
-          <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-2">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="intake-privacy"
-                checked={privacyAgreed}
-                onChange={e => setPrivacyAgreed(e.target.checked)}
-                className="w-4 h-4 accent-blue-600"
-              />
-              <label htmlFor="intake-privacy" className="text-xs text-gray-700 cursor-pointer">
-                개인정보 수집·이용에 동의합니다. <span className="text-red-500">(필수)</span>
-              </label>
-            </div>
-            <p className="text-xs text-gray-400 leading-relaxed">
-              수집 항목: 성명, 연락처, 이메일, 사업 관련 정보 ·
-              수집 목적: 창업 상담 서비스 제공 ·
-              보유 기간: 상담 종료 후 3년
-            </p>
-          </div>
+          {/* 신규 등록 전용: Q1~Q7 진단, 희망지원사업, 개인정보동의 */}
+          {!editingId && (
+            <>
+              <div className="bg-blue-50 rounded-xl p-4 space-y-3 border border-blue-100">
+                <div className="text-sm font-semibold text-blue-800">창업 유형 진단 (Q1~Q7)</div>
+                {['q1','q2','q3','q4','q5','q6'].map((qk, i) => (
+                  <div key={qk} className="flex items-start gap-3">
+                    <div className="text-xs text-gray-600 flex-1 pt-0.5">
+                      <span className="font-bold text-blue-600">Q{i + 1}.</span> {Q_LABELS[qk]}
+                    </div>
+                    <div className="flex gap-2 flex-shrink-0">
+                      {['yes', 'no'].map(v => (
+                        <label key={v} className="flex items-center gap-1 cursor-pointer">
+                          <input
+                            type="radio" name={qk} value={v}
+                            checked={form[qk] === v}
+                            onChange={() => handleFormChange(qk, v)}
+                            className="w-3.5 h-3.5"
+                          />
+                          <span className="text-xs">{v === 'yes' ? '예' : '아니오'}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <div className="flex items-start gap-3">
+                  <div className="text-xs text-gray-600 flex-1 pt-0.5">
+                    <span className="font-bold text-blue-600">Q7.</span> {Q_LABELS.q7}
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    {[['tech', '기술 고도화'], ['local', '지역 운영 확대']].map(([v, label]) => (
+                      <label key={v} className="flex items-center gap-1 cursor-pointer">
+                        <input
+                          type="radio" name="q7" value={v}
+                          checked={form.q7 === v}
+                          onChange={() => handleFormChange('q7', v)}
+                          className="w-3.5 h-3.5"
+                        />
+                        <span className="text-xs">{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                <span className="text-sm text-gray-600">판정 결과:</span>
+                {form.verdict
+                  ? <VerdictBadge verdict={form.verdict} />
+                  : <span className="text-xs text-gray-400">Q1~Q7을 모두 선택하면 자동 계산됩니다</span>
+                }
+              </div>
+
+              <FormField label="희망 지원사업">
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {settings.programs.map(p => (
+                    <label key={p} className="flex items-center gap-1 cursor-pointer text-xs">
+                      <input
+                        type="checkbox"
+                        checked={(form.programs || []).includes(p)}
+                        onChange={() => toggleProgram(p)}
+                        className="w-3.5 h-3.5"
+                      />
+                      {p}
+                    </label>
+                  ))}
+                </div>
+              </FormField>
+
+              <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="intake-privacy"
+                    checked={privacyAgreed}
+                    onChange={e => setPrivacyAgreed(e.target.checked)}
+                    className="w-4 h-4 accent-blue-600"
+                  />
+                  <label htmlFor="intake-privacy" className="text-xs text-gray-700 cursor-pointer">
+                    개인정보 수집·이용에 동의합니다. <span className="text-red-500">(필수)</span>
+                  </label>
+                </div>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  수집 항목: 성명, 연락처, 이메일, 사업 관련 정보 ·
+                  수집 목적: 창업 상담 서비스 제공 ·
+                  보유 기간: 상담 종료 후 3년
+                </p>
+              </div>
+            </>
+          )}
         </div>
       </Modal>
     </div>
