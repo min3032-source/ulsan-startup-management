@@ -701,7 +701,7 @@ export default function Intake() {
                 <FormField label="담당자">
                   <select className="form-input" value={form.assignee} onChange={e => handleFormChange('assignee', e.target.value)}>
                     <option value="">선택</option>
-                    {settings.staff.map(s => <option key={s}>{s}</option>)}
+                    {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
                   </select>
                 </FormField>
                 <FormField label="상담 상태">
