@@ -43,6 +43,17 @@ body {
 /* 화면에서 한 장 출력 요약 숨기기 */
 #print-summary { display: none; }
 
+/* 담당자 저장 성공 플래시 */
+@keyframes flash-green {
+  0%   { background-color: transparent; }
+  25%  { background-color: #dcfce7; }
+  75%  { background-color: #dcfce7; }
+  100% { background-color: transparent; }
+}
+.bg-green-50 {
+  animation: flash-green 1.2s ease-in-out;
+}
+
 @media print {
   @page { size: A4; margin: 15mm; }
 

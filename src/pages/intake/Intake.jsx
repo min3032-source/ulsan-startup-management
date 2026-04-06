@@ -49,6 +49,7 @@ export default function Intake() {
   const [appsLoading, setAppsLoading] = useState(false)
   const [users, setUsers] = useState([])
   const [founderFilter, setFounderFilter] = useState('consultee') // 'all' | 'consultee' | 'founder'
+  const [flashId, setFlashId] = useState(null)
 
   useEffect(() => { loadData() }, [])
   useEffect(() => {
@@ -105,6 +106,7 @@ export default function Intake() {
         stage: app.business_stage || '',
         consult_status: '대기중',
         date: today(),
+        assignee: app.assignee || '',
       }])
       .select()
       .single()
@@ -228,6 +230,14 @@ export default function Intake() {
     const { error } = await supabase.from('founders').update({ assignee: value }).eq('id', id)
     if (error) { alert('담당자 변경 실패: ' + error.message); return }
     setFounders(prev => prev.map(f => f.id === id ? { ...f, assignee: value } : f))
+    setFlashId(id)
+    setTimeout(() => setFlashId(null), 1200)
+  }
+
+  async function handleAppAssigneeChange(appId, value) {
+    const { error } = await supabase.from('startup_applications').update({ assignee: value }).eq('id', appId)
+    if (error) { alert('담당자 배정 실패: ' + error.message); return }
+    setApplications(prev => prev.map(a => a.id === appId ? { ...a, assignee: value } : a))
   }
 
   async function handleRegisterFounder(id) {
@@ -323,6 +333,20 @@ export default function Intake() {
                         {app.business_type && <span>🏢 {app.business_type}</span>}
                         {app.business_stage && <span>📈 {app.business_stage}</span>}
                         <span className="text-gray-400">신청일: {app.created_at?.slice(0, 10)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <span className="text-xs text-gray-400">담당자:</span>
+                        <select
+                          className="text-xs border border-gray-200 rounded px-2 py-0.5 focus:outline-none focus:border-blue-400 bg-white"
+                          value={app.assignee || ''}
+                          onChange={e => handleAppAssigneeChange(app.id, e.target.value)}
+                        >
+                          <option value="">미배정</option>
+                          {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                        </select>
+                        {app.assignee && (
+                          <span className="text-xs text-blue-600 font-medium">✓ 배정됨</span>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-col gap-2 flex-shrink-0">
@@ -440,7 +464,9 @@ export default function Intake() {
                 ) : filtered.map(f => (
                   <tr
                     key={f.id}
-                    className="border-b border-gray-50 hover:bg-blue-50 cursor-pointer transition-colors"
+                    className={`border-b border-gray-50 cursor-pointer transition-colors ${
+                      flashId === f.id ? 'bg-green-50' : 'hover:bg-blue-50'
+                    }`}
                     onClick={() => openDetail(f)}
                   >
                     <td className="px-4 py-2.5">

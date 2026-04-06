@@ -23,6 +23,7 @@ export default function Consult() {
   const [founders, setFounders] = useState([])
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [users, setUsers] = useState([])
+  const [flashId, setFlashId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
@@ -110,6 +111,14 @@ export default function Consult() {
     }
   }
 
+  async function handleStaffChange(id, value) {
+    const { error } = await supabase.from('consults').update({ staff: value }).eq('id', id)
+    if (error) { alert('담당자 변경 실패: ' + error.message); return }
+    setConsults(prev => prev.map(c => c.id === id ? { ...c, staff: value } : c))
+    setFlashId(id)
+    setTimeout(() => setFlashId(null), 1200)
+  }
+
   async function handleDelete(id) {
     if (!confirm('이 상담일지를 삭제하시겠습니까?')) return
     const { error } = await supabase.from('consults').delete().eq('id', id)
@@ -182,7 +191,9 @@ export default function Consult() {
             ) : filtered.map(c => {
               const f = founderMap[c.founder_id]
               return (
-                <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50">
+                <tr key={c.id} className={`border-b border-gray-50 transition-colors ${
+                  flashId === c.id ? 'bg-green-50' : 'hover:bg-gray-50'
+                }`}>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2">
                       <Avatar name={f?.name} />
@@ -193,7 +204,16 @@ export default function Consult() {
                     </div>
                   </td>
                   <td className="px-4 py-2.5 text-xs text-gray-500">{c.date}</td>
-                  <td className="px-4 py-2.5 text-xs text-gray-600">{c.staff}</td>
+                  <td className="px-4 py-2.5">
+                    <select
+                      className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-transparent hover:border-gray-400 focus:outline-none focus:border-blue-400 max-w-[90px]"
+                      value={c.staff || ''}
+                      onChange={e => handleStaffChange(c.id, e.target.value)}
+                    >
+                      <option value="">-</option>
+                      {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                    </select>
+                  </td>
                   <td className="px-4 py-2.5 text-xs text-gray-500">{c.method}</td>
                   <td className="px-4 py-2.5 text-xs text-gray-600">{c.verdict}</td>
                   <td className="px-4 py-2.5 text-xs text-gray-600">{c.final_verdict}</td>
