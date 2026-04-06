@@ -74,7 +74,7 @@ export default function Intake() {
     const { data } = await supabase
       .from('startup_applications')
       .select('*')
-      .eq('status', 'pending')
+      .neq('status', 'approved')
       .order('created_at', { ascending: false })
     setApplications(data || [])
     setAppsLoading(false)
