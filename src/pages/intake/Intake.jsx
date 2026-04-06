@@ -8,8 +8,18 @@ import Avatar from '../../components/common/Avatar'
 import { useAuth } from '../../context/AuthContext'
 import { Plus, Search, Pencil, Trash2, ClipboardList, CheckCircle, XCircle, Users } from 'lucide-react'
 
+const CONSULT_STATUS_COLORS = {
+  '대기중': 'bg-amber-100 text-amber-700',
+  '상담중': 'bg-blue-100 text-blue-700',
+  '완료':   'bg-green-100 text-green-700',
+  '보류':   'bg-gray-100 text-gray-500',
+}
+
 const emptyForm = () => ({
-  name: '', phone: '', biz: '', region: '', region_detail: '', gender: '', stage: '',
+  name: '', phone: '', email: '', biz: '',
+  region: '', region_detail: '', gender: '', stage: '',
+  staff: '', consult_status: '대기중',
+  programs: [], content: '',
   q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '',
   verdict: '', date: today(),
 })
@@ -27,15 +37,21 @@ export default function Intake() {
   const [search, setSearch] = useState('')
   const [filterVerdict, setFilterVerdict] = useState('')
   const [filterRegion, setFilterRegion] = useState('')
+
   const [modalOpen, setModalOpen] = useState(false)
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [selectedFounder, setSelectedFounder] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState(emptyForm())
+  const [privacyAgreed, setPrivacyAgreed] = useState(false)
 
   const [applications, setApplications] = useState([])
   const [appsLoading, setAppsLoading] = useState(false)
 
   useEffect(() => { loadData() }, [])
-  useEffect(() => { if (activeTab === 'applications' && canApprove) loadApplications() }, [activeTab])
+  useEffect(() => {
+    if (activeTab === 'applications' && canApprove) loadApplications()
+  }, [activeTab])
 
   async function loadData() {
     setLoading(true)
@@ -64,12 +80,30 @@ export default function Intake() {
   }
 
   async function approveApplication(app) {
-    const { error } = await supabase
+    const { error: updateError } = await supabase
       .from('startup_applications')
       .update({ status: 'approved' })
       .eq('id', app.id)
-    if (error) { alert('승인 실패: ' + error.message); return }
+    if (updateError) { alert('승인 실패: ' + updateError.message); return }
+
+    const { data: newFounder, error: insertError } = await supabase
+      .from('founders')
+      .insert([{
+        name: app.applicant_name,
+        phone: app.phone,
+        email: app.email || '',
+        region: app.region || '',
+        gender: app.gender || '',
+        stage: app.business_stage || '',
+        consult_status: '대기중',
+        date: today(),
+      }])
+      .select()
+      .single()
+
+    if (insertError) { alert('상담 목록 추가 실패: ' + insertError.message); return }
     setApplications(prev => prev.map(a => a.id === app.id ? { ...a, status: 'approved' } : a))
+    if (newFounder) setFounders(prev => [newFounder, ...prev])
   }
 
   async function rejectApplication(app) {
@@ -84,10 +118,7 @@ export default function Intake() {
 
   async function deleteApplication(app) {
     if (!confirm('정말 삭제하시겠습니까?')) return
-    const { error } = await supabase
-      .from('startup_applications')
-      .delete()
-      .eq('id', app.id)
+    const { error } = await supabase.from('startup_applications').delete().eq('id', app.id)
     if (error) { alert('삭제 실패: ' + error.message); return }
     setApplications(prev => prev.filter(a => a.id !== app.id))
   }
@@ -95,40 +126,62 @@ export default function Intake() {
   function openAdd() {
     setEditingId(null)
     setForm(emptyForm())
+    setPrivacyAgreed(false)
     setModalOpen(true)
   }
 
-  function openEdit(f) {
+  function openEdit(f, e) {
+    e.stopPropagation()
     setEditingId(f.id)
     setForm({
-      name: f.name || '', phone: f.phone || '', biz: f.biz || '',
-      region: f.region || '', region_detail: f.region_detail || '', gender: f.gender || '', stage: f.stage || '',
+      name: f.name || '', phone: f.phone || '', email: f.email || '',
+      biz: f.biz || '', region: f.region || '', region_detail: f.region_detail || '',
+      gender: f.gender || '', stage: f.stage || '',
+      staff: f.staff || '', consult_status: f.consult_status || '대기중',
+      programs: f.programs || [], content: f.content || '',
       q1: f.q1 || '', q2: f.q2 || '', q3: f.q3 || '',
       q4: f.q4 || '', q5: f.q5 || '', q6: f.q6 || '', q7: f.q7 || '',
       verdict: f.verdict || '', date: f.date || today(),
     })
+    setPrivacyAgreed(true)
     setModalOpen(true)
+  }
+
+  function openDetail(f) {
+    setSelectedFounder(f)
+    setDetailOpen(true)
   }
 
   function handleFormChange(field, value) {
     setForm(prev => {
       const next = { ...prev, [field]: value }
       if (field.startsWith('q')) {
-        const v = calcVerdict(
-          next.q1, next.q2, next.q3, next.q4, next.q5, next.q6, next.q7
-        )
-        next.verdict = v
+        next.verdict = calcVerdict(next.q1, next.q2, next.q3, next.q4, next.q5, next.q6, next.q7)
       }
       return next
     })
   }
 
+  function toggleProgram(prog) {
+    setForm(prev => {
+      const progs = prev.programs || []
+      return {
+        ...prev,
+        programs: progs.includes(prog) ? progs.filter(p => p !== prog) : [...progs, prog],
+      }
+    })
+  }
+
   async function handleSave() {
     if (!form.name.trim()) { alert('이름을 입력해주세요'); return }
+    if (!privacyAgreed) { alert('개인정보 수집·이용에 동의해주세요'); return }
     const payload = {
-      name: form.name, phone: form.phone, biz: form.biz,
-      region: form.region, region_detail: form.region === '기타(타지역)' ? form.region_detail : '',
+      name: form.name, phone: form.phone, email: form.email,
+      biz: form.biz, region: form.region,
+      region_detail: form.region === '기타(타지역)' ? form.region_detail : '',
       gender: form.gender, stage: form.stage,
+      staff: form.staff, consult_status: form.consult_status,
+      programs: form.programs, content: form.content,
       q1: form.q1, q2: form.q2, q3: form.q3, q4: form.q4,
       q5: form.q5, q6: form.q6, q7: form.q7,
       verdict: form.verdict, date: form.date || today(),
@@ -149,8 +202,9 @@ export default function Intake() {
     }
   }
 
-  async function handleDelete(id) {
-    if (!confirm('이 창업자를 삭제하시겠습니까?')) return
+  async function handleDelete(id, e) {
+    e.stopPropagation()
+    if (!confirm('이 상담 정보를 삭제하시겠습니까?')) return
     const { error } = await supabase.from('founders').delete().eq('id', id)
     if (error) { alert('삭제 실패: ' + error.message); return }
     setFounders(prev => prev.filter(f => f.id !== id))
@@ -162,15 +216,14 @@ export default function Intake() {
     (!filterRegion || f.region === filterRegion)
   )
 
-  const techCount = founders.filter(f => f.verdict?.includes('테크')).length
-  const localCount = founders.filter(f => f.verdict?.includes('로컬')).length
+  const techCount  = founders.filter(f => f.verdict?.includes('테크') && !f.verdict?.includes('혼합')).length
+  const localCount = founders.filter(f => f.verdict?.includes('로컬') && !f.verdict?.includes('혼합')).length
+  const mixCount   = founders.filter(f => f.verdict?.includes('혼합') || f.verdict === '테크/로컬 창업 (혼합)').length
   const pendingCount = applications.filter(a => a.status === 'pending').length
 
   return (
     <div className="p-6 space-y-5">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-800">상담 접수</h1>
-      </div>
+      <h1 className="text-xl font-bold text-gray-800">상담 접수</h1>
 
       {/* 탭 */}
       <div className="flex border-b border-gray-200 gap-1">
@@ -180,7 +233,7 @@ export default function Intake() {
             activeTab === 'founders' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
-          <Users size={14} /> 창업자 목록
+          <Users size={14} /> 상담 목록
         </button>
         {canApprove && (
           <button
@@ -218,7 +271,7 @@ export default function Intake() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-semibold text-gray-800 text-sm">{app.applicant_name}</span>
-                        <span className={`ml-auto px-2 py-0.5 rounded text-xs font-medium ${
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                           app.status === 'pending'  ? 'bg-amber-100 text-amber-700' :
                           app.status === 'approved' ? 'bg-green-100 text-green-700' :
                           'bg-red-100 text-red-500'
@@ -226,9 +279,9 @@ export default function Intake() {
                           {app.status === 'pending' ? '대기중' : app.status === 'approved' ? '승인됨' : '반려됨'}
                         </span>
                       </div>
-                      <div className="flex flex-wrap gap-2 text-xs text-gray-500 mb-1">
+                      <div className="flex flex-wrap gap-2 text-xs text-gray-500">
                         <span>📞 {app.phone}</span>
-                        <span>✉️ {app.email}</span>
+                        {app.email && <span>✉️ {app.email}</span>}
                         {app.business_type && <span>🏢 {app.business_type}</span>}
                         {app.business_stage && <span>📈 {app.business_stage}</span>}
                         <span className="text-gray-400">신청일: {app.created_at?.slice(0, 10)}</span>
@@ -241,7 +294,7 @@ export default function Intake() {
                             onClick={() => approveApplication(app)}
                             className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
                           >
-                            <CheckCircle size={12} /> 승인
+                            <CheckCircle size={12} /> 승인 → 상담목록
                           </button>
                           <button
                             onClick={() => rejectApplication(app)}
@@ -266,14 +319,14 @@ export default function Intake() {
         </div>
       )}
 
-      {/* ── 창업자 목록 탭 ── */}
+      {/* ── 상담 목록 탭 ── */}
       {activeTab === 'founders' && (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="전체 접수" value={`${founders.length}명`} color="blue" />
-            <StatCard label="테크 창업" value={`${techCount}명`} color="teal" />
-            <StatCard label="로컬 창업" value={`${localCount}명`} color="green" />
-            <StatCard label="혼합형" value={`${founders.length - techCount - localCount}명`} color="orange" />
+            <StatCard label="전체 상담" value={`${founders.length}건`} color="blue" />
+            <StatCard label="테크창업"  value={`${techCount}건`}       color="teal" />
+            <StatCard label="로컬창업"  value={`${localCount}건`}      color="green" />
+            <StatCard label="혼합형"    value={`${mixCount}건`}        color="orange" />
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -282,13 +335,13 @@ export default function Intake() {
                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   className="pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 w-44"
-                  placeholder="이름·업종 검색"
+                  placeholder="이름·연락처 검색"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                 />
               </div>
               <select
-                className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5"
                 value={filterVerdict}
                 onChange={e => setFilterVerdict(e.target.value)}
               >
@@ -299,12 +352,16 @@ export default function Intake() {
                 <option>테크/로컬 창업 (혼합)</option>
               </select>
               <select
-                className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5"
                 value={filterRegion}
                 onChange={e => setFilterRegion(e.target.value)}
               >
                 <option value="">전체 지역</option>
-                {ULSAN_REGIONS.map(r => <option key={r}>{r}</option>)}
+                {ULSAN_REGIONS.map(r => (
+                  <option key={r} value={r}>
+                    {r === '기타(타지역)' ? '타지역' : r}
+                  </option>
+                ))}
               </select>
             </div>
             {canWrite && (
@@ -313,7 +370,7 @@ export default function Intake() {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white rounded-lg"
                 style={{ background: '#2E75B6' }}
               >
-                <Plus size={15} /> 창업자 등록
+                <Plus size={15} /> 상담 등록
               </button>
             )}
           </div>
@@ -322,7 +379,7 @@ export default function Intake() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  {['이름', '연락처', '사업 아이디어', '지역', '성별', '단계', '판정', '접수일', '관리'].map(h => (
+                  {['이름', '연락처', '창업유형', '지역', '창업단계', '담당자', '상담상태', '접수일', '관리'].map(h => (
                     <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
                   ))}
                 </tr>
@@ -331,31 +388,46 @@ export default function Intake() {
                 {loading ? (
                   <tr><td colSpan={9} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={9} className="text-center py-10 text-gray-400 text-sm">등록된 창업자가 없습니다</td></tr>
+                  <tr><td colSpan={9} className="text-center py-10 text-gray-400 text-sm">등록된 상담이 없습니다</td></tr>
                 ) : filtered.map(f => (
-                  <tr key={f.id} className="border-b border-gray-50 hover:bg-gray-50">
+                  <tr
+                    key={f.id}
+                    className="border-b border-gray-50 hover:bg-blue-50 cursor-pointer transition-colors"
+                    onClick={() => openDetail(f)}
+                  >
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2">
                         <Avatar name={f.name} />
-                        <span className="font-medium text-gray-800">{f.name}</span>
+                        <span className="font-medium text-gray-800 text-xs">{f.name}</span>
                       </div>
                     </td>
                     <td className="px-4 py-2.5 text-xs text-gray-500">{f.phone}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-600 max-w-[140px] truncate">{f.biz}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500">{f.region}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500">{f.gender}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500">{f.stage}</td>
                     <td className="px-4 py-2.5"><VerdictBadge verdict={f.verdict} /></td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500">{f.date}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500">
+                      {f.region === '기타(타지역)'
+                        ? `타지역${f.region_detail ? ` (${f.region_detail})` : ''}`
+                        : f.region}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500">{f.stage}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-600">{f.staff || '-'}</td>
                     <td className="px-4 py-2.5">
+                      {f.consult_status
+                        ? <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${CONSULT_STATUS_COLORS[f.consult_status] || 'bg-gray-100 text-gray-500'}`}>
+                            {f.consult_status}
+                          </span>
+                        : <span className="text-xs text-gray-400">-</span>
+                      }
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500">{f.date}</td>
+                    <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
                         {canWrite && (
-                          <button onClick={() => openEdit(f)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-600">
+                          <button onClick={e => openEdit(f, e)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-600">
                             <Pencil size={13} />
                           </button>
                         )}
                         {canDelete && (
-                          <button onClick={() => handleDelete(f.id)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-red-600">
+                          <button onClick={e => handleDelete(f.id, e)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-red-600">
                             <Trash2 size={13} />
                           </button>
                         )}
@@ -369,20 +441,64 @@ export default function Intake() {
         </>
       )}
 
-      {/* Add/Edit Modal */}
+      {/* ── 상세 보기 모달 ── */}
+      <Modal isOpen={detailOpen} onClose={() => setDetailOpen(false)} title="상담 상세 정보">
+        {selectedFounder && (
+          <div className="space-y-4 text-sm">
+            <div className="grid grid-cols-2 gap-3">
+              <Detail label="이름" value={selectedFounder.name} />
+              <Detail label="연락처" value={selectedFounder.phone} />
+              <Detail label="이메일" value={selectedFounder.email} />
+              <Detail label="성별" value={selectedFounder.gender} />
+              <Detail label="지역" value={
+                selectedFounder.region === '기타(타지역)'
+                  ? `타지역${selectedFounder.region_detail ? ` (${selectedFounder.region_detail})` : ''}`
+                  : selectedFounder.region
+              } />
+              <Detail label="창업 단계" value={selectedFounder.stage} />
+              <Detail label="담당자" value={selectedFounder.staff} />
+              <Detail label="상담 상태" value={selectedFounder.consult_status} />
+              <Detail label="창업 유형" value={selectedFounder.verdict} />
+              <Detail label="접수일" value={selectedFounder.date} />
+            </div>
+            {selectedFounder.biz && <Detail label="사업 아이디어" value={selectedFounder.biz} />}
+            {selectedFounder.content && <Detail label="상담 내용" value={selectedFounder.content} />}
+            {selectedFounder.programs?.length > 0 && (
+              <div>
+                <div className="text-xs font-medium text-gray-500 mb-1">희망 지원사업</div>
+                <div className="flex flex-wrap gap-1">
+                  {selectedFounder.programs.map(p => (
+                    <span key={p} className="px-2 py-0.5 text-xs bg-blue-50 text-blue-700 rounded">{p}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* ── 등록/수정 모달 ── */}
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingId ? '창업자 정보 수정' : '창업자 등록'}
+        title={editingId ? '상담 정보 수정' : '상담 등록'}
         wide
         footer={
           <>
             <button onClick={() => setModalOpen(false)} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
-            <button onClick={handleSave} className="px-4 py-1.5 text-sm text-white rounded-lg" style={{ background: '#2E75B6' }}>저장</button>
+            <button
+              onClick={handleSave}
+              disabled={!privacyAgreed}
+              className="px-4 py-1.5 text-sm text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: '#2E75B6' }}
+            >
+              저장
+            </button>
           </>
         }
       >
         <div className="space-y-4">
+          {/* 기본 정보 */}
           <div className="grid grid-cols-2 gap-3">
             <FormField label="이름 *">
               <input className="form-input" value={form.name} onChange={e => handleFormChange('name', e.target.value)} />
@@ -391,9 +507,13 @@ export default function Intake() {
               <input className="form-input" value={form.phone} onChange={e => handleFormChange('phone', e.target.value)} />
             </FormField>
           </div>
+          <FormField label="이메일">
+            <input type="email" className="form-input" value={form.email} onChange={e => handleFormChange('email', e.target.value)} placeholder="example@email.com" />
+          </FormField>
           <FormField label="사업 아이디어">
             <input className="form-input" value={form.biz} onChange={e => handleFormChange('biz', e.target.value)} placeholder="예: AI 기반 물류 최적화" />
           </FormField>
+
           <div className="grid grid-cols-3 gap-3">
             <FormField label="지역">
               <select className="form-input" value={form.region} onChange={e => handleFormChange('region', e.target.value)}>
@@ -422,10 +542,26 @@ export default function Intake() {
               </select>
             </FormField>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="담당자">
+              <select className="form-input" value={form.staff} onChange={e => handleFormChange('staff', e.target.value)}>
+                <option value="">선택</option>
+                {settings.staff.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </FormField>
+            <FormField label="상담 상태">
+              <select className="form-input" value={form.consult_status} onChange={e => handleFormChange('consult_status', e.target.value)}>
+                {['대기중', '상담중', '완료', '보류'].map(s => <option key={s}>{s}</option>)}
+              </select>
+            </FormField>
+          </div>
+
           <FormField label="접수일">
             <input type="date" className="form-input" value={form.date} onChange={e => handleFormChange('date', e.target.value)} />
           </FormField>
 
+          {/* Q1~Q7 창업 유형 진단 */}
           <div className="bg-blue-50 rounded-xl p-4 space-y-3 border border-blue-100">
             <div className="text-sm font-semibold text-blue-800">창업 유형 진단 (Q1~Q7)</div>
             {['q1','q2','q3','q4','q5','q6'].map((qk, i) => (
@@ -475,6 +611,55 @@ export default function Intake() {
               : <span className="text-xs text-gray-400">Q1~Q7을 모두 선택하면 자동 계산됩니다</span>
             }
           </div>
+
+          {/* 희망 지원사업 */}
+          <FormField label="희망 지원사업">
+            <div className="flex flex-wrap gap-2 mt-1">
+              {settings.programs.map(p => (
+                <label key={p} className="flex items-center gap-1 cursor-pointer text-xs">
+                  <input
+                    type="checkbox"
+                    checked={(form.programs || []).includes(p)}
+                    onChange={() => toggleProgram(p)}
+                    className="w-3.5 h-3.5"
+                  />
+                  {p}
+                </label>
+              ))}
+            </div>
+          </FormField>
+
+          {/* 상담 내용 */}
+          <FormField label="상담 내용">
+            <textarea
+              className="form-input"
+              rows={3}
+              value={form.content}
+              onChange={e => handleFormChange('content', e.target.value)}
+              placeholder="상담 내용을 입력하세요"
+            />
+          </FormField>
+
+          {/* 개인정보 동의 */}
+          <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="intake-privacy"
+                checked={privacyAgreed}
+                onChange={e => setPrivacyAgreed(e.target.checked)}
+                className="w-4 h-4 accent-blue-600"
+              />
+              <label htmlFor="intake-privacy" className="text-xs text-gray-700 cursor-pointer">
+                개인정보 수집·이용에 동의합니다. <span className="text-red-500">(필수)</span>
+              </label>
+            </div>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              수집 항목: 성명, 연락처, 이메일, 사업 관련 정보 ·
+              수집 목적: 창업 상담 서비스 제공 ·
+              보유 기간: 상담 종료 후 3년
+            </p>
+          </div>
         </div>
       </Modal>
     </div>
@@ -486,6 +671,15 @@ function FormField({ label, children }) {
     <div>
       <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
       {children}
+    </div>
+  )
+}
+
+function Detail({ label, value }) {
+  return (
+    <div>
+      <div className="text-xs font-medium text-gray-500 mb-0.5">{label}</div>
+      <div className="text-sm text-gray-800">{value || '-'}</div>
     </div>
   )
 }

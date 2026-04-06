@@ -51,7 +51,7 @@ const STEPS = ['창업 유형 자가진단', '상담 신청서 작성', '접수 
 function emptyForm() {
   return {
     q1:'', q2:'', q3:'', q4:'', q5:'', q6:'', q7:'', q8:'', q9:'',
-    name:'', phone:'', email:'', region:'', gender:'', biz:'', stage:'',
+    name:'', phone:'', email:'', region:'', region_detail:'', gender:'', biz:'', stage:'',
     consult_method:'방문', preferred_date:'', preferred_time:'', inquiry:'',
   }
 }
@@ -202,6 +202,7 @@ export default function Apply() {
         preferred_time: form.preferred_time,
         inquiry: form.inquiry,
         region: form.region,
+        region_detail: form.region === '기타(타지역)' ? form.region_detail : '',
         gender: form.gender,
         q1: form.q1, q2: form.q2, q3: form.q3,
         q4: form.q4, q5: form.q5, q6: form.q6,
@@ -409,10 +410,18 @@ export default function Apply() {
                 </Field>
               </div>
               <Field label="지역 *">
-                <select value={form.region} onChange={e => set('region', e.target.value)} className={input()}>
+                <select value={form.region} onChange={e => { set('region', e.target.value); set('region_detail', '') }} className={input()}>
                   <option value="">지역 선택</option>
                   {ULSAN_REGIONS.map(r => <option key={r}>{r}</option>)}
                 </select>
+                {form.region === '기타(타지역)' && (
+                  <input
+                    value={form.region_detail}
+                    onChange={e => set('region_detail', e.target.value)}
+                    placeholder="타지역 어디인지 입력해주세요"
+                    className={input() + ' mt-2'}
+                  />
+                )}
               </Field>
             </div>
 
@@ -503,7 +512,7 @@ export default function Apply() {
               <div className="space-y-2 text-sm">
                 <Row label="이름" value={form.name} />
                 <Row label="연락처" value={form.phone} />
-                <Row label="지역" value={form.region} />
+                <Row label="지역" value={form.region === '기타(타지역)' && form.region_detail ? `타지역 (${form.region_detail})` : form.region} />
                 <Row label="업종·아이템" value={form.biz} />
                 {verdict && vInfo && (
                   <Row label="창업 유형"

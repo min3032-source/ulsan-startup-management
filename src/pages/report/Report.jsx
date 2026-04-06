@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { VerdictBadge } from '../../components/common/Badge'
 import StatCard from '../../components/common/StatCard'
 import {
   Users, MessageSquare, Building2, UserCheck,
@@ -11,10 +10,18 @@ const CURRENT_YEAR = new Date().getFullYear()
 
 export default function Report() {
   const [year, setYear] = useState(String(CURRENT_YEAR))
+  const [program, setProgram] = useState('')
+  const [programList, setProgramList] = useState([])
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { loadData() }, [year])
+  useEffect(() => {
+    supabase.from('team_settings').select('programs').single().then(({ data: s }) => {
+      if (s?.programs) setProgramList(s.programs)
+    })
+  }, [])
+
+  useEffect(() => { loadData() }, [year, program])
 
   async function loadData() {
     setLoading(true)
@@ -35,22 +42,36 @@ export default function Report() {
         supabase.from('growths').select('*').eq('year', year),
       ])
 
-      const f  = founders     || []
-      const c  = consults     || []
+      const f  = founders      || []
+      const c  = consults      || []
       const sf = selectedFirms || []
-      const s  = supports     || []
-      const m  = mentorings   || []
-      const g  = growths      || []
+      const s  = supports      || []
+      const m  = mentorings    || []
+      const g  = growths       || []
 
       // 연도 필터
       const filterYear = (arr, field) =>
         arr.filter(x => x[field] && String(x[field]).startsWith(year))
 
-      const fYear  = filterYear(f,  'date')
-      const cYear  = filterYear(c,  'date')
-      const sfYear = filterYear(sf, 'start_date')
-      const sYear  = filterYear(s,  'start_date')
-      const mYear  = filterYear(m,  'date')
+      let fYear  = filterYear(f,  'date')
+      let cYear  = filterYear(c,  'date')
+      let sfYear = filterYear(sf, 'start_date')
+      let sYear  = filterYear(s,  'start_date')
+      let mYear  = filterYear(m,  'date')
+
+      // 사업별 필터
+      if (program) {
+        cYear  = cYear.filter(x  => Array.isArray(x.programs) && x.programs.includes(program))
+        sfYear = sfYear.filter(x => x.program === program)
+        sYear  = sYear.filter(x  => x.program === program)
+        mYear  = mYear.filter(x  => x.program === program)
+
+        // 창업자: 필터된 상담 또는 지원사업에 연결된 founder_id 기준
+        const linkedIds = new Set(
+          [...cYear.map(x => x.founder_id), ...sYear.map(x => x.founder_id)].filter(Boolean)
+        )
+        fYear = fYear.filter(x => linkedIds.has(x.id))
+      }
 
       // 통계 집계
       const verdictDist = {}
@@ -93,10 +114,10 @@ export default function Report() {
         mentorings: mYear.length,
         supports:   sYear.length,
         totalAmount,
-        verdictDist:  Object.entries(verdictDist).sort((a,b) => b[1]-a[1]),
-        regionDist:   Object.entries(regionDist).sort((a,b) => b[1]-a[1]),
-        staffDist:    Object.entries(staffDist).sort((a,b) => b[1]-a[1]),
-        programDist:  Object.entries(programDist).sort((a,b) => b[1]-a[1]),
+        verdictDist:  Object.entries(verdictDist).sort((a, b) => b[1] - a[1]),
+        regionDist:   Object.entries(regionDist).sort((a, b) => b[1] - a[1]),
+        staffDist:    Object.entries(staffDist).sort((a, b) => b[1] - a[1]),
+        programDist:  Object.entries(programDist).sort((a, b) => b[1] - a[1]),
         totalRevenue,
         totalEmployees,
         totalInvestment,
@@ -109,9 +130,9 @@ export default function Report() {
     }
   }
 
-  function printReport() {
-    window.print()
-  }
+  const reportTitle = program
+    ? `${year}년 ${program} 성과 보고서`
+    : `${year}년 창업지원 성과 보고서`
 
   const yearOptions = Array.from({ length: 5 }, (_, i) => String(CURRENT_YEAR - i))
 
@@ -133,8 +154,18 @@ export default function Report() {
               <option key={y} value={y}>{y}년</option>
             ))}
           </select>
+          <select
+            value={program}
+            onChange={e => setProgram(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400"
+          >
+            <option value="">전체 사업</option>
+            {programList.map(p => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
           <button
-            onClick={printReport}
+            onClick={() => window.print()}
             className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
           >
             <Download size={14} />
@@ -153,7 +184,7 @@ export default function Report() {
           {/* 제목 */}
           <div className="bg-gradient-to-r from-[#0D1B2A] to-[#1F4E79] text-white rounded-xl p-5">
             <div className="text-xs opacity-60 mb-1">울산경제일자리진흥원</div>
-            <div className="text-lg font-bold">{year}년 창업지원 성과 보고서</div>
+            <div className="text-lg font-bold">{reportTitle}</div>
             <div className="text-xs opacity-60 mt-1">기준일: {new Date().toLocaleDateString('ko-KR')}</div>
           </div>
 
