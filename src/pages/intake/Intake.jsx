@@ -274,7 +274,7 @@ export default function Intake() {
     const { error } = await supabase.from('founders').update({ is_founder: true }).eq('id', id)
     if (error) { alert('창업자 등록 실패: ' + error.message); return }
     setFounders(prev => prev.map(f => f.id === id ? { ...f, is_founder: true } : f))
-    showToast('창업자로 등록되었습니다. 창업자 관리에서 확인하세요.')
+    showToast('창업자로 등록되었습니다.')
   }
 
   async function handleCancelFounder(id) {
