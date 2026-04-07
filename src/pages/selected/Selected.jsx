@@ -12,7 +12,7 @@ const emptyFirmForm = () => ({
   company_name: '', ceo: '', biz_no: '', found_year: '', employees: '',
   biz_type: '', biz_item: '', sector: '', type: '테크', region: '',
   gender: '', phone: '', email: '',
-  program: '', staff: '', start_date: today(), end_date: '',
+  program: '', sub_program: '', staff: '', start_date: today(), end_date: '',
   amount: '', status: '지원중', post_mgmt: '후속관리중', memo: '',
 })
 
@@ -71,7 +71,7 @@ export default function Selected() {
       biz_type: f.biz_type || '', biz_item: f.biz_item || '', sector: f.sector || '',
       type: f.type || '테크', region: f.region || '', gender: f.gender || '',
       phone: f.phone || '', email: f.email || '',
-      program: f.program || '', staff: f.staff || '',
+      program: f.program || '', sub_program: f.sub_program || '', staff: f.staff || '',
       start_date: f.start_date || today(), end_date: f.end_date || '',
       amount: f.amount || '', status: f.status || '지원중',
       post_mgmt: f.post_mgmt || '후속관리중', memo: f.memo || '',
@@ -264,12 +264,16 @@ export default function Selected() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">담당자</label>
-                <select className="form-input" value={firmForm.staff} onChange={e => setFF('staff', e.target.value)}>
-                  <option value="">선택</option>
-                  {settings.staff.map(s => <option key={s}>{s}</option>)}
-                </select>
+                <label className="block text-xs font-medium text-gray-600 mb-1">세부 프로그램</label>
+                <input className="form-input" value={firmForm.sub_program} onChange={e => setFF('sub_program', e.target.value)} placeholder="예: 비즈니스 모델 혁신 트랙" />
               </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">담당자</label>
+              <select className="form-input" value={firmForm.staff} onChange={e => setFF('staff', e.target.value)}>
+                <option value="">선택</option>
+                {settings.staff.map(s => <option key={s}>{s}</option>)}
+              </select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-xs font-medium text-gray-600 mb-1">지원 시작일 *</label><input type="date" className="form-input" value={firmForm.start_date} onChange={e => setFF('start_date', e.target.value)} /></div>
