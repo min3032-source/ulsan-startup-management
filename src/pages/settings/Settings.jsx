@@ -20,6 +20,44 @@ const ROLE_BADGE = {
   viewer:  'bg-gray-100 text-gray-500',
 }
 
+function ListEditor({ label, stateKey, items, canEdit, onAdd, onUpdate, onRemove }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-semibold text-gray-700">{label}</span>
+        {canEdit && (
+          <button
+            onClick={() => onAdd(stateKey)}
+            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+          >
+            <Plus size={12} /> 추가
+          </button>
+        )}
+      </div>
+      <div className="space-y-1.5">
+        {items.length === 0 && (
+          <p className="text-xs text-gray-400 py-1">항목이 없습니다. 추가 버튼을 눌러 추가하세요.</p>
+        )}
+        {items.map((item, idx) => (
+          <div key={idx} className="flex items-center gap-2">
+            <input
+              value={item}
+              disabled={!canEdit}
+              onChange={e => onUpdate(stateKey, idx, e.target.value)}
+              className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-gray-50 disabled:text-gray-500"
+            />
+            {canEdit && (
+              <button onClick={() => onRemove(stateKey, idx)} className="text-gray-300 hover:text-red-500">
+                <Trash2 size={14} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Settings() {
   const { profile, hasRole } = useAuth()
   const canEdit  = hasRole('admin')
@@ -216,46 +254,6 @@ export default function Settings() {
     }
   }
 
-  // ── 렌더 ─────────────────────────────────────────
-
-  function ListEditor({ label, stateKey }) {
-    return (
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-semibold text-gray-700">{label}</span>
-          {canEdit && (
-            <button
-              onClick={() => addItem(stateKey)}
-              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
-            >
-              <Plus size={12} /> 추가
-            </button>
-          )}
-        </div>
-        <div className="space-y-1.5">
-          {settings[stateKey].length === 0 && (
-            <p className="text-xs text-gray-400 py-1">항목이 없습니다. 추가 버튼을 눌러 추가하세요.</p>
-          )}
-          {settings[stateKey].map((item, idx) => (
-            <div key={idx} className="flex items-center gap-2">
-              <input
-                value={item}
-                disabled={!canEdit}
-                onChange={e => updateItem(stateKey, idx, e.target.value)}
-                className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-gray-50 disabled:text-gray-500"
-              />
-              {canEdit && (
-                <button onClick={() => removeItem(stateKey, idx)} className="text-gray-300 hover:text-red-500">
-                  <Trash2 size={14} />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="p-6 max-w-4xl">
       <div className="mb-6">
@@ -297,10 +295,10 @@ export default function Settings() {
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <ListEditor label="상담 방법" stateKey="methods" />
+              <ListEditor label="상담 방법" stateKey="methods" items={settings.methods} canEdit={canEdit} onAdd={addItem} onUpdate={updateItem} onRemove={removeItem} />
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <ListEditor label="창업 단계" stateKey="stages" />
+              <ListEditor label="창업 단계" stateKey="stages" items={settings.stages} canEdit={canEdit} onAdd={addItem} onUpdate={updateItem} onRemove={removeItem} />
             </div>
           </div>
           {(canEdit || canManageUsers) && (
@@ -379,7 +377,7 @@ export default function Settings() {
             </div>
           )}
           <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <ListEditor label="지원 프로그램 목록" stateKey="programs" />
+            <ListEditor label="지원 프로그램 목록" stateKey="programs" items={settings.programs} canEdit={canEdit} onAdd={addItem} onUpdate={updateItem} onRemove={removeItem} />
           </div>
           {(canEdit || canManageUsers) && (
             <div className="flex items-center gap-3">
