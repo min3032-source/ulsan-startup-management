@@ -90,7 +90,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="전체 접수 창업자" value={`${stats.founders}명`} color="blue" icon={Users} />
+        <StatCard label="전체 접수 상담자" value={`${stats.founders}명`} color="blue" icon={Users} />
         <StatCard label="후속조치 필요" value={`${stats.followUp}건`} sub="상담일지 기준" color="orange" icon={AlertCircle} />
         <StatCard label="선정기업" value={`${stats.selectedFirms}개사`} color="green" icon={Building2} />
         <StatCard label="전문가 상담·멘토링" value={`${stats.mentorings}건`} color="teal" icon={UserCheck} />
@@ -107,7 +107,7 @@ export default function Dashboard() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">창업자</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">상담자</th>
                   <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">날짜</th>
                   <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">담당</th>
                   <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">상태</th>

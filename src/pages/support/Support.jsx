@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { DEFAULT_SETTINGS, SUPPORT_STAGES, supportDuration, today } from '../../lib/constants'
@@ -6,7 +6,8 @@ import { VerdictBadge, StatusBadge } from '../../components/common/Badge'
 import Modal from '../../components/common/Modal'
 import StatCard from '../../components/common/StatCard'
 import Avatar from '../../components/common/Avatar'
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight as ChevronRightIcon } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight as ChevronRightIcon, Upload, Download } from 'lucide-react'
+import * as XLSX from 'xlsx'
 
 const emptyForm = () => ({
   founder_id: '', program: '', sub_program: '', start_date: today(), end_date: '',
@@ -210,6 +211,7 @@ export default function Support() {
           expandedProgram={expandedProgram} setExpandedProgram={setExpandedProgram}
           onAdd={openFirmAdd} onEdit={openFirmEdit} onDelete={handleFirmDelete}
           canWrite={canWrite} canDelete={canDelete}
+          onExcelSave={newFirms => setSelectedFirms(prev => [...newFirms, ...prev])}
         />
       ) : activeTab === 'all' ? (
         <AllTab supports={supports} founderMap={founderMap} onEdit={openEdit} onDelete={handleDelete} />
@@ -355,12 +357,101 @@ export default function Support() {
   )
 }
 
-function ByProgramTab({ programs, selectedFirms, expandedProgram, setExpandedProgram, onAdd, onEdit, onDelete, canWrite, canDelete }) {
+function ByProgramTab({ programs, selectedFirms, expandedProgram, setExpandedProgram, onAdd, onEdit, onDelete, canWrite, canDelete, onExcelSave }) {
+  const [xlsxPreview, setXlsxPreview] = useState(null) // { prog, rows }
+  const [xlsxSaving, setXlsxSaving] = useState(false)
+  const [xlsxToast, setXlsxToast] = useState('')
+  const fileInputRef = useRef({})
+
+  function downloadTemplate() {
+    const ws = XLSX.utils.aoa_to_sheet([['기업명', '대표자', '사업자번호', '연락처', '이메일', '기업유형', '지역'], ['예시기업(주)', '홍길동', '123-45-67890', '010-1234-5678', 'ceo@example.com', '테크', '울산']])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '선정기업')
+    XLSX.writeFile(wb, '선정기업_등록양식.xlsx')
+  }
+
+  function handleFileChange(e, prog) {
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = evt => {
+      const wb = XLSX.read(evt.target.result, { type: 'binary' })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const raw = XLSX.utils.sheet_to_json(ws, { header: 1 })
+      const rows = raw.slice(1).filter(r => r[0]).map(r => ({
+        company_name: r[0] || '', ceo: r[1] || '', biz_no: r[2] || '',
+        phone: r[3] || '', email: r[4] || '', type: r[5] || '', region: r[6] || '',
+        program: prog, status: '지원중', start_date: today(),
+      }))
+      setXlsxPreview({ prog, rows })
+    }
+    reader.readAsBinaryString(file)
+    e.target.value = ''
+  }
+
+  async function confirmSave() {
+    if (!xlsxPreview) return
+    setXlsxSaving(true)
+    const { data, error } = await supabase.from('selected_firms').insert(xlsxPreview.rows).select()
+    setXlsxSaving(false)
+    if (error) { alert('저장 실패: ' + error.message); return }
+    onExcelSave(data || [])
+    setXlsxToast(`${xlsxPreview.rows.length}개 기업이 등록되었습니다.`)
+    setTimeout(() => setXlsxToast(''), 3000)
+    setXlsxPreview(null)
+  }
+
   if (!programs || programs.length === 0) return (
     <div className="text-center py-16 text-gray-400">환경설정에서 지원사업을 먼저 등록해주세요</div>
   )
   return (
     <div className="space-y-3">
+      {xlsxToast && (
+        <div className="fixed top-5 right-5 z-50 bg-green-600 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg">
+          {xlsxToast}
+        </div>
+      )}
+
+      {/* 엑셀 미리보기 모달 */}
+      {xlsxPreview && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl mx-4 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <span className="font-semibold text-gray-800">엑셀 미리보기 — {xlsxPreview.prog} ({xlsxPreview.rows.length}개)</span>
+              <button onClick={() => setXlsxPreview(null)} className="text-gray-400 hover:text-gray-700 text-lg">✕</button>
+            </div>
+            <div className="overflow-x-auto max-h-80">
+              <table className="w-full text-xs">
+                <thead><tr className="bg-gray-50 border-b">
+                  {['기업명', '대표자', '사업자번호', '연락처', '이메일', '기업유형', '지역'].map(h => (
+                    <th key={h} className="px-3 py-2 text-left font-medium text-gray-500">{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {xlsxPreview.rows.map((r, i) => (
+                    <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="px-3 py-2 font-medium">{r.company_name}</td>
+                      <td className="px-3 py-2 text-gray-500">{r.ceo}</td>
+                      <td className="px-3 py-2 text-gray-500">{r.biz_no}</td>
+                      <td className="px-3 py-2 text-gray-500">{r.phone}</td>
+                      <td className="px-3 py-2 text-gray-500">{r.email}</td>
+                      <td className="px-3 py-2 text-gray-500">{r.type}</td>
+                      <td className="px-3 py-2 text-gray-500">{r.region}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setXlsxPreview(null)} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
+              <button onClick={confirmSave} disabled={xlsxSaving} className="px-4 py-1.5 text-sm text-white rounded-lg disabled:opacity-50" style={{ background: '#2E75B6' }}>
+                {xlsxSaving ? '저장 중...' : '확인 저장'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {programs.map(prog => {
         const firms = selectedFirms.filter(f => f.program === prog)
         const isOpen = expandedProgram === prog
@@ -377,15 +468,26 @@ function ByProgramTab({ programs, selectedFirms, expandedProgram, setExpandedPro
                 <span className="text-xs text-gray-400">선정기업 {firms.length}개사</span>
                 {totalAmt > 0 && <span className="text-xs font-bold text-green-700">총 {totalAmt.toLocaleString()}만원</span>}
               </div>
-              {canWrite && (
-                <span
-                  className="text-xs px-2.5 py-1 text-white rounded-lg"
-                  style={{ background: '#2E75B6' }}
-                  onClick={e => { e.stopPropagation(); onAdd(prog) }}
-                >
-                  + 기업 추가
-                </span>
-              )}
+              <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                <button onClick={downloadTemplate} className="flex items-center gap-1 text-xs px-2 py-1 border border-gray-300 rounded-lg text-gray-500 hover:bg-gray-50">
+                  <Download size={11} /> 양식
+                </button>
+                {canWrite && (
+                  <>
+                    <label className="flex items-center gap-1 text-xs px-2 py-1 border border-green-300 rounded-lg text-green-700 hover:bg-green-50 cursor-pointer">
+                      <Upload size={11} /> 엑셀
+                      <input ref={el => fileInputRef.current[prog] = el} type="file" accept=".xlsx,.xls" className="hidden" onChange={e => handleFileChange(e, prog)} />
+                    </label>
+                    <span
+                      className="text-xs px-2.5 py-1 text-white rounded-lg cursor-pointer"
+                      style={{ background: '#2E75B6' }}
+                      onClick={() => onAdd(prog)}
+                    >
+                      + 기업 추가
+                    </span>
+                  </>
+                )}
+              </div>
             </button>
             {isOpen && (
               <div className="border-t border-gray-100">

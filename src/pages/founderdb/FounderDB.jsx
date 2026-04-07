@@ -27,7 +27,7 @@ export default function FounderDB() {
     async function load() {
       try {
         const [{ data: f }, { data: c }, { data: s }, { data: co }, { data: g }, { data: m }] = await Promise.all([
-          supabase.from('founders').select('*').order('date', { ascending: false }),
+          supabase.from('founders').select('*').eq('is_founder', true).order('date', { ascending: false }),
           supabase.from('consults').select('*').order('date', { ascending: false }),
           supabase.from('support_items').select('*').order('start_date', { ascending: false }),
           supabase.from('companies').select('*'),

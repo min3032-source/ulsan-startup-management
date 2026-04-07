@@ -6,6 +6,7 @@ import { VerdictBadge, StatusBadge } from '../../components/common/Badge'
 
 export default function Stats() {
   const [founders, setFounders] = useState([])
+  const [applications, setApplications] = useState([])
   const [supports, setSupports] = useState([])
   const [selectedFirms, setSelectedFirms] = useState([])
   const [growths, setGrowths] = useState([])
@@ -14,13 +15,15 @@ export default function Stats() {
   useEffect(() => {
     async function load() {
       try {
-        const [{ data: f }, { data: s }, { data: sf }, { data: g }] = await Promise.all([
+        const [{ data: f }, { data: a }, { data: s }, { data: sf }, { data: g }] = await Promise.all([
           supabase.from('founders').select('*'),
+          supabase.from('startup_applications').select('id, status'),
           supabase.from('support_items').select('*'),
           supabase.from('selected_firms').select('*'),
           supabase.from('growths').select('*'),
         ])
         setFounders(f || [])
+        setApplications(a || [])
         setSupports(s || [])
         setSelectedFirms(sf || [])
         setGrowths(g || [])
@@ -95,7 +98,7 @@ export default function Stats() {
       <h1 className="text-xl font-bold text-gray-800">통계 현황</h1>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="전체 창업자" value={`${founders.length}명`} color="blue" />
+        <StatCard label="상담 신청자" value={`${applications.length}명`} color="blue" />
         <StatCard label="지원사업 연계" value={`${supports.length + selectedFirms.length}건`} color="green" />
         <StatCard label="총 지원금액" value={`${totalAmt >= 10000 ? (totalAmt / 10000).toFixed(1) + '억' : totalAmt.toLocaleString() + '만'}`} color="teal" />
         <StatCard label="고용 창출" value={`${totalEmp}명`} color="orange" />
@@ -104,7 +107,7 @@ export default function Stats() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Region stats */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <div className="font-semibold text-gray-700 text-sm mb-4">지역별 창업자 현황</div>
+          <div className="font-semibold text-gray-700 text-sm mb-4">지역별 상담자 현황</div>
           {regionStats.length === 0 ? (
             <div className="text-center text-gray-400 text-sm py-4">데이터 없음</div>
           ) : regionStats.map(({ region, count }) => (
