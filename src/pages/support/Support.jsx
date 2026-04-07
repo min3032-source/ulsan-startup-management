@@ -14,7 +14,7 @@ const emptyForm = () => ({
 })
 
 const emptyFirmForm = () => ({
-  company_name: '', ceo: '', program: '', staff: '',
+  company_name: '', ceo: '', program: '', sub_program: '', staff: '',
   start_date: today(), end_date: '', amount: '',
   status: '지원중', memo: '',
 })
@@ -123,7 +123,7 @@ export default function Support() {
     setFirmEditId(firm.id)
     setFirmForm({
       company_name: firm.company_name || '', ceo: firm.ceo || '',
-      program: firm.program || '', staff: firm.staff || '',
+      program: firm.program || '', sub_program: firm.sub_program || '', staff: firm.staff || '',
       start_date: firm.start_date || today(), end_date: firm.end_date || '',
       amount: firm.amount || '', status: firm.status || '지원중', memo: firm.memo || '',
     })
@@ -243,6 +243,10 @@ export default function Support() {
               <option value="">선택</option>
               {settings.programs.map(p => <option key={p}>{p}</option>)}
             </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">세부 프로그램</label>
+            <input className="form-input" value={firmForm.sub_program} onChange={e => setFirmForm(p => ({ ...p, sub_program: e.target.value }))} placeholder="예: 비즈니스 모델 혁신 트랙" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -390,7 +394,7 @@ function ByProgramTab({ programs, selectedFirms, expandedProgram, setExpandedPro
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-100">
-                          {['기업명', '대표자', '시작일', '종료일', '지원금(만원)', '상태', '담당자', '관리'].map(h => (
+                          {['기업명', '대표자', '세부 프로그램', '시작일', '종료일', '지원금(만원)', '상태', '담당자', '관리'].map(h => (
                             <th key={h} className="text-left px-4 py-2 text-xs font-medium text-gray-500">{h}</th>
                           ))}
                         </tr>
@@ -400,6 +404,7 @@ function ByProgramTab({ programs, selectedFirms, expandedProgram, setExpandedPro
                           <tr key={firm.id} className="border-b border-gray-50 hover:bg-gray-50">
                             <td className="px-4 py-2.5 font-medium text-xs text-gray-800">{firm.company_name}</td>
                             <td className="px-4 py-2.5 text-xs text-gray-500">{firm.ceo || '-'}</td>
+                            <td className="px-4 py-2.5 text-xs text-gray-500">{firm.sub_program || '-'}</td>
                             <td className="px-4 py-2.5 text-xs text-gray-500">{firm.start_date || '-'}</td>
                             <td className="px-4 py-2.5 text-xs text-gray-500">{firm.end_date || <span className="text-orange-500">진행중</span>}</td>
                             <td className="px-4 py-2.5 text-xs font-bold text-green-700">{firm.amount ? Number(firm.amount).toLocaleString() : '-'}</td>
