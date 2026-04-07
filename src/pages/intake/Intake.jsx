@@ -81,7 +81,19 @@ export default function Intake() {
       .select('*')
       .is('approved_at', null)
       .order('created_at', { ascending: false })
-    setApplications(data || [])
+    const parsed = (data || []).map(app => {
+      try {
+        const desc = typeof app.description === 'string' ? JSON.parse(app.description) : (app.description || {})
+        return {
+          ...app,
+          region: app.region || desc.region || '',
+          region_detail: app.region_detail || desc.region_detail || '',
+        }
+      } catch {
+        return app
+      }
+    })
+    setApplications(parsed)
     setAppsLoading(false)
   }
 
@@ -330,7 +342,11 @@ export default function Intake() {
                       <div className="flex flex-wrap gap-2 text-xs text-gray-500">
                         <span>📞 {app.phone}</span>
                         {app.email && <span>✉️ {app.email}</span>}
-                        {app.business_type && <span>🏢 {app.business_type}</span>}
+                        <span>🏢 {app.business_type || '-'}</span>
+                        <span>📍 {app.region === '기타(타지역)'
+                          ? `타지역${app.region_detail ? ` (${app.region_detail})` : ''}`
+                          : (app.region || '-')}
+                        </span>
                         {app.business_stage && <span>📈 {app.business_stage}</span>}
                         <span className="text-gray-400">신청일: {app.created_at?.slice(0, 10)}</span>
                       </div>
