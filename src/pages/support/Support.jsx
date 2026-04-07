@@ -237,16 +237,18 @@ export default function Support() {
               <input className="form-input" value={firmForm.ceo} onChange={e => setFirmForm(p => ({ ...p, ceo: e.target.value }))} />
             </div>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">지원사업 *</label>
-            <select className="form-input" value={firmForm.program} onChange={e => setFirmForm(p => ({ ...p, program: e.target.value }))}>
-              <option value="">선택</option>
-              {settings.programs.map(p => <option key={p}>{p}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">세부 프로그램</label>
-            <input className="form-input" value={firmForm.sub_program} onChange={e => setFirmForm(p => ({ ...p, sub_program: e.target.value }))} placeholder="예: 비즈니스 모델 혁신 트랙" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">지원사업 *</label>
+              <select className="form-input" value={firmForm.program} onChange={e => setFirmForm(p => ({ ...p, program: e.target.value }))}>
+                <option value="">선택</option>
+                {settings.programs.map(p => <option key={p}>{p}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">세부 프로그램</label>
+              <input className="form-input" value={firmForm.sub_program} onChange={e => setFirmForm(p => ({ ...p, sub_program: e.target.value }))} placeholder="예: 비즈니스 모델 혁신 트랙" />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
