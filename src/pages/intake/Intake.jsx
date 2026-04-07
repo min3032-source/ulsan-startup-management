@@ -88,6 +88,7 @@ export default function Intake() {
           ...app,
           region: app.region || desc.region || '',
           region_detail: app.region_detail || desc.region_detail || '',
+          gender: app.gender || desc.gender || '',
         }
       } catch {
         return app

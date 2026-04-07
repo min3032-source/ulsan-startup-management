@@ -219,6 +219,9 @@ export default function Apply() {
       business_name: form.biz,
       business_type: verdict,
       business_stage: form.stage,
+      region: form.region,
+      region_detail: form.region === '기타(타지역)' ? form.region_detail : '',
+      gender: form.gender,
       status: 'pending',
       description: JSON.stringify({
         consult_method: form.consult_method,
