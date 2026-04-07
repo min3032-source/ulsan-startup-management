@@ -115,8 +115,10 @@ export default function Intake() {
         phone: app.phone,
         email: app.email || '',
         region: app.region || '',
+        region_detail: app.region_detail || '',
         gender: app.gender || '',
         stage: app.business_stage || '',
+        verdict: app.business_type || '',
         consult_status: '대기중',
         date: today(),
         assignee: app.assignee || '',
@@ -493,11 +495,13 @@ export default function Intake() {
                       </div>
                     </td>
                     <td className="px-4 py-2.5 text-xs text-gray-500">{f.phone}</td>
-                    <td className="px-4 py-2.5"><VerdictBadge verdict={f.verdict} /></td>
+                    <td className="px-4 py-2.5">
+                      {f.verdict ? <VerdictBadge verdict={f.verdict} /> : <span className="text-xs text-gray-400">-</span>}
+                    </td>
                     <td className="px-4 py-2.5 text-xs text-gray-500">
                       {f.region === '기타(타지역)'
                         ? `타지역${f.region_detail ? ` (${f.region_detail})` : ''}`
-                        : f.region}
+                        : (f.region || '-')}
                     </td>
                     <td className="px-4 py-2.5 text-xs text-gray-500">{f.stage}</td>
                     <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
