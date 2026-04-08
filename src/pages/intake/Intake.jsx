@@ -1,26 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { ULSAN_REGIONS, DEFAULT_SETTINGS, Q_LABELS, calcVerdict, today } from '../../lib/constants'
-
-// ── 3단계 등록용 질문 (새로운 유형검사) ──────────────────
-const REG_QUESTIONS = [
-  { key: 'q1', text: '핵심 역량은?',    opts: [['tech','기술개발'], ['local','지역자원활용'], ['both','둘 다']] },
-  { key: 'q2', text: '주요 고객은?',    opts: [['tech','전국'],     ['local','지역주민'],     ['both','둘 다']] },
-  { key: 'q3', text: '창업 아이템은?',  opts: [['tech','기술제품'], ['local','지역특산'],     ['both','복합']] },
-  { key: 'q4', text: '수익 모델은?',    opts: [['tech','기술라이선스'], ['local','지역밀착서비스'], ['both','복합']] },
-  { key: 'q5', text: '성장 목표는?',    opts: [['tech','글로벌'],   ['local','지역사회기여'], ['both','둘 다']] },
-  { key: 'q6', text: '팀 구성은?',      opts: [['tech','개발자중심'], ['local','지역전문가'], ['both','혼합']] },
-  { key: 'q7', text: '투자 계획은?',    opts: [['tech','VC투자'],   ['local','자체수익'],     ['both','복합']] },
-]
-
-function calcRegVerdict(answers) {
-  const keys = ['q1','q2','q3','q4','q5','q6','q7']
-  if (keys.some(k => !answers[k])) return ''
-  const score = keys.reduce((s, k) => s + (answers[k] === 'tech' ? 2 : answers[k] === 'local' ? 0 : 1), 0)
-  if (score >= 10) return '테크 창업'
-  if (score <= 4)  return '로컬 창업'
-  return '혼합형 창업'
-}
+import StartupTypeQuiz from '../../components/StartupTypeQuiz'
 import { VerdictBadge } from '../../components/common/Badge'
 import Modal from '../../components/common/Modal'
 import StatCard from '../../components/common/StatCard'
@@ -71,7 +52,6 @@ export default function Intake() {
   const [registerStep, setRegisterStep] = useState(1)
   const [regForm, setRegForm] = useState({
     name: '', phone: '', email: '', gender: '', region: '', region_detail: '',
-    q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '',
     verdict: '',
     biz: '', stage: '', assignee: '', consult_status: '대기중', content: '',
   })
@@ -197,7 +177,6 @@ export default function Intake() {
   function openAdd() {
     setRegForm({
       name: '', phone: '', email: '', gender: '', region: '', region_detail: '',
-      q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '',
       verdict: '',
       biz: '', stage: '', assignee: '', consult_status: '대기중', content: '',
     })
@@ -206,13 +185,7 @@ export default function Intake() {
   }
 
   function setRegField(k, v) {
-    setRegForm(p => {
-      const next = { ...p, [k]: v }
-      if (['q1','q2','q3','q4','q5','q6','q7'].includes(k)) {
-        next.verdict = calcRegVerdict(next)
-      }
-      return next
-    })
+    setRegForm(p => ({ ...p, [k]: v }))
   }
 
   async function handleRegisterSave() {
@@ -221,8 +194,6 @@ export default function Intake() {
       name: regForm.name, phone: regForm.phone, email: regForm.email,
       gender: regForm.gender, region: regForm.region,
       region_detail: regForm.region === '기타(타지역)' ? regForm.region_detail : '',
-      q1: regForm.q1, q2: regForm.q2, q3: regForm.q3, q4: regForm.q4,
-      q5: regForm.q5, q6: regForm.q6, q7: regForm.q7,
       verdict: regForm.verdict,
       biz: regForm.biz, stage: regForm.stage,
       assignee: regForm.assignee, consult_status: regForm.consult_status,
@@ -759,23 +730,23 @@ export default function Intake() {
                 <button onClick={() => setRegisterStep(p => p - 1)} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">이전</button>
               )}
               <button onClick={() => setRegisterOpen(false)} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
-              {registerStep < 3 ? (
+              {registerStep === 1 ? (
                 <button
                   onClick={() => {
-                    if (registerStep === 1 && !regForm.name.trim()) { alert('이름을 입력해주세요'); return }
-                    if (registerStep === 1 && !regForm.phone.trim()) { alert('연락처를 입력해주세요'); return }
-                    setRegisterStep(p => p + 1)
+                    if (!regForm.name.trim()) { alert('이름을 입력해주세요'); return }
+                    if (!regForm.phone.trim()) { alert('연락처를 입력해주세요'); return }
+                    setRegisterStep(2)
                   }}
                   className="px-4 py-1.5 text-sm text-white rounded-lg"
                   style={{ background: '#2E75B6' }}
                 >다음</button>
-              ) : (
+              ) : registerStep === 3 ? (
                 <button
                   onClick={handleRegisterSave}
                   className="px-4 py-1.5 text-sm text-white rounded-lg"
                   style={{ background: '#2E75B6' }}
                 >등록 완료</button>
-              )}
+              ) : null}
             </div>
           </div>
         }
@@ -820,44 +791,12 @@ export default function Intake() {
           {registerStep === 2 && (
             <div className="space-y-3">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">창업 유형 자가진단</p>
-              <div className="space-y-3">
-                {REG_QUESTIONS.map((q, i) => (
-                  <div key={q.key} className="bg-white border border-gray-200 rounded-xl p-3">
-                    <p className="text-xs font-medium text-gray-700 mb-2">
-                      <span className="text-blue-600 font-bold">Q{i+1}.</span> {q.text}
-                    </p>
-                    <div className="flex gap-2 flex-wrap">
-                      {q.opts.map(([val, label]) => (
-                        <label
-                          key={val}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-xs transition-colors ${
-                            regForm[q.key] === val
-                              ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
-                              : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name={`reg_${q.key}`}
-                            value={val}
-                            checked={regForm[q.key] === val}
-                            onChange={() => setRegField(q.key, val)}
-                            className="sr-only"
-                          />
-                          {label}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
-                <span className="text-xs text-gray-600 font-medium">판정 결과:</span>
-                {regForm.verdict
-                  ? <VerdictBadge verdict={regForm.verdict} />
-                  : <span className="text-xs text-gray-400">Q1~Q7을 모두 선택하면 자동 계산됩니다</span>
-                }
-              </div>
+              <StartupTypeQuiz
+                onComplete={(result) => {
+                  setRegField('verdict', result.verdict)
+                  setRegisterStep(3)
+                }}
+              />
             </div>
           )}
 
