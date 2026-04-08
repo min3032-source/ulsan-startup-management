@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { ULSAN_REGIONS, today } from '../../lib/constants'
-import { CheckCircle, ChevronLeft } from 'lucide-react'
+import { CheckCircle, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react'
 import PublicHeader from '../../components/common/PublicHeader'
 import StartupTypeQuiz, { VERDICT_INFO } from '../../components/StartupTypeQuiz'
 
@@ -48,6 +48,8 @@ export default function Apply() {
   const [quizResult, setQuizResult] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError]     = useState('')
+  const [privacyAgreed, setPrivacyAgreed] = useState(false)
+  const [privacyOpen, setPrivacyOpen]     = useState(false)
 
   const verdict = quizResult?.verdict ?? null
   const vInfo   = verdict ? VERDICT_INFO[verdict] : null
@@ -57,7 +59,12 @@ export default function Apply() {
   const step1Done = form.name && form.phone && form.region && form.biz
 
   async function handleSubmit() {
+    if (!privacyAgreed) {
+      setError('개인정보 수집·이용에 동의해주세요.')
+      return
+    }
     setSubmitting(true); setError('')
+    const now = new Date().toISOString()
     const { error } = await supabase.from('startup_applications').insert({
       applicant_name: form.name,
       email: form.email,
@@ -69,6 +76,8 @@ export default function Apply() {
       region_detail: form.region === '기타(타지역)' ? form.region_detail : '',
       gender: form.gender,
       status: 'pending',
+      privacy_agreed: true,
+      privacy_agreed_at: now,
       description: JSON.stringify({
         consult_method: form.consult_method,
         preferred_date: form.preferred_date || null,
@@ -257,6 +266,47 @@ export default function Apply() {
                   rows={4} placeholder="궁금하신 점이나 상담 받고 싶은 내용을 자유롭게 작성해주세요."
                   className={input() + ' resize-none'} />
               </Field>
+            </div>
+
+            {/* ── 개인정보 수집·이용 동의 ── */}
+            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <label className="flex items-start gap-2.5 cursor-pointer flex-1">
+                  <input
+                    type="checkbox"
+                    checked={privacyAgreed}
+                    onChange={e => setPrivacyAgreed(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-blue-600 flex-shrink-0 cursor-pointer"
+                  />
+                  <span className="text-sm font-medium text-gray-800">
+                    개인정보 수집·이용에 동의합니다.
+                    <span className="text-red-500 ml-1">(필수)</span>
+                  </span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setPrivacyOpen(p => !p)}
+                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 flex-shrink-0 font-medium"
+                >
+                  전문 보기
+                  {privacyOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                </button>
+              </div>
+
+              {privacyOpen && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-xs text-gray-600 space-y-2 leading-relaxed">
+                  <p className="font-bold text-gray-700 text-sm">개인정보 수집·이용 동의서</p>
+                  <div className="space-y-1.5">
+                    <p><span className="font-semibold text-gray-700">수집 항목:</span> 이름, 연락처, 이메일, 성별, 지역, 창업유형 진단 결과, 상담 신청 내용</p>
+                    <p><span className="font-semibold text-gray-700">수집 목적:</span> 창업 상담 서비스 제공 및 창업 지원사업 안내</p>
+                    <p><span className="font-semibold text-gray-700">보유 기간:</span> 상담 완료 후 3년</p>
+                  </div>
+                  <p className="text-gray-500 pt-1 border-t border-gray-200">
+                    귀하는 동의를 거부할 권리가 있으며, 거부 시 상담 신청 서비스 이용이 제한될 수 있습니다.
+                  </p>
+                  <p className="text-gray-500"><span className="font-semibold text-gray-700">기관명:</span> 울산경제일자리진흥원</p>
+                </div>
+              )}
             </div>
 
             {error && (

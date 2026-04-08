@@ -44,10 +44,11 @@ export const VERDICT_INFO = {
 export function calcQuizScores(form) {
   let tech = 0, local = 0
 
-  if (form.q1 === 'yes') tech += 2; else if (form.q1 === 'no') local += 2
-  if (form.q2 === 'yes') tech += 2; else if (form.q2 === 'no') local += 2
-  if (form.q3 === 'yes') tech += 2; else if (form.q3 === 'no') local += 1
-  if (form.q4 === 'yes') tech += 2; else if (form.q4 === 'no') local += 2
+  // Q1~Q4: 예=테크 2점, 아니오=0점 (기술성 여부만 판별)
+  if (form.q1 === 'yes') tech += 2
+  if (form.q2 === 'yes') tech += 2
+  if (form.q3 === 'yes') tech += 2
+  if (form.q4 === 'yes') tech += 2
 
   const v5 = Number(form.q5)
   if (v5 === 5) tech += 2; else if (v5 === 4) tech += 1
