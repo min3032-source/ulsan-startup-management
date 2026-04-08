@@ -46,6 +46,16 @@ export default function Intake() {
   const [form, setForm] = useState(emptyForm())
   const [privacyAgreed, setPrivacyAgreed] = useState(false)
 
+  // 3단계 신규 등록 모달
+  const [registerOpen, setRegisterOpen] = useState(false)
+  const [registerStep, setRegisterStep] = useState(1)
+  const [regForm, setRegForm] = useState({
+    name: '', phone: '', email: '', gender: '', region: '', region_detail: '',
+    q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '',
+    verdict: '',
+    biz: '', stage: '', assignee: '', consult_status: '대기중', content: '',
+  })
+
   const [applications, setApplications] = useState([])
   const [appsLoading, setAppsLoading] = useState(false)
   const [users, setUsers] = useState([])
@@ -69,18 +79,17 @@ export default function Intake() {
   async function loadData() {
     setLoading(true)
     try {
-      const [{ data: f }, { data: s }, { data: u }, { data: cc }] = await Promise.all([
-        supabase.from('founders').select('*').order('date', { ascending: false }),
+      const [{ data: f }, { data: s }, { data: u }] = await Promise.all([
+        supabase.from('founders').select('*, consults(count)').order('date', { ascending: false }),
         supabase.from('team_settings').select('*').limit(1).single(),
         supabase.from('profiles').select('id, name').order('name'),
-        supabase.from('consults').select('founder_id'),
       ])
       setFounders(f || [])
       if (s) setSettings({ ...DEFAULT_SETTINGS, ...s })
       setUsers(u || [])
       const counts = {}
-      for (const c of cc || []) {
-        counts[c.founder_id] = (counts[c.founder_id] || 0) + 1
+      for (const founder of f || []) {
+        counts[founder.id] = founder.consults?.[0]?.count || 0
       }
       setConsultCounts(counts)
     } catch (e) {
@@ -165,10 +174,46 @@ export default function Intake() {
   }
 
   function openAdd() {
-    setEditingId(null)
-    setForm(emptyForm())
-    setPrivacyAgreed(false)
-    setModalOpen(true)
+    setRegForm({
+      name: '', phone: '', email: '', gender: '', region: '', region_detail: '',
+      q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '',
+      verdict: '',
+      biz: '', stage: '', assignee: '', consult_status: '대기중', content: '',
+    })
+    setRegisterStep(1)
+    setRegisterOpen(true)
+  }
+
+  function setRegField(k, v) {
+    setRegForm(p => {
+      const next = { ...p, [k]: v }
+      if (['q1','q2','q3','q4','q5','q6','q7'].includes(k)) {
+        next.verdict = calcVerdict(next.q1, next.q2, next.q3, next.q4, next.q5, next.q6, next.q7)
+      }
+      return next
+    })
+  }
+
+  async function handleRegisterSave() {
+    if (!regForm.name.trim()) { alert('이름을 입력해주세요'); return }
+    const payload = {
+      name: regForm.name, phone: regForm.phone, email: regForm.email,
+      gender: regForm.gender, region: regForm.region,
+      region_detail: regForm.region === '기타(타지역)' ? regForm.region_detail : '',
+      q1: regForm.q1, q2: regForm.q2, q3: regForm.q3, q4: regForm.q4,
+      q5: regForm.q5, q6: regForm.q6, q7: regForm.q7,
+      verdict: regForm.verdict,
+      biz: regForm.biz, stage: regForm.stage,
+      assignee: regForm.assignee, consult_status: regForm.consult_status,
+      content: regForm.content,
+      date: today(),
+    }
+    const { data, error } = await supabase.from('founders').insert([payload]).select('*, consults(count)').single()
+    if (error) { alert('저장 실패: ' + error.message); return }
+    setFounders(prev => [data, ...prev])
+    setConsultCounts(prev => ({ ...prev, [data.id]: 0 }))
+    setRegisterOpen(false)
+    showToast('상담자가 등록되었습니다.')
   }
 
   function openEdit(f, e) {
@@ -294,7 +339,7 @@ export default function Intake() {
   async function openConsultJournal(f, e) {
     e.stopPropagation()
     setJournalFounder(f)
-    setJournalForm({ date: today(), method: '', content: '', result: '', status: '상담중', next_date: '', staff: '' })
+    setJournalForm({ date: today(), method: '', content: '', result: '', status: '상담중', next_date: '', staff: f.assignee || '' })
     setConsultJournalOpen(true)
     setJournalsLoading(true)
     const { data } = await supabase.from('consults').select('*').eq('founder_id', f.id).order('date', { ascending: false })
@@ -675,7 +720,162 @@ export default function Intake() {
         )}
       </Modal>
 
-      {/* ── 등록/수정 모달 ── */}
+      {/* ── 3단계 신규 등록 모달 ── */}
+      <Modal
+        isOpen={registerOpen}
+        onClose={() => setRegisterOpen(false)}
+        title={`현장 상담자 등록 (${registerStep}/3단계)`}
+        wide
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <div className="flex gap-1.5">
+              {[1,2,3].map(s => (
+                <div key={s} className={`w-2.5 h-2.5 rounded-full transition-colors ${registerStep === s ? 'bg-blue-600' : registerStep > s ? 'bg-blue-300' : 'bg-gray-200'}`} />
+              ))}
+            </div>
+            <div className="flex gap-2">
+              {registerStep > 1 && (
+                <button onClick={() => setRegisterStep(p => p - 1)} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">이전</button>
+              )}
+              <button onClick={() => setRegisterOpen(false)} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
+              {registerStep < 3 ? (
+                <button
+                  onClick={() => {
+                    if (registerStep === 1 && !regForm.name.trim()) { alert('이름을 입력해주세요'); return }
+                    if (registerStep === 1 && !regForm.phone.trim()) { alert('연락처를 입력해주세요'); return }
+                    setRegisterStep(p => p + 1)
+                  }}
+                  className="px-4 py-1.5 text-sm text-white rounded-lg"
+                  style={{ background: '#2E75B6' }}
+                >다음</button>
+              ) : (
+                <button
+                  onClick={handleRegisterSave}
+                  className="px-4 py-1.5 text-sm text-white rounded-lg"
+                  style={{ background: '#2E75B6' }}
+                >등록 완료</button>
+              )}
+            </div>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {/* 1단계: 기본 정보 */}
+          {registerStep === 1 && (
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">기본 정보</p>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="이름 *">
+                  <input className="form-input" value={regForm.name} onChange={e => setRegField('name', e.target.value)} placeholder="홍길동" />
+                </FormField>
+                <FormField label="연락처 *">
+                  <input className="form-input" value={regForm.phone} onChange={e => setRegField('phone', e.target.value)} placeholder="010-0000-0000" />
+                </FormField>
+              </div>
+              <FormField label="이메일">
+                <input type="email" className="form-input" value={regForm.email} onChange={e => setRegField('email', e.target.value)} placeholder="example@email.com" />
+              </FormField>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="성별">
+                  <select className="form-input" value={regForm.gender} onChange={e => setRegField('gender', e.target.value)}>
+                    <option value="">선택</option>
+                    <option>남</option><option>여</option>
+                  </select>
+                </FormField>
+                <FormField label="지역">
+                  <select className="form-input" value={regForm.region} onChange={e => setRegField('region', e.target.value)}>
+                    <option value="">선택</option>
+                    {ULSAN_REGIONS.map(r => <option key={r}>{r}</option>)}
+                  </select>
+                  {regForm.region === '기타(타지역)' && (
+                    <input className="form-input mt-1.5" placeholder="지역 입력" value={regForm.region_detail} onChange={e => setRegField('region_detail', e.target.value)} />
+                  )}
+                </FormField>
+              </div>
+            </div>
+          )}
+
+          {/* 2단계: 창업유형 자가진단 Q1~Q7 */}
+          {registerStep === 2 && (
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">창업 유형 자가진단</p>
+              <div className="bg-blue-50 rounded-xl p-4 space-y-4 border border-blue-100">
+                {['q1','q2','q3','q4','q5','q6'].map((qk, i) => (
+                  <div key={qk} className="flex items-start gap-3">
+                    <div className="text-xs text-gray-600 flex-1 pt-0.5">
+                      <span className="font-bold text-blue-600">Q{i+1}.</span> {Q_LABELS[qk]}
+                    </div>
+                    <div className="flex gap-2 flex-shrink-0">
+                      {['yes','no'].map(v => (
+                        <label key={v} className="flex items-center gap-1 cursor-pointer">
+                          <input type="radio" name={`reg_${qk}`} value={v} checked={regForm[qk] === v} onChange={() => setRegField(qk, v)} className="w-3.5 h-3.5" />
+                          <span className="text-xs">{v === 'yes' ? '예' : '아니오'}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <div className="flex items-start gap-3">
+                  <div className="text-xs text-gray-600 flex-1 pt-0.5">
+                    <span className="font-bold text-blue-600">Q7.</span> {Q_LABELS.q7}
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    {[['tech','기술 고도화'],['local','지역 운영 확대']].map(([v, label]) => (
+                      <label key={v} className="flex items-center gap-1 cursor-pointer">
+                        <input type="radio" name="reg_q7" value={v} checked={regForm.q7 === v} onChange={() => setRegField('q7', v)} className="w-3.5 h-3.5" />
+                        <span className="text-xs">{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                <span className="text-sm text-gray-600">판정 결과:</span>
+                {regForm.verdict
+                  ? <VerdictBadge verdict={regForm.verdict} />
+                  : <span className="text-xs text-gray-400">Q1~Q7을 모두 선택하면 자동 계산됩니다</span>
+                }
+              </div>
+            </div>
+          )}
+
+          {/* 3단계: 상담 정보 */}
+          {registerStep === 3 && (
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">상담 정보</p>
+              <FormField label="창업 아이템">
+                <textarea className="form-input" rows={2} value={regForm.biz} onChange={e => setRegField('biz', e.target.value)} placeholder="예: AI 기반 물류 최적화 플랫폼" />
+              </FormField>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="창업 단계">
+                  <select className="form-input" value={regForm.stage} onChange={e => setRegField('stage', e.target.value)}>
+                    <option value="">선택</option>
+                    {settings.stages.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </FormField>
+                <FormField label="담당자">
+                  <select className="form-input" value={regForm.assignee} onChange={e => setRegField('assignee', e.target.value)}>
+                    <option value="">선택</option>
+                    {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                  </select>
+                </FormField>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="상담 상태">
+                  <select className="form-input" value={regForm.consult_status} onChange={e => setRegField('consult_status', e.target.value)}>
+                    {['대기중','상담중','완료','보류'].map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </FormField>
+              </div>
+              <FormField label="메모">
+                <textarea className="form-input" rows={3} value={regForm.content} onChange={e => setRegField('content', e.target.value)} placeholder="상담 내용, 요청사항 등" />
+              </FormField>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* ── 등록/수정 모달 (수정 전용) ── */}
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}

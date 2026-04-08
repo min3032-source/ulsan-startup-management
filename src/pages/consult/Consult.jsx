@@ -1,184 +1,134 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { useAuth } from '../../context/AuthContext'
-import { DEFAULT_SETTINGS, Q_LABELS, today } from '../../lib/constants'
-import { StatusBadge } from '../../components/common/Badge'
+import { today } from '../../lib/constants'
+import { VerdictBadge } from '../../components/common/Badge'
 import Modal from '../../components/common/Modal'
 import StatCard from '../../components/common/StatCard'
 import Avatar from '../../components/common/Avatar'
-import { Plus, Search, Pencil, Trash2 } from 'lucide-react'
-
-const emptyForm = () => ({
-  founder_id: '', date: today(), staff: '', method: '', verdict: '',
-  final_verdict: '', request: '', content: '', programs: [],
-  status: '완료', follow_up: '', next_date: '', memo: '',
-})
+import { BookOpen, Search } from 'lucide-react'
 
 export default function Consult() {
-  const { hasRole } = useAuth()
-  const canWrite = hasRole("manager")
-  const canDelete = hasRole("admin")
-
-  const [consults, setConsults] = useState([])
   const [founders, setFounders] = useState([])
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS)
-  const [users, setUsers] = useState([])
-  const [flashId, setFlashId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [filterStatus, setFilterStatus] = useState('')
-  const [filterStaff, setFilterStaff] = useState('')
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editingId, setEditingId] = useState(null)
-  const [form, setForm] = useState(emptyForm())
-  const [privacyAgreed, setPrivacyAgreed] = useState(false)
-  const [showPrivacyDetail, setShowPrivacyDetail] = useState(false)
+  const [toast, setToast] = useState('')
+
+  // 상담일지 모달
+  const [journalOpen, setJournalOpen] = useState(false)
+  const [journalFounder, setJournalFounder] = useState(null)
+  const [journals, setJournals] = useState([])
+  const [journalsLoading, setJournalsLoading] = useState(false)
+  const [journalForm, setJournalForm] = useState({
+    date: today(), method: '', content: '', result: '', status: '상담중', next_date: '', staff: '',
+  })
+  const [journalSaving, setJournalSaving] = useState(false)
 
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
     setLoading(true)
-    try {
-      const [{ data: c }, { data: f }, { data: s }, { data: u }] = await Promise.all([
-        supabase.from('consults').select('*').order('date', { ascending: false }),
-        supabase.from('founders').select('id, name, verdict, biz'),
-        supabase.from('team_settings').select('*').limit(1).single(),
-        supabase.from('profiles').select('id, name').order('name'),
-      ])
-      setConsults(c || [])
-      setFounders(f || [])
-      if (s) setSettings({ ...DEFAULT_SETTINGS, ...s })
-      setUsers(u || [])
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setLoading(false)
-    }
+    const { data } = await supabase
+      .from('founders')
+      .select('*, consults(*)')
+      .not('assignee', 'is', null)
+      .neq('assignee', '')
+      .order('date', { ascending: false })
+    setFounders(data || [])
+    setLoading(false)
   }
 
-  const founderMap = Object.fromEntries(founders.map(f => [f.id, f]))
-
-  function openAdd() {
-    setEditingId(null)
-    setForm(emptyForm())
-    setPrivacyAgreed(false)
-    setShowPrivacyDetail(false)
-    setModalOpen(true)
+  function showToast(msg) {
+    setToast(msg)
+    setTimeout(() => setToast(''), 3000)
   }
 
-  function openEdit(c) {
-    setEditingId(c.id)
-    setPrivacyAgreed(false)
-    setShowPrivacyDetail(false)
-    setForm({
-      founder_id: c.founder_id || '', date: c.date || today(),
-      staff: c.staff || '', method: c.method || '',
-      verdict: c.verdict || '', final_verdict: c.final_verdict || '',
-      request: c.request || '', content: c.content || '',
-      programs: c.programs || [],
-      status: c.status || '완료',
-      follow_up: c.follow_up || '', next_date: c.next_date || '',
-      memo: c.memo || '',
+  async function openJournal(f) {
+    setJournalFounder(f)
+    setJournalForm({
+      date: today(), method: '', content: '', result: '',
+      status: '상담중', next_date: '', staff: f.assignee || '',
     })
-    setModalOpen(true)
+    setJournalOpen(true)
+    setJournalsLoading(true)
+    const { data } = await supabase
+      .from('consults')
+      .select('*')
+      .eq('founder_id', f.id)
+      .order('date', { ascending: false })
+    setJournals(data || [])
+    setJournalsLoading(false)
   }
 
-  function setField(k, v) { setForm(p => ({ ...p, [k]: v })) }
-
-  function toggleProgram(prog) {
-    setForm(p => {
-      const progs = p.programs || []
-      return { ...p, programs: progs.includes(prog) ? progs.filter(x => x !== prog) : [...progs, prog] }
+  async function saveJournal() {
+    if (!journalForm.content.trim()) { alert('상담 내용을 입력해주세요'); return }
+    setJournalSaving(true)
+    const { data, error } = await supabase.from('consults').insert([{
+      founder_id: journalFounder.id,
+      date: journalForm.date,
+      staff: journalForm.staff,
+      method: journalForm.method,
+      content: journalForm.content,
+      result: journalForm.result,
+      status: journalForm.status,
+      next_date: journalForm.next_date || null,
+    }]).select().single()
+    setJournalSaving(false)
+    if (error) { alert('저장 실패: ' + error.message); return }
+    setJournals(prev => [data, ...prev])
+    setFounders(prev => prev.map(f =>
+      f.id === journalFounder.id
+        ? { ...f, consults: [...(f.consults || []), data] }
+        : f
+    ))
+    setJournalForm({
+      date: today(), method: '', content: '', result: '',
+      status: '상담중', next_date: '', staff: journalFounder.assignee || '',
     })
+    showToast('상담일지가 저장되었습니다.')
   }
 
-  async function handleSave() {
-    if (!form.founder_id) { alert('창업자를 선택해주세요'); return }
-    const payload = { ...form }
-    try {
-      if (editingId) {
-        const { error } = await supabase.from('consults').update(payload).eq('id', editingId)
-        if (error) throw error
-        setConsults(prev => prev.map(c => c.id === editingId ? { ...c, ...payload } : c))
-      } else {
-        const { data, error } = await supabase.from('consults').insert([payload]).select().single()
-        if (error) throw error
-        setConsults(prev => [data, ...prev])
-      }
-      setModalOpen(false)
-    } catch (e) {
-      alert('저장 실패: ' + e.message)
-    }
-  }
+  const filtered = founders.filter(f =>
+    !search ||
+    f.name?.includes(search) ||
+    f.biz?.includes(search) ||
+    f.assignee?.includes(search)
+  )
 
-  async function handleStaffChange(id, value) {
-    const { error } = await supabase.from('consults').update({ staff: value }).eq('id', id)
-    if (error) { alert('담당자 변경 실패: ' + error.message); return }
-    setConsults(prev => prev.map(c => c.id === id ? { ...c, staff: value } : c))
-    setFlashId(id)
-    setTimeout(() => setFlashId(null), 1200)
-  }
-
-  async function handleDelete(id) {
-    if (!confirm('이 상담일지를 삭제하시겠습니까?')) return
-    const { error } = await supabase.from('consults').delete().eq('id', id)
-    if (error) { alert('삭제 실패: ' + error.message); return }
-    setConsults(prev => prev.filter(c => c.id !== id))
-  }
-
-  const filtered = consults.filter(c => {
-    const fn = founderMap[c.founder_id]?.name || ''
-    return (
-      (!search || fn.includes(search) || c.staff?.includes(search)) &&
-      (!filterStatus || c.status === filterStatus) &&
-      (!filterStaff || c.staff === filterStaff)
-    )
-  })
-
-  const doneCount = consults.filter(c => c.status === '완료').length
-  const followCount = consults.filter(c => c.status === '후속필요').length
+  const totalConsults = founders.reduce((sum, f) => sum + (f.consults?.length || 0), 0)
+  const consultedCount = founders.filter(f => (f.consults?.length || 0) > 0).length
 
   return (
     <div className="p-6 space-y-5">
+      {toast && (
+        <div className="fixed top-5 right-5 z-50 bg-green-600 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg animate-pulse">
+          {toast}
+        </div>
+      )}
+
       <h1 className="text-xl font-bold text-gray-800">상담일지</h1>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="전체 상담" value={`${consults.length}건`} color="blue" />
-        <StatCard label="완료" value={`${doneCount}건`} color="green" />
-        <StatCard label="후속 필요" value={`${followCount}건`} color="orange" />
-        <StatCard label="담당자 수" value={`${new Set(consults.map(c => c.staff).filter(Boolean)).size}명`} color="teal" />
+        <StatCard label="담당자 배정" value={`${founders.length}명`} color="blue" />
+        <StatCard label="상담 완료" value={`${consultedCount}명`} color="green" />
+        <StatCard label="미상담" value={`${founders.length - consultedCount}명`} color="orange" />
+        <StatCard label="전체 상담 건수" value={`${totalConsults}건`} color="teal" />
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
-          <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              className="pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 w-44"
-              placeholder="창업자·담당자 검색"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-          </div>
-          <select className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-            <option value="">전체 상태</option>
-            <option>완료</option><option>후속필요</option><option>진행중</option>
-          </select>
-          <select className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5" value={filterStaff} onChange={e => setFilterStaff(e.target.value)}>
-            <option value="">전체 담당자</option>
-            {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-          </select>
-        </div>
-        <button onClick={openAdd} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white rounded-lg" style={{ background: '#2E75B6' }}>
-          <Plus size={15} /> 상담일지 등록
-        </button>
+      <div className="relative w-52">
+        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          className="pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 w-full"
+          placeholder="이름·기업명·담당자 검색"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              {['상담자명', '기업명', '상담일', '담당자', '방법', '상태', '다음상담예정일', '관리'].map(h => (
+              {['상담자명', '기업명', '창업유형', '지역', '담당자', '상담횟수', '최근상담일', '관리'].map(h => (
                 <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
               ))}
             </tr>
@@ -187,39 +137,47 @@ export default function Consult() {
             {loading ? (
               <tr><td colSpan={8} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={8} className="text-center py-10 text-gray-400 text-sm">등록된 상담일지가 없습니다</td></tr>
-            ) : filtered.map(c => {
-              const f = founderMap[c.founder_id]
+              <tr><td colSpan={8} className="text-center py-10 text-gray-400 text-sm">담당자가 배정된 상담자가 없습니다</td></tr>
+            ) : filtered.map(f => {
+              const count = f.consults?.length || 0
+              const sorted = [...(f.consults || [])].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+              const latestDate = sorted[0]?.date?.slice(0, 10) || null
               return (
-                <tr key={c.id} className={`border-b border-gray-50 transition-colors ${
-                  flashId === c.id ? 'bg-green-50' : 'hover:bg-gray-50'
-                }`}>
+                <tr key={f.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2">
-                      <Avatar name={f?.name} />
-                      <span className="font-medium text-gray-800 text-xs">{f?.name || '-'}</span>
+                      <Avatar name={f.name} />
+                      <span className="font-medium text-gray-800 text-xs">{f.name}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-2.5 text-xs text-gray-600">{f?.biz || '-'}</td>
-                  <td className="px-4 py-2.5 text-xs text-gray-500">{c.date}</td>
+                  <td className="px-4 py-2.5 text-xs text-gray-600">{f.biz || '-'}</td>
                   <td className="px-4 py-2.5">
-                    <select
-                      className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-transparent hover:border-gray-400 focus:outline-none focus:border-blue-400 max-w-[90px]"
-                      value={c.staff || ''}
-                      onChange={e => handleStaffChange(c.id, e.target.value)}
+                    {f.verdict
+                      ? <VerdictBadge verdict={f.verdict} />
+                      : <span className="text-xs text-gray-400">-</span>
+                    }
+                  </td>
+                  <td className="px-4 py-2.5 text-xs text-gray-500">
+                    {f.region === '기타(타지역)'
+                      ? `타지역${f.region_detail ? ` (${f.region_detail})` : ''}`
+                      : (f.region || '-')}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs font-medium text-gray-700">{f.assignee}</td>
+                  <td className="px-4 py-2.5">
+                    {count === 0 ? (
+                      <span className="px-2 py-0.5 text-xs bg-red-100 text-red-600 rounded font-medium">미상담</span>
+                    ) : (
+                      <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-600 rounded font-medium">{count}회</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs text-gray-400">{latestDate || '-'}</td>
+                  <td className="px-4 py-2.5">
+                    <button
+                      onClick={() => openJournal(f)}
+                      className="flex items-center gap-1 px-2 py-0.5 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50"
                     >
-                      <option value="">-</option>
-                      {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-                    </select>
-                  </td>
-                  <td className="px-4 py-2.5 text-xs text-gray-500">{c.method || '-'}</td>
-                  <td className="px-4 py-2.5"><StatusBadge status={c.status} /></td>
-                  <td className="px-4 py-2.5 text-xs text-gray-500">{c.next_date || '-'}</td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex gap-1">
-                      <button onClick={() => openEdit(c)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-600"><Pencil size={13} /></button>
-                      <button onClick={() => handleDelete(c.id)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-red-600"><Trash2 size={13} /></button>
-                    </div>
+                      <BookOpen size={11} /> 상담일지
+                    </button>
                   </td>
                 </tr>
               )
@@ -228,136 +186,138 @@ export default function Consult() {
         </table>
       </div>
 
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? '상담일지 수정' : '상담일지 등록'} wide
-        footer={
-          <>
-            <button onClick={() => setModalOpen(false)} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
-            <button
-              onClick={handleSave}
-              disabled={!privacyAgreed}
-              className="px-4 py-1.5 text-sm text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: '#2E75B6' }}
-            >
-              저장
-            </button>
-          </>
-        }
+      {/* 상담일지 모달 */}
+      <Modal
+        isOpen={journalOpen}
+        onClose={() => setJournalOpen(false)}
+        title={`상담일지 — ${journalFounder?.name || ''}`}
+        wide
       >
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">창업자 *</label>
-              <select className="form-input" value={form.founder_id} onChange={e => setField('founder_id', e.target.value)}>
-                <option value="">선택</option>
-                {founders.map(f => <option key={f.id} value={f.id}>{f.name} ({f.biz || ''})</option>)}
-              </select>
+        {journalFounder && (
+          <div className="space-y-4">
+            {/* 상단: 상담자 정보 (읽기전용) */}
+            <div className="flex flex-wrap gap-4 p-3 bg-gray-50 rounded-lg text-xs text-gray-700 border border-gray-200">
+              <span><strong>상담자:</strong> {journalFounder.name}</span>
+              {journalFounder.biz && <span><strong>기업명:</strong> {journalFounder.biz}</span>}
+              <span><strong>담당자:</strong> {journalFounder.assignee}</span>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">담당자</label>
-              <select className="form-input" value={form.staff} onChange={e => setField('staff', e.target.value)}>
-                <option value="">선택</option>
-                {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">상담일</label>
-              <input type="date" className="form-input" value={form.date} onChange={e => setField('date', e.target.value)} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">방식</label>
-              <select className="form-input" value={form.method} onChange={e => setField('method', e.target.value)}>
-                <option value="">선택</option>
-                {settings.methods.map(m => <option key={m}>{m}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">상태</label>
-              <select className="form-input" value={form.status} onChange={e => setField('status', e.target.value)}>
-                {['상담중', '완료', '후속필요', '보류'].map(s => <option key={s}>{s}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">판정</label>
-              <input className="form-input" value={form.verdict} onChange={e => setField('verdict', e.target.value)} placeholder="예: 테크 창업 가능성 높음" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">최종 판정</label>
-              <input className="form-input" value={form.final_verdict} onChange={e => setField('final_verdict', e.target.value)} />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">상담 요청 내용</label>
-            <textarea className="form-input" value={form.request} onChange={e => setField('request', e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">상담 내용</label>
-            <textarea className="form-input" rows={3} value={form.content} onChange={e => setField('content', e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">연계 프로그램</label>
-            <div className="flex flex-wrap gap-2 mt-1">
-              {settings.programs.map(p => (
-                <label key={p} className="flex items-center gap-1 cursor-pointer text-xs">
-                  <input
-                    type="checkbox"
-                    checked={(form.programs || []).includes(p)}
-                    onChange={() => toggleProgram(p)}
-                    className="w-3.5 h-3.5"
-                  />
-                  {p}
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">후속 조치</label>
-              <input className="form-input" value={form.follow_up} onChange={e => setField('follow_up', e.target.value)} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">다음 상담 예정일</label>
-              <input type="date" className="form-input" value={form.next_date} onChange={e => setField('next_date', e.target.value)} />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">메모</label>
-            <textarea className="form-input" value={form.memo} onChange={e => setField('memo', e.target.value)} />
-          </div>
 
-          {/* 개인정보 수집·이용 동의 */}
-          <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-2">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="privacy-agree"
-                checked={privacyAgreed}
-                onChange={e => setPrivacyAgreed(e.target.checked)}
-                className="w-4 h-4 accent-blue-600"
-              />
-              <label htmlFor="privacy-agree" className="text-xs text-gray-700 cursor-pointer">
-                개인정보 수집·이용에 동의합니다. <span className="text-red-500">(필수)</span>
-              </label>
+            {/* 중단: 이전 상담일지 목록 */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-2">이전 상담일지</p>
+              {journalsLoading ? (
+                <div className="text-center py-4 text-gray-400 text-xs">로딩 중...</div>
+              ) : journals.length === 0 ? (
+                <div className="text-center py-6 text-gray-400 text-xs">
+                  아직 상담 내역이 없습니다. 첫 상담을 등록해주세요.
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-56 overflow-y-auto">
+                  {journals.map(j => (
+                    <div key={j.id} className="border border-gray-100 rounded-lg p-3 bg-white text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-gray-700">{j.date?.slice(0, 10)}</span>
+                        <div className="flex gap-2 text-gray-400">
+                          {j.method && <span className="px-1.5 py-0.5 bg-gray-100 rounded">{j.method}</span>}
+                          {j.staff && <span>{j.staff}</span>}
+                          {j.status && <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded">{j.status}</span>}
+                        </div>
+                      </div>
+                      {j.content && <p className="text-gray-600 leading-relaxed">{j.content}</p>}
+                      {j.result && <p className="text-blue-600">→ {j.result}</p>}
+                      {j.next_date && <p className="text-orange-500">다음 상담: {j.next_date}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 하단: 새 상담일지 등록 */}
+            <div className="border border-blue-100 rounded-xl p-4 space-y-3 bg-blue-50/30">
+              <p className="text-xs font-semibold text-blue-700">새 상담일지 등록</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">상담일시</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={journalForm.date}
+                    onChange={e => setJournalForm(p => ({ ...p, date: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">상담방법</label>
+                  <select
+                    className="form-input"
+                    value={journalForm.method}
+                    onChange={e => setJournalForm(p => ({ ...p, method: e.target.value }))}
+                  >
+                    <option value="">선택</option>
+                    {['방문상담','화상상담','전화상담','이메일','기타'].map(m => <option key={m}>{m}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">담당자</label>
+                <input
+                  className="form-input bg-gray-50 text-gray-600"
+                  value={journalForm.staff}
+                  onChange={e => setJournalForm(p => ({ ...p, staff: e.target.value }))}
+                  placeholder="담당자명"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">상태</label>
+                  <select
+                    className="form-input"
+                    value={journalForm.status}
+                    onChange={e => setJournalForm(p => ({ ...p, status: e.target.value }))}
+                  >
+                    {['상담중','완료','후속필요','보류'].map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">다음 상담 예정일 (선택)</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={journalForm.next_date}
+                    onChange={e => setJournalForm(p => ({ ...p, next_date: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">상담내용</label>
+                <textarea
+                  className="form-input"
+                  rows={3}
+                  value={journalForm.content}
+                  onChange={e => setJournalForm(p => ({ ...p, content: e.target.value }))}
+                  placeholder="상담 내용을 입력하세요"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">상담결과</label>
+                <textarea
+                  className="form-input"
+                  rows={2}
+                  value={journalForm.result}
+                  onChange={e => setJournalForm(p => ({ ...p, result: e.target.value }))}
+                  placeholder="상담 결과 및 특이사항"
+                />
+              </div>
               <button
-                type="button"
-                onClick={() => setShowPrivacyDetail(v => !v)}
-                className="text-xs text-blue-500 hover:text-blue-700 underline ml-1"
+                onClick={saveJournal}
+                disabled={journalSaving}
+                className="w-full py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50"
+                style={{ background: '#2E75B6' }}
               >
-                {showPrivacyDetail ? '닫기' : '내용보기'}
+                {journalSaving ? '저장 중...' : '저장'}
               </button>
             </div>
-            {showPrivacyDetail && (
-              <div className="text-xs text-gray-600 bg-white border border-gray-200 rounded p-3 space-y-1 leading-relaxed">
-                <div><span className="font-medium">수집 항목:</span> 성명, 연락처, 이메일, 사업 관련 정보</div>
-                <div><span className="font-medium">수집 목적:</span> 창업 상담 서비스 제공</div>
-                <div><span className="font-medium">보유 기간:</span> 상담 종료 후 3년</div>
-              </div>
-            )}
           </div>
-        </div>
+        )}
       </Modal>
     </div>
   )
