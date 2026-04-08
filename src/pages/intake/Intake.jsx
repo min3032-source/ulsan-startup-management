@@ -51,13 +51,14 @@ export default function Intake() {
   const [users, setUsers] = useState([])
   const [founderFilter, setFounderFilter] = useState('consultee') // 'all' | 'consultee' | 'founder'
   const [flashId, setFlashId] = useState(null)
+  const [consultCounts, setConsultCounts] = useState({})
 
   // 상담일지 모달
   const [consultJournalOpen, setConsultJournalOpen] = useState(false)
   const [journalFounder, setJournalFounder] = useState(null)
   const [journals, setJournals] = useState([])
   const [journalsLoading, setJournalsLoading] = useState(false)
-  const [journalForm, setJournalForm] = useState({ date: today(), method: '', content: '', status: '완료', follow_up: '', next_date: '', staff: '' })
+  const [journalForm, setJournalForm] = useState({ date: today(), method: '', content: '', result: '', status: '상담중', next_date: '', staff: '' })
   const [journalSaving, setJournalSaving] = useState(false)
 
   useEffect(() => { loadData() }, [])
@@ -68,14 +69,20 @@ export default function Intake() {
   async function loadData() {
     setLoading(true)
     try {
-      const [{ data: f }, { data: s }, { data: u }] = await Promise.all([
+      const [{ data: f }, { data: s }, { data: u }, { data: cc }] = await Promise.all([
         supabase.from('founders').select('*').order('date', { ascending: false }),
         supabase.from('team_settings').select('*').limit(1).single(),
         supabase.from('profiles').select('id, name').order('name'),
+        supabase.from('consults').select('founder_id'),
       ])
       setFounders(f || [])
       if (s) setSettings({ ...DEFAULT_SETTINGS, ...s })
       setUsers(u || [])
+      const counts = {}
+      for (const c of cc || []) {
+        counts[c.founder_id] = (counts[c.founder_id] || 0) + 1
+      }
+      setConsultCounts(counts)
     } catch (e) {
       console.error(e)
     } finally {
@@ -287,7 +294,7 @@ export default function Intake() {
   async function openConsultJournal(f, e) {
     e.stopPropagation()
     setJournalFounder(f)
-    setJournalForm({ date: today(), method: '', content: '', status: '완료', follow_up: '', next_date: '', staff: '' })
+    setJournalForm({ date: today(), method: '', content: '', result: '', status: '상담중', next_date: '', staff: '' })
     setConsultJournalOpen(true)
     setJournalsLoading(true)
     const { data } = await supabase.from('consults').select('*').eq('founder_id', f.id).order('date', { ascending: false })
@@ -304,14 +311,16 @@ export default function Intake() {
       staff: journalForm.staff,
       method: journalForm.method,
       content: journalForm.content,
+      result: journalForm.result,
       status: journalForm.status,
-      follow_up: journalForm.follow_up,
       next_date: journalForm.next_date || null,
     }]).select().single()
     setJournalSaving(false)
     if (error) { alert('저장 실패: ' + error.message); return }
     setJournals(prev => [data, ...prev])
-    setJournalForm({ date: today(), method: '', content: '', status: '완료', follow_up: '', next_date: '', staff: '' })
+    setJournalForm({ date: today(), method: '', content: '', result: '', status: '상담중', next_date: '', staff: '' })
+    setConsultCounts(prev => ({ ...prev, [journalFounder.id]: (prev[journalFounder.id] || 0) + 1 }))
+    showToast('상담일지가 저장되었습니다.')
   }
 
   const filtered = founders.filter(f => {
@@ -520,16 +529,16 @@ export default function Intake() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  {['이름', '연락처', '창업유형', '지역', '창업단계', '담당자', '상담상태', '접수일', '상담일지', '관리', '창업자등록'].map(h => (
+                  {['이름', '연락처', '창업유형', '지역', '창업단계', '담당자', '상담상태', '접수일', '상담횟수', '상담일지', '관리', '창업자등록'].map(h => (
                     <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={11} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
+                  <tr><td colSpan={12} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={11} className="text-center py-10 text-gray-400 text-sm">등록된 상담이 없습니다</td></tr>
+                  <tr><td colSpan={12} className="text-center py-10 text-gray-400 text-sm">등록된 상담이 없습니다</td></tr>
                 ) : filtered.map(f => (
                   <tr
                     key={f.id}
@@ -573,6 +582,13 @@ export default function Intake() {
                       }
                     </td>
                     <td className="px-4 py-2.5 text-xs text-gray-500">{f.date}</td>
+                    <td className="px-4 py-2.5 text-xs text-center">
+                      {consultCounts[f.id] ? (
+                        <span className="font-medium text-blue-600">{consultCounts[f.id]}회</span>
+                      ) : (
+                        <span className="text-gray-300">-</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
                       <button
                         onClick={e => openConsultJournal(f, e)}
@@ -906,38 +922,73 @@ export default function Intake() {
       >
         {journalFounder && (
           <div className="space-y-4">
-            {/* 상담자 정보 */}
-            <div className="flex gap-4 p-3 bg-gray-50 rounded-lg text-xs text-gray-600">
+            {/* 상담자 정보 (읽기 전용) */}
+            <div className="flex flex-wrap gap-4 p-3 bg-gray-50 rounded-lg text-xs text-gray-700 border border-gray-200">
               <span><strong>상담자:</strong> {journalFounder.name}</span>
               {journalFounder.biz && <span><strong>기업명:</strong> {journalFounder.biz}</span>}
-              {journalFounder.phone && <span><strong>연락처:</strong> {journalFounder.phone}</span>}
+              {journalFounder.verdict && <span><strong>창업유형:</strong> {journalFounder.verdict}</span>}
             </div>
 
-            {/* 신규 일지 작성 */}
+            {/* 이전 상담일지 목록 */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-2">이전 상담일지</p>
+              {journalsLoading ? (
+                <div className="text-center py-4 text-gray-400 text-xs">로딩 중...</div>
+              ) : journals.length === 0 ? (
+                <div className="text-center py-4 text-gray-400 text-xs">아직 상담 내역이 없습니다.</div>
+              ) : (
+                <div className="space-y-2 max-h-56 overflow-y-auto">
+                  {journals.map(j => (
+                    <div key={j.id} className="border border-gray-100 rounded-lg p-3 bg-white text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-gray-700">{j.date?.slice(0, 10)}</span>
+                        <div className="flex gap-2 text-gray-400">
+                          {j.method && <span className="px-1.5 py-0.5 bg-gray-100 rounded">{j.method}</span>}
+                          {j.staff && <span>{j.staff}</span>}
+                          {j.status && <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded">{j.status}</span>}
+                        </div>
+                      </div>
+                      {j.content && <p className="text-gray-600 leading-relaxed">{j.content}</p>}
+                      {j.result && <p className="text-blue-600">→ {j.result}</p>}
+                      {j.next_date && <p className="text-orange-500">다음 상담: {j.next_date}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 새 상담일지 작성 */}
             <div className="border border-blue-100 rounded-xl p-4 space-y-3 bg-blue-50/30">
-              <p className="text-xs font-semibold text-blue-700">새 상담일지 작성</p>
+              <p className="text-xs font-semibold text-blue-700">새 상담일지 등록</p>
               <div className="grid grid-cols-2 gap-3">
                 <FormField label="상담일시">
-                  <input type="datetime-local" className="form-input" value={journalForm.date} onChange={e => setJournalForm(p => ({ ...p, date: e.target.value }))} />
+                  <input type="date" className="form-input" value={journalForm.date} onChange={e => setJournalForm(p => ({ ...p, date: e.target.value }))} />
                 </FormField>
                 <FormField label="상담방법">
                   <select className="form-input" value={journalForm.method} onChange={e => setJournalForm(p => ({ ...p, method: e.target.value }))}>
                     <option value="">선택</option>
-                    {['방문', '화상', '전화', '이메일', '기타'].map(m => <option key={m}>{m}</option>)}
+                    {['방문상담', '화상상담', '전화상담', '이메일', '기타'].map(m => <option key={m}>{m}</option>)}
                   </select>
                 </FormField>
               </div>
-              <FormField label="담당자">
-                <select className="form-input" value={journalForm.staff} onChange={e => setJournalForm(p => ({ ...p, staff: e.target.value }))}>
-                  <option value="">선택</option>
-                  {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-                </select>
-              </FormField>
-              <FormField label="상담 내용 *">
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="담당자">
+                  <select className="form-input" value={journalForm.staff} onChange={e => setJournalForm(p => ({ ...p, staff: e.target.value }))}>
+                    <option value="">선택</option>
+                    {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                  </select>
+                </FormField>
+                <FormField label="상태">
+                  <select className="form-input" value={journalForm.status} onChange={e => setJournalForm(p => ({ ...p, status: e.target.value }))}>
+                    {['상담중', '완료', '후속필요', '보류'].map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </FormField>
+              </div>
+              <FormField label="상담내용">
                 <textarea className="form-input" rows={3} value={journalForm.content} onChange={e => setJournalForm(p => ({ ...p, content: e.target.value }))} placeholder="상담 내용을 입력하세요" />
               </FormField>
-              <FormField label="상담 결과">
-                <textarea className="form-input" rows={2} value={journalForm.follow_up} onChange={e => setJournalForm(p => ({ ...p, follow_up: e.target.value }))} placeholder="상담 결과 및 후속 조치" />
+              <FormField label="상담결과">
+                <textarea className="form-input" rows={2} value={journalForm.result} onChange={e => setJournalForm(p => ({ ...p, result: e.target.value }))} placeholder="상담 결과 및 특이사항" />
               </FormField>
               <FormField label="다음 상담 예정일 (선택)">
                 <input type="date" className="form-input" value={journalForm.next_date} onChange={e => setJournalForm(p => ({ ...p, next_date: e.target.value }))} />
@@ -950,33 +1001,6 @@ export default function Intake() {
               >
                 {journalSaving ? '저장 중...' : '저장'}
               </button>
-            </div>
-
-            {/* 이전 상담일지 목록 */}
-            <div>
-              <p className="text-xs font-semibold text-gray-500 mb-2">이전 상담일지</p>
-              {journalsLoading ? (
-                <div className="text-center py-4 text-gray-400 text-xs">로딩 중...</div>
-              ) : journals.length === 0 ? (
-                <div className="text-center py-4 text-gray-400 text-xs">등록된 상담일지가 없습니다</div>
-              ) : (
-                <div className="space-y-2">
-                  {journals.map(j => (
-                    <div key={j.id} className="border border-gray-100 rounded-lg p-3 bg-white text-xs space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-gray-700">{j.date?.slice(0, 16).replace('T', ' ')}</span>
-                        <div className="flex gap-2 text-gray-400">
-                          {j.method && <span className="px-1.5 py-0.5 bg-gray-100 rounded">{j.method}</span>}
-                          {j.staff && <span>{j.staff}</span>}
-                        </div>
-                      </div>
-                      {j.content && <p className="text-gray-600 leading-relaxed">{j.content}</p>}
-                      {j.follow_up && <p className="text-blue-600">→ {j.follow_up}</p>}
-                      {j.next_date && <p className="text-orange-500">다음 상담: {j.next_date}</p>}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         )}

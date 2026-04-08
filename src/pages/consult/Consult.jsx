@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { DEFAULT_SETTINGS, Q_LABELS, today } from '../../lib/constants'
-import { VerdictBadge, StatusBadge } from '../../components/common/Badge'
+import { StatusBadge } from '../../components/common/Badge'
 import Modal from '../../components/common/Modal'
 import StatCard from '../../components/common/StatCard'
 import Avatar from '../../components/common/Avatar'
@@ -178,16 +178,16 @@ export default function Consult() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              {['창업자', '날짜', '담당자', '방식', '판정', '최종판정', '상태', '다음상담', '관리'].map(h => (
+              {['상담자명', '기업명', '상담일', '담당자', '방법', '상태', '다음상담예정일', '관리'].map(h => (
                 <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
+              <tr><td colSpan={8} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={9} className="text-center py-10 text-gray-400 text-sm">등록된 상담일지가 없습니다</td></tr>
+              <tr><td colSpan={8} className="text-center py-10 text-gray-400 text-sm">등록된 상담일지가 없습니다</td></tr>
             ) : filtered.map(c => {
               const f = founderMap[c.founder_id]
               return (
@@ -197,12 +197,10 @@ export default function Consult() {
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2">
                       <Avatar name={f?.name} />
-                      <div>
-                        <div className="font-medium text-gray-800 text-xs">{f?.name || '-'}</div>
-                        {f?.verdict && <VerdictBadge verdict={f.verdict} />}
-                      </div>
+                      <span className="font-medium text-gray-800 text-xs">{f?.name || '-'}</span>
                     </div>
                   </td>
+                  <td className="px-4 py-2.5 text-xs text-gray-600">{f?.biz || '-'}</td>
                   <td className="px-4 py-2.5 text-xs text-gray-500">{c.date}</td>
                   <td className="px-4 py-2.5">
                     <select
@@ -214,11 +212,9 @@ export default function Consult() {
                       {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
                     </select>
                   </td>
-                  <td className="px-4 py-2.5 text-xs text-gray-500">{c.method}</td>
-                  <td className="px-4 py-2.5 text-xs text-gray-600">{c.verdict}</td>
-                  <td className="px-4 py-2.5 text-xs text-gray-600">{c.final_verdict}</td>
+                  <td className="px-4 py-2.5 text-xs text-gray-500">{c.method || '-'}</td>
                   <td className="px-4 py-2.5"><StatusBadge status={c.status} /></td>
-                  <td className="px-4 py-2.5 text-xs text-gray-500">{c.next_date}</td>
+                  <td className="px-4 py-2.5 text-xs text-gray-500">{c.next_date || '-'}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex gap-1">
                       <button onClick={() => openEdit(c)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-600"><Pencil size={13} /></button>
@@ -279,7 +275,7 @@ export default function Consult() {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">상태</label>
               <select className="form-input" value={form.status} onChange={e => setField('status', e.target.value)}>
-                {['완료', '후속필요', '진행중'].map(s => <option key={s}>{s}</option>)}
+                {['상담중', '완료', '후속필요', '보류'].map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
           </div>
