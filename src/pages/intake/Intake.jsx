@@ -79,17 +79,18 @@ export default function Intake() {
   async function loadData() {
     setLoading(true)
     try {
-      const [{ data: f }, { data: s }, { data: u }] = await Promise.all([
-        supabase.from('founders').select('*, consults(count)').order('date', { ascending: false }),
+      const [{ data: f }, { data: s }, { data: u }, { data: cc }] = await Promise.all([
+        supabase.from('founders').select('*').order('date', { ascending: false }),
         supabase.from('team_settings').select('*').limit(1).single(),
         supabase.from('profiles').select('id, name').order('name'),
+        supabase.from('consults').select('founder_id'),
       ])
       setFounders(f || [])
       if (s) setSettings({ ...DEFAULT_SETTINGS, ...s })
       setUsers(u || [])
       const counts = {}
-      for (const founder of f || []) {
-        counts[founder.id] = founder.consults?.[0]?.count || 0
+      for (const c of cc || []) {
+        counts[c.founder_id] = (counts[c.founder_id] || 0) + 1
       }
       setConsultCounts(counts)
     } catch (e) {
@@ -208,7 +209,7 @@ export default function Intake() {
       content: regForm.content,
       date: today(),
     }
-    const { data, error } = await supabase.from('founders').insert([payload]).select('*, consults(count)').single()
+    const { data, error } = await supabase.from('founders').insert([payload]).select().single()
     if (error) { alert('저장 실패: ' + error.message); return }
     setFounders(prev => [data, ...prev])
     setConsultCounts(prev => ({ ...prev, [data.id]: 0 }))

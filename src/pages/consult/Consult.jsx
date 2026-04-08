@@ -27,13 +27,20 @@ export default function Consult() {
 
   async function loadData() {
     setLoading(true)
-    const { data } = await supabase
-      .from('founders')
-      .select('*, consults(*)')
-      .not('assignee', 'is', null)
-      .neq('assignee', '')
-      .order('date', { ascending: false })
-    setFounders(data || [])
+    const [{ data: f }, { data: c }] = await Promise.all([
+      supabase.from('founders')
+        .select('*')
+        .not('assignee', 'is', null)
+        .neq('assignee', '')
+        .order('created_at', { ascending: false }),
+      supabase.from('consults')
+        .select('id, founder_id, date, method, content, result, staff, status, next_date'),
+    ])
+    const merged = (f || []).map(founder => ({
+      ...founder,
+      consults: (c || []).filter(con => con.founder_id === founder.id),
+    }))
+    setFounders(merged)
     setLoading(false)
   }
 
