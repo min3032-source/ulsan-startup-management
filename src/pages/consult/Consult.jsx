@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { VerdictBadge } from '../../components/common/Badge'
 import StatCard from '../../components/common/StatCard'
 import Avatar from '../../components/common/Avatar'
-import { callClaudeAPI } from '../../utils/aiConsult'
-import { BookOpen, Search, Bot, MessageSquare, BarChart2, Send, Plus, Loader2, Sparkles } from 'lucide-react'
+import { BookOpen, Search, ExternalLink } from 'lucide-react'
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -12,16 +11,6 @@ function today() {
 
 const METHODS = ['방문상담', '화상상담', '전화상담', '이메일', '기타']
 const STATUSES = ['상담중', '완료', '후속필요', '보류']
-
-function renderMd(text) {
-  return {
-    __html: text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\n/g, '<br/>'),
-  }
-}
 
 export default function Consult() {
   const [founders, setFounders] = useState([])
@@ -41,22 +30,7 @@ export default function Consult() {
   })
   const [saving, setSaving] = useState(false)
 
-  // AI 패널
-  const [aiTab, setAiTab] = useState('analysis')
-  const [aiAnalysis, setAiAnalysis] = useState({ loading: false, result: '' })
-  const [chatHistory, setChatHistory] = useState([])
-  const [chatInput, setChatInput] = useState('')
-  const [chatLoading, setChatLoading] = useState(false)
-  const [aiSummary, setAiSummary] = useState({ loading: false, result: '' })
-  const chatEndRef = useRef(null)
-
   useEffect(() => { loadData() }, [])
-
-  useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: 'smooth' })
-    }
-  }, [chatHistory, chatLoading])
 
   async function loadData() {
     setLoading(true)
@@ -90,7 +64,7 @@ export default function Consult() {
 
   function showToast(msg) {
     setToast(msg)
-    setTimeout(() => setToast(''), 3000)
+    setTimeout(() => setToast(''), 4000)
   }
 
   function openModal(founder) {
@@ -100,12 +74,6 @@ export default function Consult() {
       next_date: '', assignee: founder.assignee || '', status: '상담중',
     })
     setShowModal(true)
-    setAiTab('analysis')
-    setAiAnalysis({ loading: false, result: '' })
-    setChatHistory([])
-    setChatInput('')
-    setChatLoading(false)
-    setAiSummary({ loading: false, result: '' })
   }
 
   async function saveLog() {
@@ -142,130 +110,45 @@ export default function Consult() {
     showToast('상담일지가 저장되었습니다.')
   }
 
-  // ── AI 분석 ──────────────────────────────────────────────
-  async function runAnalysis() {
-    if (!newLog.content.trim()) { alert('상담 내용을 먼저 입력해주세요'); return }
-    setAiAnalysis({ loading: true, result: '' })
+  // ── AI 상담 도우미 (claude.ai 연동) ──────────────────────
+  function buildPrompt(extraPrompt) {
+    if (!selectedFounder) return ''
 
-    const founderInfo = [
+    const info = [
       `이름: ${selectedFounder.name}`,
       `기업명: ${selectedFounder.biz || '-'}`,
       `지역: ${selectedFounder.region || '-'}`,
       `창업단계: ${selectedFounder.stage || '-'}`,
-      `현재 창업유형: ${selectedFounder.verdict || '미판정'}`,
+      `창업유형: ${selectedFounder.verdict || '미판정'}`,
+      `담당자: ${selectedFounder.assignee || '-'}`,
       `총 상담횟수: ${selectedFounder.consults?.length || 0}회`,
     ].join('\n')
 
-    const consultInfo = [
+    const consult = [
       `상담일: ${newLog.consult_date}`,
-      `상담방법: ${newLog.method || '-'}`,
-      `상담내용: ${newLog.content}`,
-      newLog.result ? `상담결과: ${newLog.result}` : '',
+      newLog.method  && `상담방법: ${newLog.method}`,
+      newLog.content && `내용: ${newLog.content}`,
+      newLog.result  && `결과: ${newLog.result}`,
     ].filter(Boolean).join('\n')
 
-    const systemPrompt = `당신은 창업 컨설턴트를 돕는 AI 상담 도우미입니다. 울산경제일자리진흥원의 창업 지원 전문가로서 창업자 정보와 상담 내용을 분석하여 아래 5가지 항목으로 정리해주세요.
-
-**1. 창업유형 판단**: 테크 창업 또는 로컬 창업 여부와 구체적 근거
-**2. 추천 지원사업**: 해당 창업자에게 적합한 지원사업 또는 프로그램 (3가지 이내)
-**3. 주요 리스크**: 사업 진행 시 주의해야 할 위험 요소 (3가지 이내)
-**4. 다음 상담 질문**: 다음 상담에서 확인해야 할 핵심 질문들 (3가지 이내)
-**5. 한줄 요약**: 이번 상담의 핵심 내용 한 줄 요약
-
-각 항목을 명확하게 구분하고 실용적인 내용으로 한국어로 답변해주세요.`
-
-    try {
-      const result = await callClaudeAPI(
-        systemPrompt,
-        `[창업자 정보]\n${founderInfo}\n\n[이번 상담 내용]\n${consultInfo}`,
-      )
-      setAiAnalysis({ loading: false, result })
-    } catch (e) {
-      setAiAnalysis({ loading: false, result: `AI 분석 중 오류가 발생했습니다.\n${e.message}` })
-    }
+    return `[창업자 정보]\n${info}\n\n[이번 상담 내용]\n${consult}\n\n${extraPrompt}`
   }
 
-  // ── AI 채팅 ──────────────────────────────────────────────
-  async function sendChat() {
-    if (!chatInput.trim() || chatLoading) return
-    const userMsg = chatInput.trim()
-    setChatInput('')
-
-    const newHistory = [...chatHistory, { role: 'user', content: userMsg }]
-    setChatHistory(newHistory)
-    setChatLoading(true)
-
-    const founderCtx = `창업자: ${selectedFounder.name} / 기업: ${selectedFounder.biz || '-'} / 창업유형: ${selectedFounder.verdict || '미판정'} / 지역: ${selectedFounder.region || '-'} / 창업단계: ${selectedFounder.stage || '-'}`
-    const systemPrompt = `당신은 창업 컨설턴트를 돕는 AI 상담 도우미입니다. 울산경제일자리진흥원의 창업 지원 전문가로서 컨설턴트의 질문에 답변하고 상담을 지원합니다.
-
-[현재 상담 창업자 정보]
-${founderCtx}${newLog.content ? `\n\n[이번 상담 내용]\n${newLog.content}` : ''}
-
-한국어로 친절하고 전문적으로 답변해주세요.`
-
+  async function openAI(extraPrompt) {
+    const text = buildPrompt(extraPrompt)
     try {
-      const result = await callClaudeAPI(systemPrompt, userMsg, chatHistory)
-      setChatHistory([...newHistory, { role: 'assistant', content: result }])
-    } catch (e) {
-      setChatHistory([...newHistory, { role: 'assistant', content: `오류가 발생했습니다: ${e.message}` }])
-    } finally {
-      setChatLoading(false)
+      await navigator.clipboard.writeText(text)
+    } catch {
+      // clipboard API 미지원 시 fallback
+      const ta = document.createElement('textarea')
+      ta.value = text
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
     }
-  }
-
-  function appendToContent(text) {
-    setNewLog(p => ({
-      ...p,
-      content: p.content
-        ? `${p.content}\n\n[AI 제안]\n${text}`
-        : `[AI 제안]\n${text}`,
-    }))
-  }
-
-  // ── 종합 분석 ─────────────────────────────────────────────
-  async function runSummary() {
-    const consults = selectedFounder.consults || []
-    if (!consults.length) { alert('상담 이력이 없습니다'); return }
-    setAiSummary({ loading: true, result: '' })
-
-    const founderInfo = [
-      `이름: ${selectedFounder.name}`,
-      `기업명: ${selectedFounder.biz || '-'}`,
-      `지역: ${selectedFounder.region || '-'}`,
-      `창업단계: ${selectedFounder.stage || '-'}`,
-      `현재 창업유형: ${selectedFounder.verdict || '미판정'}`,
-    ].join('\n')
-
-    const history = [...consults]
-      .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
-      .map((c, i) => {
-        const parts = [`${i + 1}. [${c.date?.slice(0, 10) || '날짜미상'}]`]
-        if (c.method) parts.push(c.method)
-        if (c.content) parts.push(c.content)
-        if (c.result) parts.push(`→ ${c.result}`)
-        return parts.join(' | ')
-      })
-      .join('\n')
-
-    const systemPrompt = `당신은 창업 컨설턴트를 돕는 AI 분석 도우미입니다. 창업자의 전체 상담 이력을 종합적으로 분석하여 아래 항목으로 정리해주세요.
-
-**강점** (불릿 포인트, 3가지 이내): 창업자의 주요 강점
-**약점/개선점** (불릿 포인트, 3가지 이내): 보완이 필요한 영역
-**창업유형 최종 판단**: 테크 창업 또는 로컬 창업 권고와 근거
-**종합 의견**: 전반적인 평가 및 향후 지원 방향 (2~3문장)
-
-한국어로 명확하게 작성해주세요.`
-
-    try {
-      const result = await callClaudeAPI(
-        systemPrompt,
-        `[창업자 정보]\n${founderInfo}\n\n[전체 상담 이력 (${consults.length}건)]\n${history}`,
-        [],
-        2000,
-      )
-      setAiSummary({ loading: false, result })
-    } catch (e) {
-      setAiSummary({ loading: false, result: `종합 분석 중 오류가 발생했습니다.\n${e.message}` })
-    }
+    window.open('https://claude.ai', '_blank')
+    showToast('상담자 정보가 복사되었습니다. Claude 창에 붙여넣기(Ctrl+V) 해주세요!')
   }
 
   const filtered = founders.filter(f => {
@@ -283,14 +166,16 @@ ${founderCtx}${newLog.content ? `\n\n[이번 상담 내용]\n${newLog.content}` 
 
   return (
     <div className="p-6 space-y-5">
+      {/* 토스트 */}
       {toast && (
-        <div className="fixed top-5 right-5 z-50 bg-green-600 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg">
+        <div className="fixed top-5 right-5 z-50 bg-violet-700 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg max-w-xs">
           {toast}
         </div>
       )}
 
       <h1 className="text-xl font-bold text-gray-800">상담일지</h1>
 
+      {/* 통계 카드 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="전체 상담자" value={`${founders.length}명`} color="blue" />
         <StatCard label="완료" value={`${doneCount}건`} color="green" />
@@ -298,6 +183,7 @@ ${founderCtx}${newLog.content ? `\n\n[이번 상담 내용]\n${newLog.content}` 
         <StatCard label="담당자 수" value={`${staffSet.size}명`} color="teal" />
       </div>
 
+      {/* 검색 + 담당자 필터 */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative w-56">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -320,6 +206,7 @@ ${founderCtx}${newLog.content ? `\n\n[이번 상담 내용]\n${newLog.content}` 
         </select>
       </div>
 
+      {/* 목록 테이블 */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -387,14 +274,14 @@ ${founderCtx}${newLog.content ? `\n\n[이번 상담 내용]\n${newLog.content}` 
         </table>
       </div>
 
-      {/* ── 상담일지 모달 (2-column) ─────────────────────────── */}
+      {/* ── 상담일지 모달 ── */}
       {showModal && selectedFounder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowModal(false)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col">
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
 
-            {/* 모달 헤더 */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+            {/* 헤더 */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h2 className="text-base font-bold text-gray-800">상담일지</h2>
               <button
                 onClick={() => setShowModal(false)}
@@ -402,325 +289,172 @@ ${founderCtx}${newLog.content ? `\n\n[이번 상담 내용]\n${newLog.content}` 
               >×</button>
             </div>
 
-            {/* 모달 바디 - 2열 */}
-            <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
 
-              {/* ── 왼쪽: 상담일지 작성 (55%) ── */}
-              <div className="lg:w-[55%] overflow-y-auto px-6 py-4 space-y-5 border-r border-gray-100">
-
-                {/* 창업자 정보 */}
-                <div className="grid grid-cols-4 gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs">
-                  <div>
-                    <span className="text-gray-400">이름</span>
-                    <p className="font-semibold text-gray-800 mt-0.5">{selectedFounder.name}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-400">기업명</span>
-                    <p className="font-medium text-gray-700 mt-0.5">{selectedFounder.biz || '-'}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-400">담당자</span>
-                    <p className="font-medium text-blue-700 mt-0.5">{selectedFounder.assignee}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-400">창업유형</span>
-                    <div className="mt-0.5">
-                      {selectedFounder.verdict
-                        ? <VerdictBadge verdict={selectedFounder.verdict} />
-                        : <span className="text-gray-400">-</span>}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 이전 상담일지 */}
+              {/* 창업자 정보 */}
+              <div className="grid grid-cols-4 gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs">
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 mb-2">
-                    이전 상담일지 ({selectedFounder.consults?.length || 0}건)
-                  </p>
-                  {!selectedFounder.consults?.length ? (
-                    <div className="text-center py-8 text-gray-400 text-xs bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                      아직 상담 내역이 없습니다. 첫 상담을 등록해주세요.
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-44 overflow-y-auto">
-                      {[...selectedFounder.consults]
-                        .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-                        .map(j => (
-                          <div key={j.id} className="border border-gray-100 rounded-xl p-3 bg-white text-xs space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <span className="font-semibold text-gray-700">{j.date?.slice(0, 10)}</span>
-                              <div className="flex gap-1.5">
-                                {j.method && <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">{j.method}</span>}
-                                {(j.assignee || j.staff) && <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{j.assignee || j.staff}</span>}
-                                {j.status && <span className="px-2 py-0.5 bg-green-50 text-green-600 rounded-full">{j.status}</span>}
-                              </div>
-                            </div>
-                            {j.content && (
-                              <p className="text-gray-600 leading-relaxed">
-                                {j.content.length > 80 ? j.content.slice(0, 80) + '...' : j.content}
-                              </p>
-                            )}
-                            {j.result && <p className="text-blue-600">→ {j.result}</p>}
-                            {j.next_date && <p className="text-orange-500 font-medium">다음 상담: {j.next_date}</p>}
-                          </div>
-                        ))}
-                    </div>
-                  )}
+                  <span className="text-gray-400">이름</span>
+                  <p className="font-semibold text-gray-800 mt-0.5">{selectedFounder.name}</p>
                 </div>
-
-                {/* 새 상담일지 등록 */}
-                <div className="border border-blue-100 rounded-xl p-4 space-y-3 bg-blue-50/30">
-                  <p className="text-xs font-bold text-blue-700">새 상담일지 등록</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">상담일시</label>
-                      <input type="date" className="form-input"
-                        value={newLog.consult_date}
-                        onChange={e => setNewLog(p => ({ ...p, consult_date: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">상담방법</label>
-                      <select className="form-input"
-                        value={newLog.method}
-                        onChange={e => setNewLog(p => ({ ...p, method: e.target.value }))}
-                      >
-                        <option value="">선택</option>
-                        {METHODS.map(m => <option key={m}>{m}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">담당자</label>
-                      <input className="form-input"
-                        value={newLog.assignee}
-                        onChange={e => setNewLog(p => ({ ...p, assignee: e.target.value }))}
-                        placeholder="담당자명"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">상태</label>
-                      <select className="form-input"
-                        value={newLog.status}
-                        onChange={e => setNewLog(p => ({ ...p, status: e.target.value }))}
-                      >
-                        {STATUSES.map(s => <option key={s}>{s}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">상담내용 *</label>
-                    <textarea className="form-input" rows={3}
-                      value={newLog.content}
-                      onChange={e => setNewLog(p => ({ ...p, content: e.target.value }))}
-                      placeholder="상담 내용을 입력하세요"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">상담결과</label>
-                    <textarea className="form-input" rows={2}
-                      value={newLog.result}
-                      onChange={e => setNewLog(p => ({ ...p, result: e.target.value }))}
-                      placeholder="상담 결과 및 특이사항"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">다음 상담 예정일 (선택)</label>
-                    <input type="date" className="form-input"
-                      value={newLog.next_date}
-                      onChange={e => setNewLog(p => ({ ...p, next_date: e.target.value }))}
-                    />
+                <div>
+                  <span className="text-gray-400">기업명</span>
+                  <p className="font-medium text-gray-700 mt-0.5">{selectedFounder.biz || '-'}</p>
+                </div>
+                <div>
+                  <span className="text-gray-400">담당자</span>
+                  <p className="font-medium text-blue-700 mt-0.5">{selectedFounder.assignee}</p>
+                </div>
+                <div>
+                  <span className="text-gray-400">창업유형</span>
+                  <div className="mt-0.5">
+                    {selectedFounder.verdict
+                      ? <VerdictBadge verdict={selectedFounder.verdict} />
+                      : <span className="text-gray-400">-</span>}
                   </div>
                 </div>
               </div>
 
-              {/* ── 오른쪽: AI 상담 도우미 (45%) ── */}
-              <div className="lg:w-[45%] flex flex-col bg-slate-50/60 min-h-0">
+              {/* 이전 상담일지 */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-2">
+                  이전 상담일지 ({selectedFounder.consults?.length || 0}건)
+                </p>
+                {!selectedFounder.consults?.length ? (
+                  <div className="text-center py-8 text-gray-400 text-xs bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                    아직 상담 내역이 없습니다. 첫 상담을 등록해주세요.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {[...selectedFounder.consults]
+                      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+                      .map(j => (
+                        <div key={j.id} className="border border-gray-100 rounded-xl p-3 bg-white text-xs space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-gray-700">{j.date?.slice(0, 10)}</span>
+                            <div className="flex gap-1.5">
+                              {j.method && <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">{j.method}</span>}
+                              {(j.assignee || j.staff) && <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{j.assignee || j.staff}</span>}
+                              {j.status && <span className="px-2 py-0.5 bg-green-50 text-green-600 rounded-full">{j.status}</span>}
+                            </div>
+                          </div>
+                          {j.content && (
+                            <p className="text-gray-600 leading-relaxed">
+                              {j.content.length > 80 ? j.content.slice(0, 80) + '...' : j.content}
+                            </p>
+                          )}
+                          {j.result && <p className="text-blue-600">→ {j.result}</p>}
+                          {j.next_date && <p className="text-orange-500 font-medium">다음 상담: {j.next_date}</p>}
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
 
-                {/* AI 탭 헤더 */}
-                <div className="flex border-b border-gray-200 px-4 pt-3 gap-1 flex-shrink-0 bg-white">
-                  {[
-                    { key: 'analysis', icon: Bot, label: 'AI 분석' },
-                    { key: 'chat',     icon: MessageSquare, label: 'AI 채팅' },
-                    { key: 'summary',  icon: BarChart2, label: '종합 분석' },
-                  ].map(({ key, icon: Icon, label }) => (
-                    <button
-                      key={key}
-                      onClick={() => setAiTab(key)}
-                      className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-t-lg border-b-2 transition-colors ${
-                        aiTab === key
-                          ? 'border-blue-500 text-blue-600 bg-blue-50/50'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                      }`}
+              {/* 새 상담일지 등록 */}
+              <div className="border border-blue-100 rounded-xl p-4 space-y-3 bg-blue-50/30">
+                <p className="text-xs font-bold text-blue-700">새 상담일지 등록</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">상담일시</label>
+                    <input type="date" className="form-input"
+                      value={newLog.consult_date}
+                      onChange={e => setNewLog(p => ({ ...p, consult_date: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">상담방법</label>
+                    <select className="form-input"
+                      value={newLog.method}
+                      onChange={e => setNewLog(p => ({ ...p, method: e.target.value }))}
                     >
-                      <Icon size={12} />
-                      {label}
-                    </button>
-                  ))}
+                      <option value="">선택</option>
+                      {METHODS.map(m => <option key={m}>{m}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">담당자</label>
+                    <input className="form-input"
+                      value={newLog.assignee}
+                      onChange={e => setNewLog(p => ({ ...p, assignee: e.target.value }))}
+                      placeholder="담당자명"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">상태</label>
+                    <select className="form-input"
+                      value={newLog.status}
+                      onChange={e => setNewLog(p => ({ ...p, status: e.target.value }))}
+                    >
+                      {STATUSES.map(s => <option key={s}>{s}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">상담내용 *</label>
+                  <textarea className="form-input" rows={3}
+                    value={newLog.content}
+                    onChange={e => setNewLog(p => ({ ...p, content: e.target.value }))}
+                    placeholder="상담 내용을 입력하세요"
+                  />
                 </div>
 
-                {/* 탭 콘텐츠 */}
-                <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                {/* ── AI 상담 도우미 ── */}
+                <div className="space-y-2 pt-1">
+                  <button
+                    onClick={() => openAI(
+                      '위 창업자의 상담 내용을 분석하고, 창업유형 판단·추천 지원사업·주요 리스크·다음 상담에서 확인할 질문을 정리해주세요.'
+                    )}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold text-white rounded-xl transition-opacity hover:opacity-90"
+                    style={{ background: '#7c3aed' }}
+                  >
+                    🤖 AI 분석 요청
+                    <ExternalLink size={13} className="opacity-70" />
+                  </button>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => openAI('위 상담 내용을 간결하게 요약하고, 핵심 이슈 3가지를 정리해주세요.')}
+                      className="py-1.5 text-xs font-medium rounded-lg border border-violet-200 text-violet-700 hover:bg-violet-50 transition-colors"
+                    >
+                      📋 상담 요약해줘
+                    </button>
+                    <button
+                      onClick={() => openAI('위 창업자에게 적합한 정부·지자체 지원사업 3가지를 추천하고, 각 사업의 특징과 신청 방법을 알려주세요.')}
+                      className="py-1.5 text-xs font-medium rounded-lg border border-violet-200 text-violet-700 hover:bg-violet-50 transition-colors"
+                    >
+                      💡 지원사업 추천
+                    </button>
+                    <button
+                      onClick={() => openAI('위 창업자의 사업에서 예상되는 주요 리스크 3가지를 분석하고, 각 리스크별 대응 방안을 제안해주세요.')}
+                      className="py-1.5 text-xs font-medium rounded-lg border border-violet-200 text-violet-700 hover:bg-violet-50 transition-colors"
+                    >
+                      ⚠️ 리스크 분석
+                    </button>
+                  </div>
+                </div>
 
-                  {/* ── Tab 1: AI 분석 ── */}
-                  {aiTab === 'analysis' && (
-                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-gray-500">
-                          상담 내용을 입력한 뒤 분석을 실행하세요.
-                        </p>
-                        <button
-                          onClick={runAnalysis}
-                          disabled={aiAnalysis.loading}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg disabled:opacity-50 transition-colors"
-                          style={{ background: '#2E75B6' }}
-                        >
-                          {aiAnalysis.loading
-                            ? <><Loader2 size={11} className="animate-spin" /> 분석 중...</>
-                            : <><Sparkles size={11} /> AI 분석 실행</>
-                          }
-                        </button>
-                      </div>
-
-                      {aiAnalysis.loading && (
-                        <div className="flex flex-col items-center justify-center py-12 gap-3 text-gray-400">
-                          <Loader2 size={28} className="animate-spin text-blue-400" />
-                          <p className="text-xs">AI가 상담 내용을 분석하고 있습니다...</p>
-                        </div>
-                      )}
-
-                      {!aiAnalysis.loading && aiAnalysis.result && (
-                        <div className="bg-white rounded-xl border border-blue-100 p-4 text-xs leading-relaxed text-gray-700"
-                          dangerouslySetInnerHTML={renderMd(aiAnalysis.result)}
-                        />
-                      )}
-
-                      {!aiAnalysis.loading && !aiAnalysis.result && (
-                        <div className="flex flex-col items-center justify-center py-12 gap-2 text-gray-300">
-                          <Bot size={32} />
-                          <p className="text-xs">분석 결과가 여기에 표시됩니다</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* ── Tab 2: AI 채팅 ── */}
-                  {aiTab === 'chat' && (
-                    <div className="flex-1 flex flex-col min-h-0">
-                      {/* 메시지 목록 */}
-                      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                        {chatHistory.length === 0 && !chatLoading && (
-                          <div className="flex flex-col items-center justify-center py-10 gap-2 text-gray-300">
-                            <MessageSquare size={28} />
-                            <p className="text-xs text-center">창업자에 대해 궁금한 점을<br/>자유롭게 질문하세요</p>
-                          </div>
-                        )}
-                        {chatHistory.map((msg, i) => (
-                          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[85%] rounded-xl px-3 py-2 text-xs ${
-                              msg.role === 'user'
-                                ? 'bg-blue-500 text-white'
-                                : 'bg-white border border-gray-200 text-gray-700'
-                            }`}>
-                              <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                              {msg.role === 'assistant' && (
-                                <button
-                                  onClick={() => appendToContent(msg.content)}
-                                  className="mt-2 flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700 font-medium"
-                                >
-                                  <Plus size={9} /> 상담일지에 추가
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                        {chatLoading && (
-                          <div className="flex justify-start">
-                            <div className="bg-white border border-gray-200 rounded-xl px-3 py-2">
-                              <Loader2 size={14} className="animate-spin text-blue-400" />
-                            </div>
-                          </div>
-                        )}
-                        <div ref={chatEndRef} />
-                      </div>
-
-                      {/* 입력창 */}
-                      <div className="p-3 border-t border-gray-200 bg-white flex gap-2">
-                        <input
-                          className="flex-1 text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                          placeholder="질문을 입력하세요 (Enter 전송)"
-                          value={chatInput}
-                          onChange={e => setChatInput(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat() }
-                          }}
-                          disabled={chatLoading}
-                        />
-                        <button
-                          onClick={sendChat}
-                          disabled={chatLoading || !chatInput.trim()}
-                          className="p-2 rounded-lg text-white disabled:opacity-40 transition-colors"
-                          style={{ background: '#2E75B6' }}
-                        >
-                          <Send size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── Tab 3: 종합 분석 ── */}
-                  {aiTab === 'summary' && (
-                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-gray-500">
-                          전체 상담 이력 ({selectedFounder.consults?.length || 0}건)을 종합 분석합니다.
-                        </p>
-                        <button
-                          onClick={runSummary}
-                          disabled={aiSummary.loading}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg disabled:opacity-50 transition-colors"
-                          style={{ background: '#059669' }}
-                        >
-                          {aiSummary.loading
-                            ? <><Loader2 size={11} className="animate-spin" /> 분석 중...</>
-                            : <><BarChart2 size={11} /> 종합 분석 실행</>
-                          }
-                        </button>
-                      </div>
-
-                      {aiSummary.loading && (
-                        <div className="space-y-2">
-                          <div className="flex flex-col items-center justify-center py-8 gap-3 text-gray-400">
-                            <Loader2 size={28} className="animate-spin text-green-400" />
-                            <p className="text-xs">전체 상담 이력을 종합 분석하고 있습니다...</p>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                            <div className="bg-green-400 h-1.5 rounded-full animate-pulse" style={{ width: '60%' }} />
-                          </div>
-                        </div>
-                      )}
-
-                      {!aiSummary.loading && aiSummary.result && (
-                        <div className="bg-white rounded-xl border border-green-100 p-4 text-xs leading-relaxed text-gray-700"
-                          dangerouslySetInnerHTML={renderMd(aiSummary.result)}
-                        />
-                      )}
-
-                      {!aiSummary.loading && !aiSummary.result && (
-                        <div className="flex flex-col items-center justify-center py-12 gap-2 text-gray-300">
-                          <BarChart2 size={32} />
-                          <p className="text-xs">종합 분석 결과가 여기에 표시됩니다</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">상담결과</label>
+                  <textarea className="form-input" rows={2}
+                    value={newLog.result}
+                    onChange={e => setNewLog(p => ({ ...p, result: e.target.value }))}
+                    placeholder="상담 결과 및 특이사항"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">다음 상담 예정일 (선택)</label>
+                  <input type="date" className="form-input"
+                    value={newLog.next_date}
+                    onChange={e => setNewLog(p => ({ ...p, next_date: e.target.value }))}
+                  />
                 </div>
               </div>
             </div>
 
-            {/* 모달 푸터 */}
-            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2 flex-shrink-0">
+            {/* 푸터 */}
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
               <button
                 onClick={() => setShowModal(false)}
                 className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
