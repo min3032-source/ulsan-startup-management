@@ -106,7 +106,6 @@ export default function Founders() {
           <option>테크 창업</option>
           <option>로컬 창업</option>
           <option>혼합형 창업</option>
-          <option>테크/로컬 창업 (혼합)</option>
         </select>
         <select
           className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5"

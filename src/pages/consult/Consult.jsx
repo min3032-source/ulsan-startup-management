@@ -18,6 +18,8 @@ export default function Consult() {
   const [allConsults, setAllConsults] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [filterAssignee, setFilterAssignee] = useState('')
+  const [users, setUsers] = useState([])
   const [toast, setToast] = useState('')
 
   // 상담일지 모달
@@ -33,7 +35,7 @@ export default function Consult() {
 
   async function loadData() {
     setLoading(true)
-    const [{ data: f }, { data: c }] = await Promise.all([
+    const [{ data: f }, { data: c }, { data: u }] = await Promise.all([
       supabase
         .from('founders')
         .select('*')
@@ -44,6 +46,11 @@ export default function Consult() {
         .from('consults')
         .select('*')
         .order('date', { ascending: false }),
+      supabase
+        .from('profiles')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name'),
     ])
 
     const foundersWithConsults = (f || []).map(founder => ({
@@ -52,6 +59,7 @@ export default function Consult() {
     }))
     setFounders(foundersWithConsults)
     setAllConsults(c || [])
+    setUsers(u || [])
     setLoading(false)
   }
 
@@ -104,12 +112,14 @@ export default function Consult() {
     showToast('상담일지가 저장되었습니다.')
   }
 
-  const filtered = founders.filter(f =>
-    !search ||
-    f.name?.includes(search) ||
-    f.biz?.includes(search) ||
-    f.assignee?.includes(search)
-  )
+  const filtered = founders.filter(f => {
+    const matchSearch = !search ||
+      f.name?.includes(search) ||
+      f.biz?.includes(search) ||
+      f.assignee?.includes(search)
+    const matchAssignee = !filterAssignee || f.assignee === filterAssignee
+    return matchSearch && matchAssignee
+  })
 
   // 통계
   const doneCount = allConsults.filter(c => c.status === '완료').length
@@ -134,15 +144,27 @@ export default function Consult() {
         <StatCard label="담당자 수" value={`${staffSet.size}명`} color="teal" />
       </div>
 
-      {/* 검색 */}
-      <div className="relative w-56">
-        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          className="pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 w-full"
-          placeholder="이름·기업명·담당자 검색"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
+      {/* 검색 + 담당자 필터 */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative w-56">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            className="pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 w-full"
+            placeholder="이름·기업명 검색"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <select
+          className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5"
+          value={filterAssignee}
+          onChange={e => setFilterAssignee(e.target.value)}
+        >
+          <option value="">전체 담당자</option>
+          {users.map(u => (
+            <option key={u.id} value={u.name}>{u.name}</option>
+          ))}
+        </select>
       </div>
 
       {/* 목록 테이블 */}

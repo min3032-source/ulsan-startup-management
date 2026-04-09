@@ -38,6 +38,12 @@ export const VERDICT_INFO = {
     desc: '지역 기반의 생활밀착형 사업 모델입니다. 로컬크리에이터, 창업자금융자 프로그램이 적합합니다.',
     btnLabel: '로컬 분야 창업 상담 신청하기',
   },
+  '혼합형 창업': {
+    color: '#B45309', bg: '#FFFBEB', emoji: '🔄',
+    label: '혼합형 창업',
+    desc: '기술성과 지역성이 균형 있게 결합된 융합형 사업 모델입니다. 사업 방향에 따라 맞춤형 지원프로그램을 안내드립니다.',
+    btnLabel: '혼합형 창업 상담 신청하기',
+  },
 }
 
 // ── 점수 계산 ────────────────────────────────────────────
@@ -76,7 +82,10 @@ export function calcQuizScores(form) {
 export function calcQuizVerdict(form) {
   if (!QUESTIONS.every(q => form[q.key] !== '')) return null
   const { tech, local } = calcQuizScores(form)
-  return tech > local ? '테크 창업' : '로컬 창업'
+  const diff = tech - local
+  if (diff >= 6) return '테크 창업'
+  if (diff <= -6) return '로컬 창업'
+  return '혼합형 창업'
 }
 
 // ── 차트 좌표 계산 ────────────────────────────────────────

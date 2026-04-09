@@ -54,7 +54,6 @@ export function calcVerdict(q1, q2, q3, q4, q5, q6, q7) {
   if (yesCount + q6Bonus >= 5) return '테크 창업'
   if (noCount  + q6Bonus >= 5) return '로컬 창업'
   if (yesCount + q6Bonus >= 3.5) {
-    if (q7 === 'tech') return '테크/로컬 창업 (혼합)'
     return '혼합형 창업'
   }
   if (noCount  + q6Bonus >= 3.5) return '로컬 창업'
