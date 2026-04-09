@@ -104,11 +104,10 @@ export default function Sidebar({ onClose }) {
             </div>
           </div>
           <span
-            className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
+            className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap"
             style={{ background: roleStyle.bg, color: roleStyle.text }}
           >
             {ROLES?.[profile.role]?.label ?? profile.role}
-            {profile.role === 'viewer' && ' · 열람전용'}
           </span>
         </div>
       )}

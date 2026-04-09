@@ -3,10 +3,10 @@ import { supabase } from '../lib/supabase'
 
 // 권한 레벨: master(4) > admin(3) > manager(2) > viewer(1)
 export const ROLES = {
-  master: { label: '마스터(팀장)', level: 4 },
-  admin: { label: '관리자', level: 3 },
-  manager: { label: '담당자', level: 2 },
-  viewer: { label: '열람자', level: 1 },
+  master:  { label: '마스터',         level: 4 },
+  admin:   { label: '관리자(Admin)', level: 3 },
+  manager: { label: '담당자',         level: 2 },
+  viewer:  { label: '열람자',         level: 1 },
 }
 
 const AuthContext = createContext(null)

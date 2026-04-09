@@ -7,8 +7,8 @@ import Avatar from '../../components/common/Avatar'
 import { Save, Plus, Trash2, UserCog, Settings2, Users, PowerOff, UserX, KeyRound, Briefcase } from 'lucide-react'
 
 const ROLE_OPTIONS = [
-  { value: 'master',  label: '마스터(팀장)' },
-  { value: 'admin',   label: '관리자' },
+  { value: 'master',  label: '마스터' },
+  { value: 'admin',   label: '관리자(Admin)' },
   { value: 'manager', label: '담당자' },
   { value: 'viewer',  label: '열람자' },
 ]
@@ -60,8 +60,9 @@ function ListEditor({ label, stateKey, items, canEdit, onAdd, onUpdate, onRemove
 
 export default function Settings() {
   const { profile, hasRole } = useAuth()
-  const canEdit  = hasRole('admin')
-  const canManageUsers = hasRole('master')
+  const canEdit        = hasRole('admin')
+  const canManageUsers = hasRole('admin')
+  const isMaster       = hasRole('master')
 
   const [activeTab, setActiveTab] = useState('consult')
 
@@ -608,7 +609,7 @@ export default function Settings() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">권한 선택</label>
               <div className="space-y-2">
-                {ROLE_OPTIONS.map(opt => (
+                {ROLE_OPTIONS.filter(opt => isMaster || opt.value !== 'master').map(opt => (
                   <label key={opt.value} className="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
                     <input
                       type="radio"

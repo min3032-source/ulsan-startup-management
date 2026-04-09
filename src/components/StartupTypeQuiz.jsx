@@ -10,10 +10,15 @@ const QUESTIONS = [
   { key: 'q5', type: 'scale5',  text: '기술 개발이나 데이터 분석에 지속적으로 투자할 계획인가요?' },
   { key: 'q6', type: 'scale5',  text: '오프라인 현장이나 대면 서비스가 사업의 핵심인가요?' },
   { key: 'q7', type: 'scale5',  text: '대표님이 매일 현장에 있어야 사업 운영이 가능한가요?' },
-  { key: 'q8', type: 'scale5',  text: '지역 주민과의 신뢰·관계가 사업 유지에 필수적인가요?' },
+  { key: 'q8', type: 'scale5',  text: '고객과의 지속적인 대면 관계와 신뢰가 사업의 핵심인가요?' },
   {
-    key: 'q9', type: 'choice3', text: '초기 창업 자금의 가장 큰 비중은 어디에 쓰이나요?',
-    options: ['매장 임대·인테리어·장비', '개발자 인건비·서버·소프트웨어', '공장 설비·R&D·시제품 제작'],
+    key: 'q9', type: 'choice4', text: '초기 창업 자금의 가장 큰 비중은 어디에 쓰이나요?',
+    options: [
+      '매장 임대·인테리어·장비·현장 인력 채용',
+      '앱·웹·플랫폼·소프트웨어 개발비',
+      '공장 설비·R&D·시제품 제작·특허 출원',
+      '마케팅·브랜딩·SNS·유통망 구축',
+    ],
   },
 ]
 
@@ -88,10 +93,11 @@ export function calcQuizScores(form) {
   local += sc(form.q7)   // Q7 현장 의존 → 로컬
   local += sc(form.q8)   // Q8 지역신뢰 → 로컬
 
-  // Q9 자금 용처
-  if      (form.q9 === '매장 임대·인테리어·장비')          local += 3
-  else if (form.q9 === '개발자 인건비·서버·소프트웨어')    tech  += 3
-  else if (form.q9 === '공장 설비·R&D·시제품 제작')        tech  += 2
+  // Q9 자금 용처 (4지선다)
+  if      (form.q9 === '매장 임대·인테리어·장비·현장 인력 채용')    local += 3
+  else if (form.q9 === '앱·웹·플랫폼·소프트웨어 개발비')           tech  += 3
+  else if (form.q9 === '공장 설비·R&D·시제품 제작·특허 출원')       tech  += 2
+  else if (form.q9 === '마케팅·브랜딩·SNS·유통망 구축') { tech += 1; local += 1 }
 
   return { tech, local }
 }
@@ -265,19 +271,19 @@ export default function StartupTypeQuiz({ onComplete }) {
             </div>
           )}
 
-          {q.type === 'choice3' && (
-            <div className="flex flex-col sm:flex-row gap-2 pl-9">
+          {(q.type === 'choice3' || q.type === 'choice4') && (
+            <div className="flex flex-col gap-2 pl-9">
               {q.options.map((opt, i) => (
                 <button
                   key={opt}
                   onClick={() => set(q.key, opt)}
-                  className={`flex-1 py-2.5 px-3 rounded-lg text-sm border-2 transition-all text-left ${
+                  className={`w-full py-2.5 px-3 rounded-lg text-sm border-2 transition-all text-left ${
                     form[q.key] === opt
                       ? 'border-blue-500 bg-blue-50 text-blue-700'
                       : 'border-gray-200 text-gray-500 hover:border-gray-300'
                   }`}
                 >
-                  <span className="font-bold mr-1">{'①②③'[i]}</span>{opt}
+                  <span className="font-bold mr-1">{'①②③④'[i]}</span>{opt}
                 </button>
               ))}
             </div>
