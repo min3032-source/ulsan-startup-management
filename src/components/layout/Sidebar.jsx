@@ -13,8 +13,8 @@ const navGroups = [
       { to: '/',          icon: LayoutDashboard, label: '대시보드',         end: true },
       { to: '/stats',     icon: BarChart3,        label: '통계 현황' },
       { to: '/intake',    icon: UserPlus,         label: '상담 접수' },
+      { to: '/founders',  icon: Award,            label: '상담 관리' },
       { to: '/consult',   icon: MessageSquare,    label: '상담일지' },
-      { to: '/founders',  icon: Award,            label: '창업자 관리' },
       { to: '/founderdb', icon: Database,         label: '창업자 DB' },
     ]
   },
