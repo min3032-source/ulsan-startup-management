@@ -60,9 +60,9 @@ function ListEditor({ label, stateKey, items, canEdit, onAdd, onUpdate, onRemove
 
 export default function Settings() {
   const { profile, hasRole } = useAuth()
+  const isMaster       = profile?.role === 'master'
   const canEdit        = hasRole('admin')
-  const canManageUsers = hasRole('admin')
-  const isMaster       = hasRole('master')
+  const canManageUsers = isMaster || hasRole('admin')
 
   const [activeTab, setActiveTab] = useState('consult')
 
@@ -623,7 +623,7 @@ export default function Settings() {
                       <div className="text-sm font-medium text-gray-800">{opt.label}</div>
                       <div className="text-xs text-gray-500 mt-0.5">
                         {opt.value === 'master'  && '전체 관리, 사용자 권한 변경, 팀 설정 수정'}
-                        {opt.value === 'admin'   && '팀 설정 수정, 데이터 삭제, 권한 일부 관리'}
+                        {opt.value === 'admin'   && '사용자 관리, 팀 설정 수정, 데이터 삭제, 권한 일부 관리'}
                         {opt.value === 'manager' && '데이터 등록·수정 가능 (삭제 불가)'}
                         {opt.value === 'viewer'  && '데이터 조회만 가능 (쓰기 불가)'}
                       </div>
