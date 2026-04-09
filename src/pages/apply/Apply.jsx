@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { ULSAN_REGIONS, today } from '../../lib/constants'
 import { CheckCircle, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react'
@@ -6,7 +6,6 @@ import PublicHeader from '../../components/common/PublicHeader'
 import StartupTypeQuiz, { VERDICT_INFO } from '../../components/StartupTypeQuiz'
 
 // ── 상수 ─────────────────────────────────────────────────
-const STAGES = ['아이디어 단계', '준비 중', '초기(1년 미만)', '운영 중', '성장기']
 const METHODS = ['방문', '전화', '화상']
 
 const STEPS = ['창업 유형 자가진단', '상담 신청서 작성', '접수 완료']
@@ -50,6 +49,13 @@ export default function Apply() {
   const [error, setError]     = useState('')
   const [privacyAgreed, setPrivacyAgreed] = useState(false)
   const [privacyOpen, setPrivacyOpen]     = useState(false)
+  const [stages, setStages] = useState([])
+
+  useEffect(() => {
+    supabase.from('team_settings').select('stages').single().then(({ data }) => {
+      if (data?.stages) setStages(data.stages)
+    })
+  }, [])
 
   const verdict = quizResult?.verdict ?? null
   const vInfo   = verdict ? VERDICT_INFO[verdict] : null
@@ -217,7 +223,7 @@ export default function Apply() {
               <Field label="창업 단계">
                 <select value={form.stage} onChange={e => set('stage', e.target.value)} className={input()}>
                   <option value="">선택</option>
-                  {STAGES.map(s => <option key={s}>{s}</option>)}
+                  {stages.map(s => <option key={s}>{s}</option>)}
                 </select>
               </Field>
             </div>

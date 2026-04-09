@@ -7,7 +7,7 @@ import Modal from '../../components/common/Modal'
 import StatCard from '../../components/common/StatCard'
 import Avatar from '../../components/common/Avatar'
 import { useAuth } from '../../context/AuthContext'
-import { Plus, Search, Pencil, Trash2, ClipboardList, CheckCircle, XCircle, Users, BookOpen } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, ClipboardList, CheckCircle, XCircle, Users } from 'lucide-react'
 
 const CONSULT_STATUS_COLORS = {
   '대기중': 'bg-amber-100 text-amber-700',
@@ -566,16 +566,16 @@ export default function Intake() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  {['이름', '연락처', '창업유형', '지역', '창업단계', '담당자', '상담상태', '접수일', '상담횟수', '상담일지', '관리', '창업자등록'].map(h => (
+                  {['이름', '연락처', '창업유형', '지역', '창업단계', '담당자', '상담상태', '접수일', '관리'].map(h => (
                     <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={12} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
+                  <tr><td colSpan={9} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={12} className="text-center py-10 text-gray-400 text-sm">등록된 상담이 없습니다</td></tr>
+                  <tr><td colSpan={9} className="text-center py-10 text-gray-400 text-sm">등록된 상담이 없습니다</td></tr>
                 ) : filtered.map(f => (
                   <tr
                     key={f.id}
@@ -619,21 +619,6 @@ export default function Intake() {
                       }
                     </td>
                     <td className="px-4 py-2.5 text-xs text-gray-500">{f.date}</td>
-                    <td className="px-4 py-2.5 text-xs text-center">
-                      {consultCounts[f.id] ? (
-                        <span className="font-medium text-blue-600">{consultCounts[f.id]}회</span>
-                      ) : (
-                        <span className="text-gray-300">-</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
-                      <button
-                        onClick={e => openConsultJournal(f, e)}
-                        className="flex items-center gap-1 px-2 py-0.5 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50"
-                      >
-                        <BookOpen size={11} /> 일지
-                      </button>
-                    </td>
                     <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
                         {canWrite && (
@@ -647,26 +632,6 @@ export default function Intake() {
                           </button>
                         )}
                       </div>
-                    </td>
-                    <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
-                      {f.is_founder ? (
-                        canWrite ? (
-                          <button
-                            onClick={() => handleCancelFounder(f.id)}
-                            className="text-xs px-2 py-0.5 border border-red-300 text-red-600 rounded hover:bg-red-50"
-                          >
-                            등록 취소
-                          </button>
-                        ) : <span className="text-xs text-green-600 font-medium">창업자 ✓</span>
-                      ) : (f.verdict && canWrite) ? (
-                        <button
-                          onClick={() => handleRegisterFounder(f.id)}
-                          className="text-xs px-2 py-0.5 text-white rounded"
-                          style={{ background: '#1E5631' }}
-                        >
-                          등록
-                        </button>
-                      ) : <span className="text-xs text-gray-300">-</span>}
                     </td>
                   </tr>
                 ))}
