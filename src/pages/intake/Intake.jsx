@@ -370,9 +370,9 @@ export default function Intake() {
     return matchSearch && matchVerdict && matchRegion && matchTab
   })
 
-  const techCount  = founders.filter(f => f.verdict?.includes('테크') && !f.verdict?.includes('혼합')).length
-  const localCount = founders.filter(f => f.verdict?.includes('로컬') && !f.verdict?.includes('혼합')).length
-  const mixCount   = founders.filter(f => f.verdict?.includes('혼합')).length
+  const techCount  = founders.filter(f => f.verdict === '테크 창업').length
+  const localCount = founders.filter(f => f.verdict === '로컬 창업').length
+  const mixCount   = founders.filter(f => f.verdict === '상담 후 결정' || !f.verdict).length
   const pendingCount = applications.filter(a => a.status === 'pending').length
 
   return (
@@ -503,7 +503,7 @@ export default function Intake() {
             <StatCard label="전체 상담" value={`${founders.length}건`} color="blue" />
             <StatCard label="테크창업"  value={`${techCount}건`}       color="teal" />
             <StatCard label="로컬창업"  value={`${localCount}건`}      color="green" />
-            <StatCard label="혼합형"    value={`${mixCount}건`}        color="orange" />
+            <StatCard label="판정 대기"  value={`${mixCount}건`}        color="orange" />
           </div>
 
           {/* 상담자 / 창업자 필터 탭 */}
@@ -535,7 +535,7 @@ export default function Intake() {
                 <option value="">전체 유형</option>
                 <option>테크 창업</option>
                 <option>로컬 창업</option>
-                <option>혼합형 창업</option>
+                <option>상담 후 결정</option>
               </select>
               <select
                 className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5"

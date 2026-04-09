@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { ULSAN_REGIONS } from '../../lib/constants'
 import { VerdictBadge } from '../../components/common/Badge'
 import StatCard from '../../components/common/StatCard'
 import Avatar from '../../components/common/Avatar'
-import { Search, UserCheck, UserMinus } from 'lucide-react'
+import { Search, UserCheck, UserMinus, ChevronDown } from 'lucide-react'
 
 const CONSULT_STATUS_COLORS = {
   '대기중': 'bg-amber-100 text-amber-700',
@@ -25,7 +25,24 @@ export default function Founders() {
   const [filterVerdict, setFilterVerdict] = useState('')
   const [toast, setToast] = useState('')
 
+  // 최종 판정 팝업
+  const [verdictPopup, setVerdictPopup] = useState(null) // founder id
+  const [verdictChoice, setVerdictChoice] = useState('')
+  const [verdictSaving, setVerdictSaving] = useState(false)
+  const popupRef = useRef(null)
+
   useEffect(() => { loadData() }, [])
+
+  // 팝업 외부 클릭 시 닫기
+  useEffect(() => {
+    function handleClick(e) {
+      if (popupRef.current && !popupRef.current.contains(e.target)) {
+        setVerdictPopup(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
 
   async function loadData() {
     setLoading(true)
@@ -39,7 +56,22 @@ export default function Founders() {
 
   function showToast(msg) {
     setToast(msg)
-    setTimeout(() => setToast(''), 3000)
+    setTimeout(() => setToast(''), 3500)
+  }
+
+  async function handleFinalVerdict(founder) {
+    if (!verdictChoice) { alert('창업유형을 선택해주세요'); return }
+    setVerdictSaving(true)
+    const { error } = await supabase
+      .from('founders')
+      .update({ verdict: verdictChoice })
+      .eq('id', founder.id)
+    setVerdictSaving(false)
+    if (error) { alert('판정 실패: ' + error.message); return }
+    setFounders(prev => prev.map(f => f.id === founder.id ? { ...f, verdict: verdictChoice } : f))
+    setVerdictPopup(null)
+    setVerdictChoice('')
+    showToast(`${founder.name}님의 창업유형이 ${verdictChoice}으로 판정되었습니다.`)
   }
 
   async function handleRegisterFounder(id) {
@@ -67,8 +99,9 @@ export default function Founders() {
     return matchSearch && matchRegion && matchVerdict
   })
 
-  const techCount  = founders.filter(f => f.verdict?.includes('테크') && !f.verdict?.includes('혼합')).length
-  const localCount = founders.filter(f => f.verdict?.includes('로컬') && !f.verdict?.includes('혼합')).length
+  const techCount    = founders.filter(f => f.verdict === '테크 창업').length
+  const localCount   = founders.filter(f => f.verdict === '로컬 창업').length
+  const pendingCount = founders.filter(f => f.verdict === '상담 후 결정' || !f.verdict).length
 
   return (
     <div className="p-6 space-y-5">
@@ -81,10 +114,10 @@ export default function Founders() {
       <h1 className="text-xl font-bold text-gray-800">상담 관리</h1>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="전체 상담자" value={`${founders.length}명`} color="blue" />
-        <StatCard label="테크 창업"   value={`${techCount}명`}       color="teal" />
-        <StatCard label="로컬 창업"   value={`${localCount}명`}      color="green" />
-        <StatCard label="기타"        value={`${founders.length - techCount - localCount}명`} color="orange" />
+        <StatCard label="전체 상담자"  value={`${founders.length}명`} color="blue" />
+        <StatCard label="테크 창업"    value={`${techCount}명`}       color="teal" />
+        <StatCard label="로컬 창업"    value={`${localCount}명`}      color="green" />
+        <StatCard label="판정 대기"    value={`${pendingCount}명`}    color="orange" />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -105,7 +138,7 @@ export default function Founders() {
           <option value="">전체 창업유형</option>
           <option>테크 창업</option>
           <option>로컬 창업</option>
-          <option>혼합형 창업</option>
+          <option>상담 후 결정</option>
         </select>
         <select
           className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5"
@@ -135,6 +168,8 @@ export default function Founders() {
               <tr><td colSpan={9} className="text-center py-10 text-gray-400 text-sm">등록된 상담자가 없습니다</td></tr>
             ) : filtered.map(f => {
               const count = f.consults?.length || 0
+              const needsVerdict = f.verdict === '상담 후 결정' || !f.verdict
+              const isPopupOpen = verdictPopup === f.id
               return (
                 <tr key={f.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-2.5">
@@ -144,7 +179,54 @@ export default function Founders() {
                     </div>
                   </td>
                   <td className="px-4 py-2.5 text-xs text-gray-500">{f.phone}</td>
-                  <td className="px-4 py-2.5"><VerdictBadge verdict={f.verdict} /></td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {needsVerdict ? (
+                        <span className="px-2 py-0.5 text-xs bg-orange-100 text-orange-700 rounded font-medium">판정 필요</span>
+                      ) : (
+                        <VerdictBadge verdict={f.verdict} />
+                      )}
+                      {canWrite && needsVerdict && (
+                        <div className="relative" ref={isPopupOpen ? popupRef : null}>
+                          <button
+                            onClick={() => {
+                              setVerdictPopup(isPopupOpen ? null : f.id)
+                              setVerdictChoice('')
+                            }}
+                            className="flex items-center gap-0.5 text-xs px-2 py-0.5 border border-orange-300 text-orange-600 rounded hover:bg-orange-50 transition-colors"
+                          >
+                            최종 판정 <ChevronDown size={10} />
+                          </button>
+                          {isPopupOpen && (
+                            <div className="absolute left-0 top-7 z-30 bg-white border border-gray-200 rounded-xl shadow-xl p-3 w-44 space-y-2">
+                              <p className="text-xs font-semibold text-gray-600 mb-1">창업유형 선택</p>
+                              {['테크 창업', '로컬 창업'].map(v => (
+                                <label key={v} className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="radio"
+                                    name={`verdict-${f.id}`}
+                                    value={v}
+                                    checked={verdictChoice === v}
+                                    onChange={() => setVerdictChoice(v)}
+                                    className="w-3.5 h-3.5"
+                                  />
+                                  <span className="text-xs text-gray-700">{v}</span>
+                                </label>
+                              ))}
+                              <button
+                                onClick={() => handleFinalVerdict(f)}
+                                disabled={!verdictChoice || verdictSaving}
+                                className="w-full mt-1 py-1.5 text-xs font-semibold text-white rounded-lg disabled:opacity-40 transition-colors"
+                                style={{ background: '#2E75B6' }}
+                              >
+                                {verdictSaving ? '저장 중...' : '판정 완료'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-2.5 text-xs text-gray-500">
                     {f.region === '기타(타지역)'
                       ? `타지역${f.region_detail ? ` (${f.region_detail})` : ''}`

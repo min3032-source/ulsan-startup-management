@@ -54,10 +54,10 @@ export function calcVerdict(q1, q2, q3, q4, q5, q6, q7) {
   if (yesCount + q6Bonus >= 5) return '테크 창업'
   if (noCount  + q6Bonus >= 5) return '로컬 창업'
   if (yesCount + q6Bonus >= 3.5) {
-    return '혼합형 창업'
+    return '상담 후 결정'
   }
   if (noCount  + q6Bonus >= 3.5) return '로컬 창업'
-  return '혼합형 창업'
+  return '상담 후 결정'
 }
 
 // ── 뱃지 색상 매핑 ────────────────────────────────────
@@ -66,6 +66,7 @@ export function getVerdictBadgeClass(verdict) {
   if (!verdict) return 'bg-gray-100 text-gray-500'
   if (verdict.includes('테크')) return 'bg-blue-100 text-blue-700'
   if (verdict.includes('로컬')) return 'bg-green-100 text-green-700'
+  if (verdict === '상담 후 결정') return 'bg-orange-100 text-orange-700'
   if (verdict.includes('혼합')) return 'bg-amber-100 text-amber-700'
   return 'bg-gray-100 text-gray-500'
 }

@@ -369,8 +369,8 @@ function ByProgramView({ programList, yearData, yearLabel, expandedProgram, setE
 
         const progFounders = fYear.filter(f => linkedIds.has(f.id))
         const founderCount = progFounders.filter(f => f.is_founder === true).length
-        const techCount    = progFounders.filter(f => f.verdict?.includes('테크') && !f.verdict?.includes('혼합')).length
-        const localCount   = progFounders.filter(f => f.verdict?.includes('로컬') && !f.verdict?.includes('혼합')).length
+        const techCount    = progFounders.filter(f => f.verdict === '테크 창업').length
+        const localCount   = progFounders.filter(f => f.verdict === '로컬 창업').length
         const isOpen = expandedProgram === prog
 
         return (

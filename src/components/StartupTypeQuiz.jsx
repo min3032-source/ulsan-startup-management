@@ -38,11 +38,11 @@ export const VERDICT_INFO = {
     desc: '지역 기반의 생활밀착형 사업 모델입니다. 로컬크리에이터, 창업자금융자 프로그램이 적합합니다.',
     btnLabel: '로컬 분야 창업 상담 신청하기',
   },
-  '혼합형 창업': {
-    color: '#B45309', bg: '#FFFBEB', emoji: '🔄',
-    label: '혼합형 창업',
-    desc: '기술성과 지역성이 균형 있게 결합된 융합형 사업 모델입니다. 사업 방향에 따라 맞춤형 지원프로그램을 안내드립니다.',
-    btnLabel: '혼합형 창업 상담 신청하기',
+  '상담 후 결정': {
+    color: '#D97706', bg: '#FFFBEB', emoji: '💬',
+    label: '상담 후 결정',
+    desc: '기술성과 지역성이 혼재하는 사업 모델입니다.\n담당 컨설턴트와의 1:1 상담을 통해 최적의 창업유형을 결정해드립니다.\n아래 버튼을 눌러 상담을 신청해주세요.',
+    btnLabel: '상담 신청하기',
   },
 }
 
@@ -85,7 +85,7 @@ export function calcQuizVerdict(form) {
   const diff = tech - local
   if (diff >= 6) return '테크 창업'
   if (diff <= -6) return '로컬 창업'
-  return '혼합형 창업'
+  return '상담 후 결정'
 }
 
 // ── 차트 좌표 계산 ────────────────────────────────────────
@@ -254,13 +254,23 @@ export default function StartupTypeQuiz({ onComplete }) {
           <div className="p-5 text-center" style={{ background: vInfo.bg }}>
             <div className="text-4xl mb-2">{vInfo.emoji}</div>
             <div className="text-2xl font-bold mb-2" style={{ color: vInfo.color }}>{vInfo.label}</div>
-            <p className="text-sm text-gray-600 leading-relaxed">{vInfo.desc}</p>
+            <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{vInfo.desc}</p>
           </div>
 
-          <div className="bg-white px-4 pt-4 pb-2">
-            <div className="text-xs font-semibold text-gray-400 mb-2 text-center tracking-wide uppercase">포지셔닝 맵</div>
-            <MatrixChart form={form} />
-          </div>
+          {verdict !== '상담 후 결정' && (
+            <div className="bg-white px-4 pt-4 pb-2">
+              <div className="text-xs font-semibold text-gray-400 mb-2 text-center tracking-wide uppercase">포지셔닝 맵</div>
+              <MatrixChart form={form} />
+            </div>
+          )}
+
+          {verdict === '상담 후 결정' && (
+            <div className="bg-white px-4 pt-4 pb-2">
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 text-center leading-relaxed">
+                💬 상담 신청 후 담당자가 배정되면 함께 최적의 창업 방향을 결정해드립니다.
+              </div>
+            </div>
+          )}
 
           <div className="bg-white px-4 pb-4">
             <button

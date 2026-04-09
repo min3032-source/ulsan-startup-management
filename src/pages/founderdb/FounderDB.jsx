@@ -79,7 +79,7 @@ export default function FounderDB() {
           </div>
           <select className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5" value={filterVerdict} onChange={e => setFilterVerdict(e.target.value)}>
             <option value="">전체 유형</option>
-            <option>테크 창업</option><option>로컬 창업</option><option>혼합형 창업</option>
+            <option>테크 창업</option><option>로컬 창업</option><option>상담 후 결정</option>
           </select>
         </div>
         <span className="text-sm text-gray-500">{filtered.length}명</span>
