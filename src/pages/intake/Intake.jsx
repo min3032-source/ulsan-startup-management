@@ -30,6 +30,7 @@ export default function Intake() {
   const canWrite = hasRole('manager')
   const canDelete = hasRole('admin')
   const canApprove = hasRole('admin')
+  const canAssign = hasRole('admin')   // 마스터 + 관리자(Admin)
 
   const [activeTab, setActiveTab] = useState('founders')
   const [founders, setFounders] = useState([])
@@ -452,9 +453,10 @@ export default function Intake() {
                       <div className="flex items-center gap-2 mt-1.5">
                         <span className="text-xs text-gray-400">담당자:</span>
                         <select
-                          className="text-xs border border-gray-200 rounded px-2 py-0.5 focus:outline-none focus:border-blue-400 bg-white"
+                          className="text-xs border border-gray-200 rounded px-2 py-0.5 focus:outline-none focus:border-blue-400 bg-white disabled:opacity-50 disabled:cursor-not-allowed"
                           value={app.assignee || ''}
                           onChange={e => handleAppAssigneeChange(app.id, e.target.value)}
+                          disabled={!canAssign}
                         >
                           <option value="">미배정</option>
                           {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
@@ -601,9 +603,10 @@ export default function Intake() {
                     <td className="px-4 py-2.5 text-xs text-gray-500">{f.stage}</td>
                     <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
                       <select
-                        className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-transparent hover:border-gray-400 focus:outline-none focus:border-blue-400 max-w-[90px]"
+                        className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-transparent hover:border-gray-400 focus:outline-none focus:border-blue-400 max-w-[90px] disabled:opacity-50 disabled:cursor-not-allowed"
                         value={f.assignee || ''}
                         onChange={e => handleAssigneeChange(f.id, e.target.value)}
+                        disabled={!canAssign}
                       >
                         <option value="">-</option>
                         {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
