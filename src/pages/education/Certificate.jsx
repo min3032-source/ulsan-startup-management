@@ -13,7 +13,7 @@ export default function Certificate() {
     async function load() {
       const { data: cert, error: err } = await supabase
         .from('certificates')
-        .select('*, education_applications(applicant_name, email, education_programs(title, start_date, end_date))')
+        .select('*, education_applications(applicant_name, email, education_programs(title, start_date, end_date, total_hours))')
         .eq('id', id)
         .single()
       if (err || !cert) {
@@ -94,6 +94,10 @@ export default function Certificate() {
                   <td className="text-gray-800 py-1.5">
                     : &nbsp;{prog?.start_date && prog?.end_date ? `${prog.start_date} ~ ${prog.end_date}` : '-'}
                   </td>
+                </tr>
+                <tr>
+                  <td className="font-bold text-gray-700 py-1.5">교육시간</td>
+                  <td className="text-gray-800 py-1.5">: &nbsp;{prog?.total_hours ? `${prog.total_hours}시간` : '-'}</td>
                 </tr>
                 <tr>
                   <td className="font-bold text-gray-700 py-1.5">수 료 일</td>

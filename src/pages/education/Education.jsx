@@ -86,7 +86,7 @@ export default function Education() {
     return {
       title: '', description: '', category: '창업기초', program_type: '집합교육',
       instructor: '', location: '', start_date: '', end_date: '',
-      total_sessions: 1, max_participants: '', assignee: '', status: '모집중'
+      total_sessions: 1, hours_per_session: 2, max_participants: '', assignee: '', status: '모집중'
     }
   }
 
@@ -103,7 +103,7 @@ export default function Education() {
       category: p.category || '창업기초', program_type: p.program_type || '집합교육',
       instructor: p.instructor || '', location: p.location || '',
       start_date: p.start_date || '', end_date: p.end_date || '',
-      total_sessions: p.total_sessions || 1, max_participants: p.max_participants || '',
+      total_sessions: p.total_sessions || 1, hours_per_session: p.hours_per_session || 2, max_participants: p.max_participants || '',
       assignee: p.assignee || '', status: p.status || '모집중'
     })
     setShowProgramModal(true)
@@ -112,7 +112,12 @@ export default function Education() {
   async function saveProgram() {
     if (!programForm.title.trim()) { alert('교육명을 입력해주세요'); return }
     setSaving(true)
-    const payload = { ...programForm, max_participants: programForm.max_participants ? Number(programForm.max_participants) : null }
+    const totalHours = (programForm.total_sessions || 1) * (programForm.hours_per_session || 2)
+    const payload = {
+      ...programForm,
+      max_participants: programForm.max_participants ? Number(programForm.max_participants) : null,
+      total_hours: totalHours,
+    }
     let error
     if (editProgram) {
       ({ error } = await supabase.from('education_programs').update(payload).eq('id', editProgram.id))
@@ -279,16 +284,16 @@ export default function Education() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  {['교육명', '카테고리', '유형', '기간', '수강인원/정원', '담당자', '상태', '관리'].map(h => (
+                  {['교육명', '카테고리', '유형', '기간', '교육시간', '수강인원/정원', '담당자', '상태', '관리'].map(h => (
                     <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={8} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
+                  <tr><td colSpan={9} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
                 ) : programs.length === 0 ? (
-                  <tr><td colSpan={8} className="text-center py-10 text-gray-400">등록된 프로그램이 없습니다</td></tr>
+                  <tr><td colSpan={9} className="text-center py-10 text-gray-400">등록된 프로그램이 없습니다</td></tr>
                 ) : programs.map(p => {
                   const enrolled = appsByProgram(p.id).length
                   return (
@@ -307,6 +312,9 @@ export default function Education() {
                       <td className="px-4 py-2.5 text-xs text-gray-600">{p.program_type}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">
                         {p.start_date && p.end_date ? `${p.start_date} ~ ${p.end_date}` : '-'}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-gray-600">
+                        {p.total_hours ? `${p.total_hours}시간 (${p.total_sessions}회)` : '-'}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">
                         {enrolled}명 / {p.max_participants ? `${p.max_participants}명` : '제한없음'}
@@ -532,11 +540,17 @@ export default function Education() {
                 <Field label="총 회차 수">
                   <input type="number" min="1" className="input-base" value={programForm.total_sessions} onChange={e => setProgramForm(f => ({ ...f, total_sessions: Number(e.target.value) }))} />
                 </Field>
+                <Field label="회차당 교육시간 (시간)">
+                  <input type="number" min="1" className="input-base" value={programForm.hours_per_session} onChange={e => setProgramForm(f => ({ ...f, hours_per_session: Number(e.target.value) }))} placeholder="2" />
+                </Field>
+              </div>
+              <div className="bg-blue-50 rounded-lg px-3 py-2 text-sm text-blue-700 font-medium">
+                총 교육시간: {(programForm.total_sessions || 1) * (programForm.hours_per_session || 2)}시간 ({programForm.total_sessions || 1}회 × {programForm.hours_per_session || 2}시간)
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <Field label="최대 수강인원">
                   <input type="number" min="1" className="input-base" value={programForm.max_participants} onChange={e => setProgramForm(f => ({ ...f, max_participants: e.target.value }))} placeholder="제한없음" />
                 </Field>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
                 <Field label="담당자">
                   <select className="input-base" value={programForm.assignee} onChange={e => setProgramForm(f => ({ ...f, assignee: e.target.value }))}>
                     <option value="">선택</option>
