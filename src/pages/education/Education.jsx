@@ -1,0 +1,721 @@
+import { useState, useEffect } from 'react'
+import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../context/AuthContext'
+import { BookOpen, Users, Award, Plus, X, Search, ChevronDown, Printer, Mail } from 'lucide-react'
+import StatCard from '../../components/common/StatCard'
+import PageHeader from '../../components/common/PageHeader'
+
+const CATEGORIES = ['창업기초', '마케팅', '재무', '기술', '네트워킹', '기타']
+const PROGRAM_TYPES = ['집합교육', '온라인', '혼합']
+const PROGRAM_STATUSES = ['모집중', '진행중', '완료', '취소']
+const APP_STATUSES = ['신청', '승인', '수료', '미수료']
+
+const STATUS_COLOR = {
+  '모집중': 'bg-blue-100 text-blue-700',
+  '진행중': 'bg-teal-100 text-teal-700',
+  '완료':   'bg-green-100 text-green-700',
+  '취소':   'bg-gray-100 text-gray-500',
+  '신청':   'bg-amber-100 text-amber-700',
+  '승인':   'bg-blue-100 text-blue-700',
+  '수료':   'bg-green-100 text-green-700',
+  '미수료': 'bg-red-100 text-red-700',
+}
+
+const TABS = [
+  { id: 'programs', label: '교육 프로그램', icon: BookOpen },
+  { id: 'students', label: '수강생 관리', icon: Users },
+  { id: 'certificates', label: '수료 관리', icon: Award },
+]
+
+export default function Education() {
+  const { hasRole } = useAuth()
+  const canWrite = hasRole('manager')
+
+  const [tab, setTab] = useState('programs')
+  const [programs, setPrograms] = useState([])
+  const [applications, setApplications] = useState([])
+  const [certificates, setCertificates] = useState([])
+  const [profiles, setProfiles] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  // 프로그램 모달
+  const [showProgramModal, setShowProgramModal] = useState(false)
+  const [editProgram, setEditProgram] = useState(null)
+  const [programForm, setProgramForm] = useState(defaultProgramForm())
+
+  // 수강생 탭
+  const [filterProgram, setFilterProgram] = useState('')
+  const [searchStudent, setSearchStudent] = useState('')
+
+  // 출석 모달
+  const [attendanceModal, setAttendanceModal] = useState(null) // application
+  const [attendance, setAttendance] = useState([])
+
+  // 수료증 미리보기 모달
+  const [certPreview, setCertPreview] = useState(null)
+
+  // 수강생 목록 모달 (프로그램 클릭)
+  const [studentsModal, setStudentsModal] = useState(null) // program
+
+  const [toast, setToast] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => { loadAll() }, [])
+
+  async function loadAll() {
+    setLoading(true)
+    const [pRes, aRes, cRes, prRes] = await Promise.all([
+      supabase.from('education_programs').select('*').order('created_at', { ascending: false }),
+      supabase.from('education_applications').select('*, education_programs(title, start_date, end_date), founders(name)').order('applied_at', { ascending: false }),
+      supabase.from('certificates').select('*, education_applications(applicant_name, education_programs(title, start_date, end_date))').order('issued_at', { ascending: false }),
+      supabase.from('profiles').select('id, name').eq('is_active', true),
+    ])
+    if (!pRes.error) setPrograms(pRes.data || [])
+    if (!aRes.error) setApplications(aRes.data || [])
+    if (!cRes.error) setCertificates(cRes.data || [])
+    if (!prRes.error) setProfiles(prRes.data || [])
+    setLoading(false)
+  }
+
+  function showToast(msg) {
+    setToast(msg)
+    setTimeout(() => setToast(''), 3500)
+  }
+
+  function defaultProgramForm() {
+    return {
+      title: '', description: '', category: '창업기초', program_type: '집합교육',
+      instructor: '', location: '', start_date: '', end_date: '',
+      total_sessions: 1, max_participants: '', assignee: '', status: '모집중'
+    }
+  }
+
+  function openAddProgram() {
+    setEditProgram(null)
+    setProgramForm(defaultProgramForm())
+    setShowProgramModal(true)
+  }
+
+  function openEditProgram(p) {
+    setEditProgram(p)
+    setProgramForm({
+      title: p.title || '', description: p.description || '',
+      category: p.category || '창업기초', program_type: p.program_type || '집합교육',
+      instructor: p.instructor || '', location: p.location || '',
+      start_date: p.start_date || '', end_date: p.end_date || '',
+      total_sessions: p.total_sessions || 1, max_participants: p.max_participants || '',
+      assignee: p.assignee || '', status: p.status || '모집중'
+    })
+    setShowProgramModal(true)
+  }
+
+  async function saveProgram() {
+    if (!programForm.title.trim()) { alert('교육명을 입력해주세요'); return }
+    setSaving(true)
+    const payload = { ...programForm, max_participants: programForm.max_participants ? Number(programForm.max_participants) : null }
+    let error
+    if (editProgram) {
+      ({ error } = await supabase.from('education_programs').update(payload).eq('id', editProgram.id))
+    } else {
+      ({ error } = await supabase.from('education_programs').insert(payload))
+    }
+    setSaving(false)
+    if (error) { alert('저장 실패: ' + error.message); return }
+    setShowProgramModal(false)
+    showToast(editProgram ? '프로그램이 수정되었습니다.' : '프로그램이 등록되었습니다.')
+    loadAll()
+  }
+
+  async function deleteProgram(id) {
+    if (!confirm('프로그램을 삭제하시겠습니까?')) return
+    const { error } = await supabase.from('education_programs').delete().eq('id', id)
+    if (error) { alert('삭제 실패: ' + error.message); return }
+    showToast('삭제되었습니다.')
+    loadAll()
+  }
+
+  async function updateAppStatus(appId, status) {
+    const { error } = await supabase.from('education_applications').update({ status }).eq('id', appId)
+    if (error) { alert('상태 변경 실패: ' + error.message); return }
+    if (status === '수료') {
+      await issueCertificate(appId)
+    }
+    loadAll()
+  }
+
+  async function issueCertificate(appId) {
+    const year = new Date().getFullYear()
+    const { count } = await supabase.from('certificates').select('*', { count: 'exact', head: true })
+    const seq = String((count || 0) + 1).padStart(3, '0')
+    const certNo = `CERT-${year}-${seq}`
+    const { error } = await supabase.from('certificates').insert({
+      application_id: appId,
+      certificate_number: certNo,
+      issued_at: new Date().toISOString(),
+    })
+    if (!error) showToast(`수료증 번호 ${certNo} 발급 완료`)
+  }
+
+  async function loadAttendance(app) {
+    const { data } = await supabase.from('education_attendance').select('*').eq('application_id', app.id).order('session_number')
+    setAttendance(data || [])
+    setAttendanceModal(app)
+  }
+
+  async function toggleAttendance(app, sessionNum, existing) {
+    if (existing) {
+      const newStatus = existing.status === '출석' ? '결석' : '출석'
+      await supabase.from('education_attendance').update({ status: newStatus }).eq('id', existing.id)
+    } else {
+      await supabase.from('education_attendance').insert({
+        application_id: app.id,
+        session_number: sessionNum,
+        attended_at: new Date().toISOString().slice(0, 10),
+        status: '출석'
+      })
+    }
+    const { data } = await supabase.from('education_attendance').select('*').eq('application_id', app.id)
+    const attended = (data || []).filter(a => a.status === '출석').length
+    const program = programs.find(p => p.id === app.program_id)
+    const total = program?.total_sessions || 1
+    const rate = Math.round((attended / total) * 100)
+    await supabase.from('education_applications').update({ attendance_rate: rate }).eq('id', app.id)
+    loadAttendance(app)
+    loadAll()
+  }
+
+  async function sendCertEmail(cert) {
+    const app = cert.education_applications
+    if (!app) return
+    const certUrl = `${window.location.origin}/certificate/${cert.id}`
+    try {
+      await supabase.functions.invoke('send-email', {
+        body: {
+          to: cert.email || 'noreply@example.com',
+          subject: `[울산경제일자리진흥원] 수료증이 발급되었습니다`,
+          html: `<p>안녕하세요, ${app.applicant_name}님!</p>
+<p><strong>${app.education_programs?.title}</strong> 교육과정을 성공적으로 수료하셨습니다.</p>
+<p>수료증 확인: <a href="${certUrl}">${certUrl}</a></p>
+<p>감사합니다.<br>울산경제일자리진흥원</p>`
+        }
+      })
+      showToast('수료증 이메일이 발송되었습니다.')
+    } catch (e) {
+      alert('이메일 발송 실패: ' + e.message)
+    }
+  }
+
+  const appsByProgram = (pid) => applications.filter(a => a.program_id === pid)
+
+  const filteredApps = applications.filter(a => {
+    const matchProg = !filterProgram || a.program_id === filterProgram
+    const matchSearch = !searchStudent ||
+      a.applicant_name?.includes(searchStudent) ||
+      a.company_name?.includes(searchStudent) ||
+      a.phone?.includes(searchStudent)
+    return matchProg && matchSearch
+  })
+
+  const completedApps = applications.filter(a => a.status === '수료')
+
+  const stats = {
+    total: programs.length,
+    recruiting: programs.filter(p => p.status === '모집중').length,
+    ongoing: programs.filter(p => p.status === '진행중').length,
+    done: programs.filter(p => p.status === '완료').length,
+  }
+
+  return (
+    <div className="p-6 space-y-5">
+      {toast && (
+        <div className="fixed top-5 right-5 z-50 bg-green-600 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg">
+          {toast}
+        </div>
+      )}
+
+      <PageHeader title="교육 프로그램 관리" />
+
+      {/* 탭 */}
+      <div className="flex gap-1 border-b border-gray-200">
+        {TABS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              tab === t.id
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <t.icon size={15} />
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ─── 탭 1: 교육 프로그램 ─── */}
+      {tab === 'programs' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard label="전체 프로그램" value={`${stats.total}개`} color="blue" />
+            <StatCard label="모집중"         value={`${stats.recruiting}개`} color="teal" />
+            <StatCard label="진행중"         value={`${stats.ongoing}개`}   color="orange" />
+            <StatCard label="완료"           value={`${stats.done}개`}      color="green" />
+          </div>
+
+          <div className="flex justify-end">
+            {canWrite && (
+              <button
+                onClick={openAddProgram}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm text-white rounded-lg font-medium"
+                style={{ background: '#2E75B6' }}
+              >
+                <Plus size={15} /> 프로그램 등록
+              </button>
+            )}
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  {['교육명', '카테고리', '유형', '기간', '수강인원/정원', '담당자', '상태', '관리'].map(h => (
+                    <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={8} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
+                ) : programs.length === 0 ? (
+                  <tr><td colSpan={8} className="text-center py-10 text-gray-400">등록된 프로그램이 없습니다</td></tr>
+                ) : programs.map(p => {
+                  const enrolled = appsByProgram(p.id).length
+                  return (
+                    <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="px-4 py-2.5">
+                        <button
+                          onClick={() => setStudentsModal(p)}
+                          className="font-medium text-blue-600 hover:underline text-xs"
+                        >
+                          {p.title}
+                        </button>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">{p.category}</span>
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-gray-600">{p.program_type}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500">
+                        {p.start_date && p.end_date ? `${p.start_date} ~ ${p.end_date}` : '-'}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-gray-600">
+                        {enrolled}명 / {p.max_participants ? `${p.max_participants}명` : '제한없음'}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-gray-600">{p.assignee || '-'}</td>
+                      <td className="px-4 py-2.5">
+                        <span className={`px-2 py-0.5 text-xs rounded font-medium ${STATUS_COLOR[p.status] || 'bg-gray-100 text-gray-500'}`}>
+                          {p.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {canWrite && (
+                          <div className="flex gap-1.5">
+                            <button onClick={() => openEditProgram(p)} className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">수정</button>
+                            <button onClick={() => deleteProgram(p.id)} className="text-xs px-2 py-1 border border-red-200 text-red-500 rounded hover:bg-red-50">삭제</button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ─── 탭 2: 수강생 관리 ─── */}
+      {tab === 'students' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <select
+              className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5"
+              value={filterProgram}
+              onChange={e => setFilterProgram(e.target.value)}
+            >
+              <option value="">전체 프로그램</option>
+              {programs.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+            </select>
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                className="pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 w-48"
+                placeholder="이름·기업명·연락처 검색"
+                value={searchStudent}
+                onChange={e => setSearchStudent(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  {['이름', '기업명', '연락처', '이메일', '프로그램', '신청일', '상태', '출석률', '관리'].map(h => (
+                    <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredApps.length === 0 ? (
+                  <tr><td colSpan={9} className="text-center py-10 text-gray-400">수강생이 없습니다</td></tr>
+                ) : filteredApps.map(a => (
+                  <tr key={a.id} className="border-b border-gray-50 hover:bg-gray-50">
+                    <td className="px-4 py-2.5 text-xs font-medium text-gray-800">
+                      {a.applicant_name}
+                      {a.founder_id && (
+                        <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-blue-100 text-blue-600 rounded">상담자</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500">{a.company_name || '-'}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500">{a.phone || '-'}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500">{a.email || '-'}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-600">{a.education_programs?.title || '-'}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500">{a.applied_at?.slice(0, 10)}</td>
+                    <td className="px-4 py-2.5">
+                      {canWrite ? (
+                        <select
+                          value={a.status}
+                          onChange={e => updateAppStatus(a.id, e.target.value)}
+                          className={`text-xs px-2 py-1 rounded border font-medium ${STATUS_COLOR[a.status]}`}
+                        >
+                          {APP_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      ) : (
+                        <span className={`px-2 py-0.5 text-xs rounded font-medium ${STATUS_COLOR[a.status]}`}>{a.status}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                          <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${a.attendance_rate || 0}%` }} />
+                        </div>
+                        <span className="text-xs text-gray-600">{a.attendance_rate || 0}%</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {canWrite && (
+                        <button
+                          onClick={() => loadAttendance(a)}
+                          className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50"
+                        >
+                          출석 관리
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ─── 탭 3: 수료 관리 ─── */}
+      {tab === 'certificates' && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  {['이름', '프로그램', '교육기간', '수료일', '수료증 번호', '관리'].map(h => (
+                    <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {completedApps.length === 0 ? (
+                  <tr><td colSpan={6} className="text-center py-10 text-gray-400">수료 처리된 수강생이 없습니다</td></tr>
+                ) : completedApps.map(a => {
+                  const cert = certificates.find(c => c.application_id === a.id)
+                  const prog = a.education_programs
+                  return (
+                    <tr key={a.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="px-4 py-2.5 text-xs font-medium text-gray-800">{a.applicant_name}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-600">{prog?.title || '-'}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500">
+                        {prog?.start_date && prog?.end_date ? `${prog.start_date} ~ ${prog.end_date}` : '-'}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500">{cert?.issued_at?.slice(0, 10) || '-'}</td>
+                      <td className="px-4 py-2.5 text-xs font-mono text-gray-700">{cert?.certificate_number || '-'}</td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex gap-1.5">
+                          {cert && (
+                            <>
+                              <button
+                                onClick={() => setCertPreview({ cert, app: a, prog })}
+                                className="flex items-center gap-1 text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50"
+                              >
+                                <Printer size={11} /> 보기
+                              </button>
+                              <button
+                                onClick={() => sendCertEmail(cert)}
+                                className="flex items-center gap-1 text-xs px-2 py-1 border border-blue-200 text-blue-600 rounded hover:bg-blue-50"
+                              >
+                                <Mail size={11} /> 발송
+                              </button>
+                            </>
+                          )}
+                          {!cert && canWrite && (
+                            <button
+                              onClick={() => issueCertificate(a.id).then(loadAll)}
+                              className="text-xs px-2 py-1 border border-green-300 text-green-600 rounded hover:bg-green-50"
+                            >
+                              수료증 발급
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ─── 프로그램 등록/수정 모달 ─── */}
+      {showProgramModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-800">{editProgram ? '프로그램 수정' : '프로그램 등록'}</h2>
+              <button onClick={() => setShowProgramModal(false)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="px-6 py-4 space-y-3">
+              <Field label="교육명 *">
+                <input className="input-base" value={programForm.title} onChange={e => setProgramForm(f => ({ ...f, title: e.target.value }))} placeholder="교육 프로그램명 입력" />
+              </Field>
+              <Field label="교육 설명">
+                <textarea className="input-base h-20 resize-none" value={programForm.description} onChange={e => setProgramForm(f => ({ ...f, description: e.target.value }))} placeholder="교육 내용 설명" />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="카테고리">
+                  <select className="input-base" value={programForm.category} onChange={e => setProgramForm(f => ({ ...f, category: e.target.value }))}>
+                    {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                  </select>
+                </Field>
+                <Field label="교육 유형">
+                  <select className="input-base" value={programForm.program_type} onChange={e => setProgramForm(f => ({ ...f, program_type: e.target.value }))}>
+                    {PROGRAM_TYPES.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="강사명">
+                  <input className="input-base" value={programForm.instructor} onChange={e => setProgramForm(f => ({ ...f, instructor: e.target.value }))} />
+                </Field>
+                <Field label="교육 장소">
+                  <input className="input-base" value={programForm.location} onChange={e => setProgramForm(f => ({ ...f, location: e.target.value }))} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="시작일">
+                  <input type="date" className="input-base" value={programForm.start_date} onChange={e => setProgramForm(f => ({ ...f, start_date: e.target.value }))} />
+                </Field>
+                <Field label="종료일">
+                  <input type="date" className="input-base" value={programForm.end_date} onChange={e => setProgramForm(f => ({ ...f, end_date: e.target.value }))} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="총 회차 수">
+                  <input type="number" min="1" className="input-base" value={programForm.total_sessions} onChange={e => setProgramForm(f => ({ ...f, total_sessions: Number(e.target.value) }))} />
+                </Field>
+                <Field label="최대 수강인원">
+                  <input type="number" min="1" className="input-base" value={programForm.max_participants} onChange={e => setProgramForm(f => ({ ...f, max_participants: e.target.value }))} placeholder="제한없음" />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="담당자">
+                  <select className="input-base" value={programForm.assignee} onChange={e => setProgramForm(f => ({ ...f, assignee: e.target.value }))}>
+                    <option value="">선택</option>
+                    {profiles.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                  </select>
+                </Field>
+                <Field label="상태">
+                  <select className="input-base" value={programForm.status} onChange={e => setProgramForm(f => ({ ...f, status: e.target.value }))}>
+                    {PROGRAM_STATUSES.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </Field>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setShowProgramModal(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
+              <button onClick={saveProgram} disabled={saving} className="px-4 py-2 text-sm text-white rounded-lg disabled:opacity-40" style={{ background: '#2E75B6' }}>
+                {saving ? '저장 중...' : '저장'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── 수강생 목록 모달 ─── */}
+      {studentsModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-800">{studentsModal.title} — 수강생 목록</h2>
+              <button onClick={() => setStudentsModal(null)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="p-4">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    {['이름', '기업명', '연락처', '신청일', '상태', '출석률'].map(h => (
+                      <th key={h} className="text-left px-3 py-2 text-xs font-medium text-gray-500">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {appsByProgram(studentsModal.id).length === 0 ? (
+                    <tr><td colSpan={6} className="text-center py-8 text-gray-400 text-sm">신청자가 없습니다</td></tr>
+                  ) : appsByProgram(studentsModal.id).map(a => (
+                    <tr key={a.id} className="border-b border-gray-50">
+                      <td className="px-3 py-2 text-xs font-medium text-gray-800">{a.applicant_name}</td>
+                      <td className="px-3 py-2 text-xs text-gray-500">{a.company_name || '-'}</td>
+                      <td className="px-3 py-2 text-xs text-gray-500">{a.phone || '-'}</td>
+                      <td className="px-3 py-2 text-xs text-gray-500">{a.applied_at?.slice(0, 10)}</td>
+                      <td className="px-3 py-2">
+                        <span className={`px-2 py-0.5 text-xs rounded font-medium ${STATUS_COLOR[a.status]}`}>{a.status}</span>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-600">{a.attendance_rate || 0}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── 출석 관리 모달 ─── */}
+      {attendanceModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-800">{attendanceModal.applicant_name} — 출석 관리</h2>
+              <button onClick={() => setAttendanceModal(null)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="px-6 py-4">
+              <p className="text-xs text-gray-500 mb-3">
+                프로그램: {attendanceModal.education_programs?.title} | 출석률: {attendanceModal.attendance_rate || 0}%
+              </p>
+              <div className="grid grid-cols-5 gap-2">
+                {Array.from({ length: programs.find(p => p.id === attendanceModal.program_id)?.total_sessions || 1 }, (_, i) => {
+                  const session = i + 1
+                  const rec = attendance.find(a => a.session_number === session)
+                  const attended = rec?.status === '출석'
+                  return (
+                    <button
+                      key={session}
+                      onClick={() => toggleAttendance(attendanceModal, session, rec)}
+                      className={`py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                        attended ? 'bg-green-500 text-white border-green-500' : 'bg-white text-gray-400 border-gray-200 hover:border-green-300'
+                      }`}
+                    >
+                      {session}회차
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="px-6 py-3 border-t border-gray-100 flex justify-end">
+              <button onClick={() => setAttendanceModal(null)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">닫기</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── 수료증 미리보기 모달 ─── */}
+      {certPreview && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-800">수료증 미리보기</h2>
+              <button onClick={() => setCertPreview(null)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="p-8">
+              <CertificateView
+                name={certPreview.app.applicant_name}
+                programTitle={certPreview.prog?.title}
+                startDate={certPreview.prog?.start_date}
+                endDate={certPreview.prog?.end_date}
+                issuedAt={certPreview.cert?.issued_at}
+                certNumber={certPreview.cert?.certificate_number}
+              />
+            </div>
+            <div className="px-6 py-3 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setCertPreview(null)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">닫기</button>
+              <a
+                href={`/certificate/${certPreview.cert?.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-4 py-2 text-sm text-white rounded-lg"
+                style={{ background: '#2E75B6' }}
+              >
+                <Printer size={14} /> 인쇄 페이지 열기
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Field({ label, children }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+      {children}
+    </div>
+  )
+}
+
+export function CertificateView({ name, programTitle, startDate, endDate, issuedAt, certNumber }) {
+  const issueDate = issuedAt ? new Date(issuedAt) : new Date()
+  const y = issueDate.getFullYear()
+  const m = String(issueDate.getMonth() + 1).padStart(2, '0')
+  const d = String(issueDate.getDate()).padStart(2, '0')
+
+  return (
+    <div className="border-4 border-blue-800 p-8 text-center space-y-6 font-serif" style={{ minHeight: 480 }}>
+      <div>
+        <p className="text-sm font-bold text-blue-800 tracking-widest">울산경제일자리진흥원</p>
+        <h1 className="text-4xl font-bold text-gray-800 mt-4 tracking-[0.3em]">수  료  증</h1>
+      </div>
+      <div className="border-t border-b border-gray-300 py-6 space-y-2 text-left max-w-xs mx-auto">
+        <p className="text-sm text-gray-700"><span className="font-bold w-20 inline-block">성   명</span>: {name || '홍길동'}</p>
+        <p className="text-sm text-gray-700"><span className="font-bold w-20 inline-block">교 육 명</span>: {programTitle || '-'}</p>
+        <p className="text-sm text-gray-700">
+          <span className="font-bold w-20 inline-block">교육기간</span>: {startDate && endDate ? `${startDate} ~ ${endDate}` : '-'}
+        </p>
+        <p className="text-sm text-gray-700"><span className="font-bold w-20 inline-block">수 료 일</span>: {`${y}.${m}.${d}`}</p>
+      </div>
+      <p className="text-sm text-gray-600 leading-relaxed">
+        위 사람은 위의 교육과정을 성실히 이수하였기에<br />이 증서를 수여합니다.
+      </p>
+      <div className="space-y-1">
+        <p className="text-base font-bold text-gray-700">{`${y}년 ${Number(m)}월 ${Number(d)}일`}</p>
+        <p className="text-sm font-bold text-blue-800">울산경제일자리진흥원장 (인)</p>
+        {certNumber && <p className="text-xs text-gray-400 mt-2">수료증번호: {certNumber}</p>}
+      </div>
+    </div>
+  )
+}
+
+// input 공통 스타일 (tailwind 적용)
+const style = document.createElement('style')
+style.textContent = `.input-base { width: 100%; border: 1px solid #D1D5DB; border-radius: 0.5rem; padding: 0.375rem 0.625rem; font-size: 0.875rem; outline: none; } .input-base:focus { box-shadow: 0 0 0 1px #3B82F6; border-color: #3B82F6; }`
+document.head.appendChild(style)

@@ -18,6 +18,9 @@ import Settings from './pages/settings/Settings'
 import Apply from './pages/apply/Apply'
 import ExpertApply from './pages/expert-apply/ExpertApply'
 import Founders from './pages/founders/Founders'
+import Education from './pages/education/Education'
+import EducationApply from './pages/education/EducationApply'
+import Certificate from './pages/education/Certificate'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -42,6 +45,8 @@ function AppRoutes() {
       <Route path="/login" element={(user && profile) ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/apply" element={<Apply />} />
       <Route path="/expert-apply" element={<ExpertApply />} />
+      <Route path="/education-apply" element={<EducationApply />} />
+      <Route path="/certificate/:id" element={<Certificate />} />
       <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
         <Route index element={<Dashboard />} />
         <Route path="stats" element={<Stats />} />
@@ -57,6 +62,7 @@ function AppRoutes() {
         <Route path="growth" element={<Growth />} />
         <Route path="report" element={<Report />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="education" element={<Education />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

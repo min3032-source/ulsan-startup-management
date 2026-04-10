@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, BarChart3, UserPlus, MessageSquare, Database,
   Users, UserCheck, Link2, Building, TrendingUp, LineChart,
-  FileText, Settings, LogOut, ChevronRight, X, Award
+  FileText, Settings, LogOut, ChevronRight, X, Award, BookOpen
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
@@ -37,6 +37,12 @@ const navGroups = [
     items: [
       { to: '/startup', icon: TrendingUp, label: '창업 현황' },
       { to: '/growth',  icon: LineChart,  label: '기업 성장 지표' },
+    ]
+  },
+  {
+    label: '교육 관리',
+    items: [
+      { to: '/education', icon: BookOpen, label: '교육 프로그램' },
     ]
   },
   {
