@@ -6,6 +6,7 @@ import { VerdictBadge } from '../../components/common/Badge'
 import StatCard from '../../components/common/StatCard'
 import Avatar from '../../components/common/Avatar'
 import { Search, UserCheck, UserMinus, ChevronDown } from 'lucide-react'
+import ConsultProgress from '../../components/common/ConsultProgress'
 
 const CONSULT_STATUS_COLORS = {
   '대기중': 'bg-amber-100 text-amber-700',
@@ -156,16 +157,16 @@ export default function Founders() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              {['이름', '연락처', '창업유형', '지역', '창업단계', '담당자', '상담상태', '상담횟수', '창업자등록'].map(h => (
+              {['이름', '연락처', '창업유형', '지역', '창업단계', '담당자', '진행상태', '상담상태', '상담횟수', '창업자등록'].map(h => (
                 <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
+              <tr><td colSpan={10} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={9} className="text-center py-10 text-gray-400 text-sm">등록된 상담자가 없습니다</td></tr>
+              <tr><td colSpan={10} className="text-center py-10 text-gray-400 text-sm">등록된 상담자가 없습니다</td></tr>
             ) : filtered.map(f => {
               const count = f.consults?.length || 0
               const needsVerdict = f.verdict === '상담 후 결정' || !f.verdict
@@ -234,6 +235,14 @@ export default function Founders() {
                   </td>
                   <td className="px-4 py-2.5 text-xs text-gray-500">{f.stage || '-'}</td>
                   <td className="px-4 py-2.5 text-xs text-gray-600">{f.assignee || '-'}</td>
+                  <td className="px-4 py-2.5">
+                    <ConsultProgress
+                      assignee={f.assignee}
+                      consultCount={f.consults?.length || 0}
+                      consultStatus={f.consult_status}
+                      small
+                    />
+                  </td>
                   <td className="px-4 py-2.5">
                     {f.consult_status
                       ? <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${CONSULT_STATUS_COLORS[f.consult_status] || 'bg-gray-100 text-gray-500'}`}>

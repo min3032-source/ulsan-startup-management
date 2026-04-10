@@ -419,3 +419,79 @@ CREATE POLICY "growths_delete" ON growths FOR DELETE USING (EXISTS (SELECT 1 FRO
 -- 1. Supabase 대시보드 > Authentication > Users 에서 이메일로 첫 유저 생성
 -- 2. 아래 SQL을 실행하여 마스터로 승격 (이메일 수정 후 실행)
 -- UPDATE profiles SET role = 'master' WHERE email = 'your-email@example.com';
+
+-- =============================================
+-- 【추가】founders 테이블 컬럼 확장 (v3)
+-- =============================================
+-- 기업명 컬럼 추가
+ALTER TABLE founders ADD COLUMN IF NOT EXISTS company_name TEXT DEFAULT '';
+
+-- 이메일·담당자·상담상태·창업자여부·신청내용 (기존에 없을 경우 추가)
+ALTER TABLE founders ADD COLUMN IF NOT EXISTS email          TEXT DEFAULT '';
+ALTER TABLE founders ADD COLUMN IF NOT EXISTS assignee       TEXT DEFAULT '';
+ALTER TABLE founders ADD COLUMN IF NOT EXISTS consult_status TEXT DEFAULT '대기중';
+ALTER TABLE founders ADD COLUMN IF NOT EXISTS consult_content TEXT DEFAULT '';
+ALTER TABLE founders ADD COLUMN IF NOT EXISTS content        TEXT DEFAULT '';
+ALTER TABLE founders ADD COLUMN IF NOT EXISTS is_founder     BOOLEAN DEFAULT false;
+ALTER TABLE founders ADD COLUMN IF NOT EXISTS programs       JSONB DEFAULT '[]';
+ALTER TABLE founders ADD COLUMN IF NOT EXISTS region_detail  TEXT DEFAULT '';
+
+-- startup_applications 테이블 (온라인 신청)
+CREATE TABLE IF NOT EXISTS startup_applications (
+  id               UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  applicant_name   TEXT NOT NULL,
+  phone            TEXT DEFAULT '',
+  email            TEXT DEFAULT '',
+  business_name    TEXT DEFAULT '',
+  business_type    TEXT DEFAULT '',
+  business_stage   TEXT DEFAULT '',
+  region           TEXT DEFAULT '',
+  region_detail    TEXT DEFAULT '',
+  gender           TEXT DEFAULT '',
+  description      JSONB DEFAULT '{}',
+  status           TEXT DEFAULT 'pending'
+                     CHECK (status IN ('pending','approved','rejected')),
+  assignee         TEXT DEFAULT '',
+  privacy_agreed   BOOLEAN DEFAULT false,
+  privacy_agreed_at TIMESTAMPTZ,
+  approved_at      TIMESTAMPTZ,
+  created_at       TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE startup_applications ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "apps_select" ON startup_applications;
+DROP POLICY IF EXISTS "apps_insert" ON startup_applications;
+DROP POLICY IF EXISTS "apps_update" ON startup_applications;
+DROP POLICY IF EXISTS "apps_delete" ON startup_applications;
+CREATE POLICY "apps_select" ON startup_applications FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "apps_insert" ON startup_applications FOR INSERT WITH CHECK (true);
+CREATE POLICY "apps_update" ON startup_applications FOR UPDATE USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('master','admin','manager')));
+CREATE POLICY "apps_delete" ON startup_applications FOR DELETE USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('master','admin')));
+
+-- =============================================
+-- 【이메일 발송】Supabase Edge Function 안내
+-- =============================================
+-- Supabase 대시보드 > Edge Functions > New Function 에서 'send-email' 함수 생성
+-- 아래 코드를 함수 본문에 붙여넣기:
+--
+-- import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+-- import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+--
+-- serve(async (req) => {
+--   const { to, subject, html } = await req.json()
+--   const res = await fetch("https://api.resend.com/emails", {
+--     method: "POST",
+--     headers: {
+--       "Content-Type": "application/json",
+--       "Authorization": `Bearer ${Deno.env.get("RESEND_API_KEY")}`,
+--     },
+--     body: JSON.stringify({
+--       from: "noreply@yourdomain.com",
+--       to, subject, html,
+--     }),
+--   })
+--   const data = await res.json()
+--   return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } })
+-- })
+--
+-- Supabase 대시보드 > Settings > Edge Functions > Secrets 에서 RESEND_API_KEY 설정 필요

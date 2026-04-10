@@ -8,6 +8,7 @@ import StatCard from '../../components/common/StatCard'
 import Avatar from '../../components/common/Avatar'
 import { useAuth } from '../../context/AuthContext'
 import { Plus, Search, Pencil, Trash2, ClipboardList, CheckCircle, XCircle, Users } from 'lucide-react'
+import ConsultProgress from '../../components/common/ConsultProgress'
 
 const CONSULT_STATUS_COLORS = {
   '대기중': 'bg-amber-100 text-amber-700',
@@ -17,7 +18,7 @@ const CONSULT_STATUS_COLORS = {
 }
 
 const emptyForm = () => ({
-  name: '', phone: '', email: '', biz: '',
+  name: '', phone: '', email: '', biz: '', company_name: '',
   region: '', region_detail: '', gender: '', stage: '',
   assignee: '', consult_status: '대기중',
   programs: [], content: '', consult_content: '',
@@ -54,7 +55,7 @@ export default function Intake() {
   const [regForm, setRegForm] = useState({
     name: '', phone: '', email: '', gender: '', region: '', region_detail: '',
     verdict: '',
-    biz: '', stage: '', assignee: '', consult_status: '대기중', content: '',
+    company_name: '', biz: '', stage: '', assignee: '', consult_status: '대기중', content: '',
   })
 
   const [applications, setApplications] = useState([])
@@ -146,6 +147,8 @@ export default function Intake() {
         gender: app.gender || '',
         stage: app.business_stage || '',
         verdict: app.business_type || '',
+        company_name: app.business_name || '',
+        biz: app.business_name || '',
         consult_status: '대기중',
         date: today(),
         assignee: app.assignee || '',
@@ -179,7 +182,7 @@ export default function Intake() {
     setRegForm({
       name: '', phone: '', email: '', gender: '', region: '', region_detail: '',
       verdict: '',
-      biz: '', stage: '', assignee: '', consult_status: '대기중', content: '',
+      company_name: '', biz: '', stage: '', assignee: '', consult_status: '대기중', content: '',
     })
     setRegisterStep(1)
     setRegisterOpen(true)
@@ -196,6 +199,7 @@ export default function Intake() {
       gender: regForm.gender, region: regForm.region,
       region_detail: regForm.region === '기타(타지역)' ? regForm.region_detail : '',
       verdict: regForm.verdict,
+      company_name: regForm.company_name || '',
       biz: regForm.biz, stage: regForm.stage,
       assignee: regForm.assignee, consult_status: regForm.consult_status,
       content: regForm.content,
@@ -214,7 +218,8 @@ export default function Intake() {
     setEditingId(f.id)
     setForm({
       name: f.name || '', phone: f.phone || '', email: f.email || '',
-      biz: f.biz || '', region: f.region || '', region_detail: f.region_detail || '',
+      biz: f.biz || '', company_name: f.company_name || '',
+      region: f.region || '', region_detail: f.region_detail || '',
       gender: f.gender || '', stage: f.stage || '',
       assignee: f.assignee || '', consult_status: f.consult_status || '대기중',
       programs: f.programs || [], content: f.content || '', consult_content: f.consult_content || '',
@@ -256,6 +261,7 @@ export default function Intake() {
     if (!editingId && !privacyAgreed) { alert('개인정보 수집·이용에 동의해주세요'); return }
     try {
       if (editingId) {
+        const prevFounder = founders.find(f => f.id === editingId)
         // 섹션2(담당자 관리 정보)만 저장
         const editPayload = {
           assignee: form.assignee,
@@ -265,10 +271,36 @@ export default function Intake() {
         const { error } = await supabase.from('founders').update(editPayload).eq('id', editingId)
         if (error) throw error
         setFounders(prev => prev.map(f => f.id === editingId ? { ...f, ...editPayload } : f))
+
+        // 상담 완료 시 신청자에게 이메일
+        if (
+          form.consult_status === '완료' &&
+          prevFounder?.consult_status !== '완료' &&
+          prevFounder?.email
+        ) {
+          try {
+            await supabase.functions.invoke('send-email', {
+              body: {
+                to: prevFounder.email,
+                subject: '[창업지원] 상담이 완료되었습니다',
+                html: `
+                  <h2>상담이 완료되었습니다</h2>
+                  <p>${prevFounder.name}님, 창업 상담이 완료되었습니다.</p>
+                  <p>담당자: ${form.assignee || prevFounder.assignee || '-'}</p>
+                  <p>추가 문의사항이 있으시면 아래 링크를 통해 재신청해주세요.</p>
+                  <a href="https://ulsan-startup-management.vercel.app/apply">상담 재신청하기</a>
+                `,
+              },
+            })
+          } catch (e) {
+            console.error('완료 이메일 발송 실패:', e)
+          }
+        }
       } else {
         const insertPayload = {
           name: form.name, phone: form.phone, email: form.email,
-          biz: form.biz, region: form.region,
+          biz: form.biz, company_name: form.company_name || '',
+          region: form.region,
           region_detail: form.region === '기타(타지역)' ? form.region_detail : '',
           gender: form.gender, stage: form.stage,
           assignee: form.assignee, consult_status: form.consult_status,
@@ -301,6 +333,38 @@ export default function Intake() {
     setFounders(prev => prev.map(f => f.id === id ? { ...f, assignee: value } : f))
     setFlashId(id)
     setTimeout(() => setFlashId(null), 1200)
+
+    // 담당자에게 이메일 발송
+    if (value) {
+      try {
+        const founder = founders.find(f => f.id === id)
+        const { data: profile } = await supabase
+          .from('profiles').select('email').eq('name', value).single()
+        if (profile?.email && founder) {
+          await supabase.functions.invoke('send-email', {
+            body: {
+              to: profile.email,
+              subject: '[창업지원] 새 상담자가 배정되었습니다',
+              html: `
+                <h2>새 상담자 배정 안내</h2>
+                <p>담당자님, 새로운 상담자가 배정되었습니다.</p>
+                <p><strong>상담자:</strong> ${founder.name}</p>
+                <p><strong>연락처:</strong> ${founder.phone}</p>
+                <p><strong>창업유형:</strong> ${founder.verdict || '-'}</p>
+                <p><strong>신청 내용:</strong> ${founder.content || '-'}</p>
+                <br>
+                <a href="https://ulsan-startup-management.vercel.app"
+                  style="background:#2D6A9F;color:white;padding:10px 20px;border-radius:5px;text-decoration:none;">
+                  시스템 바로가기
+                </a>
+              `,
+            },
+          })
+        }
+      } catch (e) {
+        console.error('담당자 이메일 발송 실패:', e)
+      }
+    }
   }
 
   async function handleAppAssigneeChange(appId, value) {
@@ -567,16 +631,16 @@ export default function Intake() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  {['이름', '연락처', '창업유형', '지역', '창업단계', '담당자', '상담상태', '접수일', '관리'].map(h => (
+                  {['이름', '기업명', '연락처', '창업유형', '지역', '창업단계', '담당자', '진행상태', '상담상태', '접수일', '관리'].map(h => (
                     <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={9} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
+                  <tr><td colSpan={11} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={9} className="text-center py-10 text-gray-400 text-sm">등록된 상담이 없습니다</td></tr>
+                  <tr><td colSpan={11} className="text-center py-10 text-gray-400 text-sm">등록된 상담이 없습니다</td></tr>
                 ) : filtered.map(f => (
                   <tr
                     key={f.id}
@@ -591,6 +655,7 @@ export default function Intake() {
                         <span className="font-medium text-gray-800 text-xs">{f.name}</span>
                       </div>
                     </td>
+                    <td className="px-4 py-2.5 text-xs text-gray-600">{f.company_name || '-'}</td>
                     <td className="px-4 py-2.5 text-xs text-gray-500">{f.phone}</td>
                     <td className="px-4 py-2.5">
                       {f.verdict ? <VerdictBadge verdict={f.verdict} /> : <span className="text-xs text-gray-400">-</span>}
@@ -611,6 +676,14 @@ export default function Intake() {
                         <option value="">-</option>
                         {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
                       </select>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <ConsultProgress
+                        assignee={f.assignee}
+                        consultCount={consultCounts[f.id] || 0}
+                        consultStatus={f.consult_status}
+                        small
+                      />
                     </td>
                     <td className="px-4 py-2.5">
                       {f.consult_status
@@ -647,11 +720,21 @@ export default function Intake() {
       <Modal isOpen={detailOpen} onClose={() => setDetailOpen(false)} title="상담 상세 정보">
         {selectedFounder && (
           <div className="space-y-4 text-sm">
+            {/* 진행상태 */}
+            <div>
+              <div className="text-xs font-medium text-gray-500 mb-1.5">진행상태</div>
+              <ConsultProgress
+                assignee={selectedFounder.assignee}
+                consultCount={consultCounts[selectedFounder.id] || 0}
+                consultStatus={selectedFounder.consult_status}
+              />
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <Detail label="이름" value={selectedFounder.name} />
               <Detail label="연락처" value={selectedFounder.phone} />
               <Detail label="이메일" value={selectedFounder.email} />
               <Detail label="성별" value={selectedFounder.gender} />
+              <Detail label="기업명" value={selectedFounder.company_name} />
               <Detail label="지역" value={
                 selectedFounder.region === '기타(타지역)'
                   ? `타지역${selectedFounder.region_detail ? ` (${selectedFounder.region_detail})` : ''}`
@@ -771,6 +854,9 @@ export default function Intake() {
           {registerStep === 3 && (
             <div className="space-y-3">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">상담 정보</p>
+              <FormField label="기업명">
+                <input className="form-input" value={regForm.company_name} onChange={e => setRegField('company_name', e.target.value)} placeholder="예: (주)울산테크" />
+              </FormField>
               <FormField label="창업 아이템">
                 <textarea className="form-input" rows={2} value={regForm.biz} onChange={e => setRegField('biz', e.target.value)} placeholder="예: AI 기반 물류 최적화 플랫폼" />
               </FormField>
@@ -834,6 +920,7 @@ export default function Intake() {
                   <Detail label="연락처" value={form.phone} />
                   <Detail label="이메일" value={form.email} />
                   <Detail label="성별" value={form.gender} />
+                  <Detail label="기업명" value={form.company_name} />
                   <Detail label="지역" value={
                     form.region === '기타(타지역)'
                       ? `타지역${form.region_detail ? ` (${form.region_detail})` : ''}`
