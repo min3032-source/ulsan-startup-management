@@ -115,8 +115,11 @@ export default function Education() {
     const totalHours = (programForm.total_sessions || 1) * (programForm.hours_per_session || 2)
     const payload = {
       ...programForm,
+      start_date: programForm.start_date || null,
+      end_date: programForm.end_date || null,
       max_participants: programForm.max_participants ? Number(programForm.max_participants) : null,
-      total_hours: totalHours,
+      hours_per_session: programForm.hours_per_session || null,
+      total_hours: totalHours || null,
     }
     let error
     if (editProgram) {
