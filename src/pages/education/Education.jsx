@@ -152,7 +152,7 @@ export default function Education() {
     return {
       title: '', description: '', category: '창업기초', program_type: '집합교육',
       instructor: '', location: '', start_date: '', end_date: '',
-      total_sessions: 1, hours_per_session: 2, max_participants: '', assignee: '', status: '모집중'
+      total_sessions: 1, hours_per_session: 2, max_participants: '', assignee: '', status: '모집중', completion_rate: 80
     }
   }
 
@@ -170,7 +170,7 @@ export default function Education() {
       instructor: p.instructor || '', location: p.location || '',
       start_date: p.start_date || '', end_date: p.end_date || '',
       total_sessions: p.total_sessions || 1, hours_per_session: p.hours_per_session || 2, max_participants: p.max_participants || '',
-      assignee: p.assignee || '', status: p.status || '모집중'
+      assignee: p.assignee || '', status: p.status || '모집중', completion_rate: p.completion_rate ?? 80
     })
     setShowProgramModal(true)
   }
@@ -209,6 +209,16 @@ export default function Education() {
   }
 
   async function updateAppStatus(appId, status) {
+    if (status === '수료') {
+      const app = applications.find(a => a.id === appId)
+      const program = programs.find(p => p.id === app?.program_id)
+      const rate = app?.attendance_rate || 0
+      const threshold = program?.completion_rate ?? 80
+      if (rate < threshold) {
+        const ok = confirm(`출석률이 수료 기준(${threshold}%)에 미달합니다. (현재: ${rate}%)\n그래도 수료 처리하시겠습니까?`)
+        if (!ok) return
+      }
+    }
     const { error } = await supabase.from('education_applications').update({ status }).eq('id', appId)
     if (error) { alert('상태 변경 실패: ' + error.message); return }
     if (status === '수료') {
@@ -484,12 +494,27 @@ export default function Education() {
                       )}
                     </td>
                     <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-16 bg-gray-200 rounded-full h-1.5">
-                          <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${a.attendance_rate || 0}%` }} />
-                        </div>
-                        <span className="text-xs text-gray-600">{a.attendance_rate || 0}%</span>
-                      </div>
+                      {(() => {
+                        const prog = programs.find(p => p.id === a.program_id)
+                        const threshold = prog?.completion_rate ?? 80
+                        const rate = a.attendance_rate || 0
+                        const canComplete = rate >= threshold
+                        return (
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                                <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${rate}%` }} />
+                              </div>
+                              <span className="text-xs text-gray-600">{rate}%</span>
+                            </div>
+                            {a.status !== '수료' && a.status !== '미수료' && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium w-fit ${canComplete ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                                {canComplete ? '수료 가능' : `출석 부족 (기준 ${threshold}%)`}
+                              </span>
+                            )}
+                          </div>
+                        )
+                      })()}
                     </td>
                     <td className="px-4 py-2.5">
                       {canWrite && (
@@ -641,6 +666,15 @@ export default function Education() {
               <div className="bg-blue-50 rounded-lg px-3 py-2 text-sm text-blue-700 font-medium">
                 총 교육시간: {(programForm.total_sessions || 1) * (programForm.hours_per_session || 2)}시간 ({programForm.total_sessions || 1}회 × {programForm.hours_per_session || 2}시간)
               </div>
+              <Field label="수료 기준 출석률 (%)">
+                <input
+                  type="number" min="0" max="100" className="input-base"
+                  value={programForm.completion_rate}
+                  onChange={e => setProgramForm(f => ({ ...f, completion_rate: Number(e.target.value) }))}
+                  placeholder="80"
+                />
+                <p className="text-xs text-gray-400 mt-1">해당 출석률 이상 시 수료 처리됩니다</p>
+              </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="최대 수강인원">
                   <input type="number" min="1" className="input-base" value={programForm.max_participants} onChange={e => setProgramForm(f => ({ ...f, max_participants: e.target.value }))} placeholder="제한없음" />
