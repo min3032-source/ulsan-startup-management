@@ -67,11 +67,12 @@ export default function Certificate() {
         style={{ width: '210mm', minHeight: '297mm', padding: '20mm', boxSizing: 'border-box' }}
       >
         <div className="relative h-full flex flex-col items-center justify-center border-8 border-double border-blue-800 p-12 text-center space-y-10">
-          {/* 수료증 번호 - 좌상단 */}
-          <p className="absolute top-4 left-5 text-xs text-gray-500">수료증 번호: {data.certificate_number}</p>
+          {/* 수료증번호 - 좌상단 */}
+          <p className="absolute top-4 left-5" style={{ fontSize: '11px', color: '#9ca3af' }}>수료증번호: {data.certificate_number}</p>
 
-          {/* 기관명 */}
-          <div>
+          {/* 기관명 + 로고 */}
+          <div className="flex flex-col items-center gap-2">
+            <img src="/logo.gif" alt="울산경제일자리진흥원" style={{ height: 48 }} className="w-auto" />
             <p className="text-lg font-bold text-blue-800 tracking-[0.2em]">울산경제일자리진흥원</p>
           </div>
 
@@ -102,10 +103,6 @@ export default function Certificate() {
                   <td className="font-bold text-gray-700 py-1.5">교육시간</td>
                   <td className="text-gray-800 py-1.5">: &nbsp;{prog?.total_hours ? `${prog.total_hours}시간` : '-'}</td>
                 </tr>
-                <tr>
-                  <td className="font-bold text-gray-700 py-1.5">수 료 일</td>
-                  <td className="text-gray-800 py-1.5">: &nbsp;{`${y}.${m}.${d}`}</td>
-                </tr>
               </tbody>
             </table>
           </div>
@@ -119,11 +116,12 @@ export default function Certificate() {
           {/* 날짜 & 서명 */}
           <div className="space-y-3">
             <p className="text-lg font-medium text-gray-700">{`${y}년 ${Number(m)}월 ${Number(d)}일`}</p>
-            <div className="flex flex-col items-center gap-1">
-              <p className="text-xl font-bold text-blue-800">울산경제일자리진흥원장</p>
-              <div className="border-2 border-red-600 rounded-full w-16 h-16 flex items-center justify-center mt-1">
-                <span className="text-red-600 font-bold text-xs text-center leading-tight">원장<br/>인</span>
+            <div className="flex flex-col items-center gap-2">
+              {/* 도장 이미지: 추후 <img src="/stamp.png"> 로 교체 */}
+              <div style={{ width: '80px', height: '80px', border: '2px solid #cc0000', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cc0000', fontSize: '11px', margin: '0 auto' }}>
+                직인
               </div>
+              <p className="text-xl font-bold text-blue-800">울산경제일자리진흥원장 (인)</p>
             </div>
           </div>
         </div>

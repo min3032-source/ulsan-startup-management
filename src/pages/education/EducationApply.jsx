@@ -113,9 +113,12 @@ export default function EducationApply() {
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/4" />
 
         <div className="relative max-w-5xl mx-auto px-6 pt-12 pb-20">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 rounded-full text-xs font-semibold text-white mb-5 backdrop-blur-sm">
-            🚀 울산경제일자리진흥원
-          </span>
+          <div className="flex items-center gap-2 mb-5">
+            <img src="/logo.gif" alt="울산경제일자리진흥원" style={{ height: 28 }} className="w-auto" />
+            <span className="inline-flex items-center px-3 py-1 bg-white/20 rounded-full text-xs font-semibold text-white backdrop-blur-sm">
+              🚀 울산경제일자리진흥원
+            </span>
+          </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-white mb-2 leading-tight">
             창업 교육 프로그램
           </h1>

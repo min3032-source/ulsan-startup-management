@@ -177,6 +177,6 @@ export default function Sidebar({ onClose }) {
 // 조직 로고 아이콘
 function OrgLogo() {
   return (
-    <img src="/logo.png" alt="울산경제일자리진흥원 로고" style={{ height: 32, mixBlendMode: 'multiply' }} className="w-auto flex-shrink-0" />
+    <img src="/logo.gif" alt="울산경제일자리진흥원 로고" style={{ height: 32 }} className="w-auto flex-shrink-0" />
   )
 }
