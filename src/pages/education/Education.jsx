@@ -221,7 +221,7 @@ export default function Education() {
     const year = new Date().getFullYear()
     const { count } = await supabase.from('certificates').select('*', { count: 'exact', head: true })
     const seq = String((count || 0) + 1).padStart(3, '0')
-    const certNo = `CERT-${year}-${seq}`
+    const certNo = `울산경제일자리진흥원-${year}-${seq}`
     const { error } = await supabase.from('certificates').insert({
       application_id: appId,
       certificate_number: certNo,
