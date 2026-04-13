@@ -71,16 +71,16 @@ export default function Sidebar({ onClose }) {
       style={{ background: '#0D1B2A' }}
     >
       {/* 로고 헤더 */}
-      <div className="px-4 py-4 border-b border-white/10 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-2.5">
-          <OrgLogo />
+      <div className="border-b border-white/10 flex items-center justify-between flex-shrink-0" style={{ padding: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <img
+            src="/logo.gif"
+            alt="울산경제일자리진흥원"
+            style={{ height: '40px', width: '40px', objectFit: 'contain', flexShrink: 0 }}
+          />
           <div>
-            <div className="text-[10px] font-medium leading-none mb-0.5" style={{ color: '#7EC8E3' }}>
-              울산경제일자리진흥원
-            </div>
-            <div className="text-[13px] font-bold leading-tight text-white">
-              창업지원 통합관리
-            </div>
+            <div style={{ fontSize: '11px', color: '#94a3b8' }}>울산경제일자리진흥원</div>
+            <div style={{ fontSize: '13px', fontWeight: 'bold', color: 'white' }}>창업지원 통합관리</div>
           </div>
         </div>
         {/* 모바일 닫기 버튼 */}
