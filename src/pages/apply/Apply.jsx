@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { formatPhone } from '../../utils/formatPhone'
 import { ULSAN_REGIONS, today } from '../../lib/constants'
 import { CheckCircle, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react'
 import PublicHeader from '../../components/common/PublicHeader'
@@ -190,8 +191,8 @@ export default function Apply() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="연락처 *">
-                  <input value={form.phone} onChange={e => set('phone', e.target.value)}
-                    placeholder="010-0000-0000" className={input()} />
+                  <input value={form.phone} onChange={e => set('phone', formatPhone(e.target.value))}
+                    placeholder="010-1234-5678" maxLength={13} className={input()} />
                 </Field>
                 <Field label="이메일">
                   <input type="email" value={form.email} onChange={e => set('email', e.target.value)}

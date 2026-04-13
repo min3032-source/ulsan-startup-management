@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { formatPhone } from '../../utils/formatPhone'
 import { ULSAN_REGIONS, DEFAULT_SETTINGS, Q_LABELS, calcVerdict, today } from '../../lib/constants'
 import StartupTypeQuiz from '../../components/StartupTypeQuiz'
 import { VerdictBadge } from '../../components/common/Badge'
@@ -811,7 +812,7 @@ export default function Intake() {
                   <input className="form-input" value={regForm.name} onChange={e => setRegField('name', e.target.value)} placeholder="홍길동" />
                 </FormField>
                 <FormField label="연락처 *">
-                  <input className="form-input" value={regForm.phone} onChange={e => setRegField('phone', e.target.value)} placeholder="010-0000-0000" />
+                  <input className="form-input" value={regForm.phone} onChange={e => setRegField('phone', formatPhone(e.target.value))} placeholder="010-1234-5678" maxLength={13} />
                 </FormField>
               </div>
               <FormField label="이메일">
@@ -1008,7 +1009,7 @@ export default function Intake() {
                   <input className="form-input" value={form.name} onChange={e => handleFormChange('name', e.target.value)} />
                 </FormField>
                 <FormField label="연락처">
-                  <input className="form-input" value={form.phone} onChange={e => handleFormChange('phone', e.target.value)} />
+                  <input className="form-input" value={form.phone} onChange={e => handleFormChange('phone', formatPhone(e.target.value))} placeholder="010-1234-5678" maxLength={13} />
                 </FormField>
               </div>
               <FormField label="이메일">

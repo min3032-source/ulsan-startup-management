@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
+import { formatPhone } from '../../utils/formatPhone'
 import { BookOpen, Users, Award, Plus, X, Search, ChevronDown, Printer, Mail } from 'lucide-react'
 import StatCard from '../../components/common/StatCard'
 import PageHeader from '../../components/common/PageHeader'
@@ -819,8 +820,8 @@ export default function Education() {
                   <input
                     className="input-base"
                     value={studentForm.phone}
-                    onChange={e => setStudentForm(f => ({ ...f, phone: e.target.value }))}
-                    placeholder="010-0000-0000"
+                    onChange={e => setStudentForm(f => ({ ...f, phone: formatPhone(e.target.value) }))}
+                    placeholder="010-1234-5678" maxLength={13}
                   />
                 </Field>
                 <Field label="이메일">

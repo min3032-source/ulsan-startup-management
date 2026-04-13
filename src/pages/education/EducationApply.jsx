@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { formatPhone } from '../../utils/formatPhone'
 import { MapPin, User, Calendar, Users, X, Clock, Award, ChevronDown, Loader2 } from 'lucide-react'
 
 const CATEGORY_GRADIENT = {
@@ -289,8 +290,8 @@ export default function EducationApply() {
                   <MinimalField label="연락처" required error={errors.phone}>
                     <input
                       className="w-full border-0 border-b border-gray-200 pb-2 text-sm focus:outline-none focus:border-blue-500 bg-transparent placeholder-gray-300 transition-colors"
-                      value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                      placeholder="010-0000-0000"
+                      value={form.phone} onChange={e => setForm(f => ({ ...f, phone: formatPhone(e.target.value) }))}
+                      placeholder="010-1234-5678" maxLength={13}
                     />
                   </MinimalField>
                   <MinimalField label="이메일" required error={errors.email}>
