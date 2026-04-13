@@ -152,7 +152,6 @@ export default function Intake() {
         biz: app.business_name || '',
         consult_status: '대기중',
         date: today(),
-        assignee: app.assignee || '',
       }])
       .select()
       .single()
