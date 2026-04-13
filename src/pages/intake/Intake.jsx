@@ -368,11 +368,6 @@ export default function Intake() {
     }
   }
 
-  async function handleAppAssigneeChange(appId, value) {
-    const { error } = await supabase.from('startup_applications').update({ assignee: value }).eq('id', appId)
-    if (error) { alert('담당자 배정 실패: ' + error.message); return }
-    setApplications(prev => prev.map(a => a.id === appId ? { ...a, assignee: value } : a))
-  }
 
   function showToast(msg) {
     setToast(msg)
@@ -514,21 +509,6 @@ export default function Intake() {
                         </span>
                         {app.business_stage && <span>📈 {app.business_stage}</span>}
                         <span className="text-gray-400">신청일: {app.created_at?.slice(0, 10)}</span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <span className="text-xs text-gray-400">담당자:</span>
-                        <select
-                          className="text-xs border border-gray-200 rounded px-2 py-0.5 focus:outline-none focus:border-blue-400 bg-white disabled:opacity-50 disabled:cursor-not-allowed"
-                          value={app.assignee || ''}
-                          onChange={e => handleAppAssigneeChange(app.id, e.target.value)}
-                          disabled={!canAssign}
-                        >
-                          <option value="">미배정</option>
-                          {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-                        </select>
-                        {app.assignee && (
-                          <span className="text-xs text-blue-600 font-medium">✓ 배정됨</span>
-                        )}
                       </div>
                     </div>
                     <div className="flex flex-col gap-2 flex-shrink-0">
