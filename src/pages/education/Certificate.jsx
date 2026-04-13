@@ -66,7 +66,10 @@ export default function Certificate() {
         className="bg-white shadow-xl print:shadow-none"
         style={{ width: '210mm', minHeight: '297mm', padding: '20mm', boxSizing: 'border-box' }}
       >
-        <div className="h-full flex flex-col items-center justify-center border-8 border-double border-blue-800 p-12 text-center space-y-10">
+        <div className="relative h-full flex flex-col items-center justify-center border-8 border-double border-blue-800 p-12 text-center space-y-10">
+          {/* 수료증 번호 - 좌상단 */}
+          <p className="absolute top-4 left-5 text-xs text-gray-500">수료증 번호: {data.certificate_number}</p>
+
           {/* 기관명 */}
           <div>
             <p className="text-lg font-bold text-blue-800 tracking-[0.2em]">울산경제일자리진흥원</p>
@@ -112,9 +115,6 @@ export default function Certificate() {
             위 사람은 위의 교육과정을 성실히 이수하였기에<br />
             이 증서를 수여합니다.
           </p>
-
-          {/* 수료증 번호 */}
-          <p className="text-sm text-gray-400">수료증 번호: {data.certificate_number}</p>
 
           {/* 날짜 & 서명 */}
           <div className="space-y-3">
