@@ -4,7 +4,7 @@ export default function PublicHeader({ title }) {
       <div className="max-w-2xl mx-auto px-4 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           {/* 로고 이미지 */}
-          <img src="/logo.gif" alt="울산경제일자리진흥원 로고" style={{ height: 36 }} className="w-auto flex-shrink-0" />
+          <img src="/logo.gif" alt="울산경제일자리진흥원 로고" style={{ height: 48, width: 'auto' }} className="flex-shrink-0" />
           <div>
             <div className="text-[10px] font-semibold tracking-wide" style={{ color: '#7EC8E3' }}>
               울산경제일자리진흥원
