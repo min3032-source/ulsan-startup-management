@@ -9,6 +9,7 @@ function Card({ children }) {
       style={{ background: 'linear-gradient(135deg, #0D1B2A 0%, #1F4E79 100%)' }}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
         <div className="px-8 pt-8 pb-4 text-center">
+          <img src="/logo.gif" alt="울산경제일자리진흥원 로고" style={{ height: 64 }} className="w-auto mx-auto mb-3" />
           <div className="text-xs font-semibold text-blue-600 tracking-wide mb-1">울산경제일자리진흥원</div>
           <h1 className="text-xl font-bold text-gray-900">창업지원 통합관리 시스템</h1>
         </div>

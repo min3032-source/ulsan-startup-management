@@ -908,6 +908,7 @@ export function CertificateView({ name, programTitle, startDate, endDate, issued
   return (
     <div className="border-4 border-blue-800 p-8 text-center space-y-6 font-serif" style={{ minHeight: 480 }}>
       <div>
+        <img src="/logo.gif" alt="울산경제일자리진흥원 로고" style={{ height: 36 }} className="w-auto mx-auto mb-2" />
         <p className="text-sm font-bold text-blue-800 tracking-widest">울산경제일자리진흥원</p>
         <h1 className="text-4xl font-bold text-gray-800 mt-4 tracking-[0.3em]">수  료  증</h1>
       </div>

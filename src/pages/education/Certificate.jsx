@@ -72,7 +72,7 @@ export default function Certificate() {
 
           {/* 기관명 + 로고 */}
           <div className="flex flex-col items-center gap-2">
-            <img src="/logo.gif" alt="울산경제일자리진흥원" style={{ height: 48 }} className="w-auto" />
+            <img src="/logo.gif" alt="울산경제일자리진흥원" style={{ height: 60 }} className="w-auto" />
             <p className="text-lg font-bold text-blue-800 tracking-[0.2em]">울산경제일자리진흥원</p>
           </div>
 

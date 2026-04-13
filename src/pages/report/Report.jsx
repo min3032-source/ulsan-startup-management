@@ -196,6 +196,7 @@ export default function Report() {
         /* ── 통합 보기 ── */
         <div className="space-y-6" id="report-content">
           <div className="bg-gradient-to-r from-[#0D1B2A] to-[#1F4E79] text-white rounded-xl p-5">
+            <img src="/logo.gif" alt="울산경제일자리진흥원 로고" style={{ height: 32 }} className="w-auto mb-2" />
             <div className="text-xs opacity-60 mb-1">울산경제일자리진흥원</div>
             <div className="text-lg font-bold">{reportTitle}</div>
             <div className="text-xs opacity-60 mt-1">기준일: {new Date().toLocaleDateString('ko-KR')}</div>
