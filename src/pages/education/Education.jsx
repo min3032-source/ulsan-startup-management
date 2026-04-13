@@ -47,6 +47,11 @@ export default function Education() {
   const [filterProgram, setFilterProgram] = useState('')
   const [searchStudent, setSearchStudent] = useState('')
 
+  // 수강생 직접 입력 모달
+  const [showStudentModal, setShowStudentModal] = useState(false)
+  const [editStudent, setEditStudent] = useState(null)
+  const [studentForm, setStudentForm] = useState(defaultStudentForm())
+
   // 출석 모달
   const [attendanceModal, setAttendanceModal] = useState(null) // application
   const [attendance, setAttendance] = useState([])
@@ -80,6 +85,67 @@ export default function Education() {
   function showToast(msg) {
     setToast(msg)
     setTimeout(() => setToast(''), 3500)
+  }
+
+  function defaultStudentForm() {
+    return {
+      program_id: '', applicant_name: '', company_name: '',
+      phone: '', email: '', status: '신청'
+    }
+  }
+
+  function openAddStudent() {
+    setEditStudent(null)
+    setStudentForm({ ...defaultStudentForm(), program_id: filterProgram || '' })
+    setShowStudentModal(true)
+  }
+
+  function openEditStudent(a) {
+    setEditStudent(a)
+    setStudentForm({
+      program_id: a.program_id || '',
+      applicant_name: a.applicant_name || '',
+      company_name: a.company_name || '',
+      phone: a.phone || '',
+      email: a.email || '',
+      status: a.status || '신청',
+    })
+    setShowStudentModal(true)
+  }
+
+  async function saveStudent() {
+    if (!studentForm.applicant_name.trim()) { alert('이름을 입력해주세요'); return }
+    if (!studentForm.program_id) { alert('프로그램을 선택해주세요'); return }
+    setSaving(true)
+    const payload = {
+      program_id: studentForm.program_id,
+      applicant_name: studentForm.applicant_name.trim(),
+      company_name: studentForm.company_name.trim() || null,
+      phone: studentForm.phone.trim() || null,
+      email: studentForm.email.trim() || null,
+      status: studentForm.status,
+    }
+    let error
+    if (editStudent) {
+      ({ error } = await supabase.from('education_applications').update(payload).eq('id', editStudent.id))
+    } else {
+      payload.applied_at = new Date().toISOString()
+      payload.attendance_rate = 0
+      ;({ error } = await supabase.from('education_applications').insert(payload))
+    }
+    setSaving(false)
+    if (error) { alert('저장 실패: ' + error.message); return }
+    setShowStudentModal(false)
+    showToast(editStudent ? '수강생 정보가 수정되었습니다.' : '수강생이 등록되었습니다.')
+    loadAll()
+  }
+
+  async function deleteStudent(id) {
+    if (!confirm('수강생을 삭제하시겠습니까?')) return
+    const { error } = await supabase.from('education_applications').delete().eq('id', id)
+    if (error) { alert('삭제 실패: ' + error.message); return }
+    showToast('삭제되었습니다.')
+    loadAll()
   }
 
   function defaultProgramForm() {
@@ -348,24 +414,35 @@ export default function Education() {
       {/* ─── 탭 2: 수강생 관리 ─── */}
       {tab === 'students' && (
         <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <select
-              className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5"
-              value={filterProgram}
-              onChange={e => setFilterProgram(e.target.value)}
-            >
-              <option value="">전체 프로그램</option>
-              {programs.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
-            </select>
-            <div className="relative">
-              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                className="pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 w-48"
-                placeholder="이름·기업명·연락처 검색"
-                value={searchStudent}
-                onChange={e => setSearchStudent(e.target.value)}
-              />
+          <div className="flex flex-wrap gap-2 items-center justify-between">
+            <div className="flex flex-wrap gap-2">
+              <select
+                className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5"
+                value={filterProgram}
+                onChange={e => setFilterProgram(e.target.value)}
+              >
+                <option value="">전체 프로그램</option>
+                {programs.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+              </select>
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  className="pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 w-48"
+                  placeholder="이름·기업명·연락처 검색"
+                  value={searchStudent}
+                  onChange={e => setSearchStudent(e.target.value)}
+                />
+              </div>
             </div>
+            {canWrite && (
+              <button
+                onClick={openAddStudent}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm text-white rounded-lg font-medium"
+                style={{ background: '#2E75B6' }}
+              >
+                <Plus size={15} /> 수강생 추가
+              </button>
+            )}
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
@@ -416,12 +493,26 @@ export default function Education() {
                     </td>
                     <td className="px-4 py-2.5">
                       {canWrite && (
-                        <button
-                          onClick={() => loadAttendance(a)}
-                          className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50"
-                        >
-                          출석 관리
-                        </button>
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => loadAttendance(a)}
+                            className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50"
+                          >
+                            출석
+                          </button>
+                          <button
+                            onClick={() => openEditStudent(a)}
+                            className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50"
+                          >
+                            수정
+                          </button>
+                          <button
+                            onClick={() => deleteStudent(a.id)}
+                            className="text-xs px-2 py-1 border border-red-200 text-red-500 rounded hover:bg-red-50"
+                          >
+                            삭제
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -649,6 +740,80 @@ export default function Education() {
             </div>
             <div className="px-6 py-3 border-t border-gray-100 flex justify-end">
               <button onClick={() => setAttendanceModal(null)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">닫기</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── 수강생 직접 입력/수정 모달 ─── */}
+      {showStudentModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-800">{editStudent ? '수강생 정보 수정' : '수강생 직접 등록'}</h2>
+              <button onClick={() => setShowStudentModal(false)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="px-6 py-4 space-y-3">
+              <Field label="프로그램 *">
+                <select
+                  className="input-base"
+                  value={studentForm.program_id}
+                  onChange={e => setStudentForm(f => ({ ...f, program_id: e.target.value }))}
+                >
+                  <option value="">프로그램 선택</option>
+                  {programs.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+                </select>
+              </Field>
+              <Field label="이름 *">
+                <input
+                  className="input-base"
+                  value={studentForm.applicant_name}
+                  onChange={e => setStudentForm(f => ({ ...f, applicant_name: e.target.value }))}
+                  placeholder="수강생 이름"
+                />
+              </Field>
+              <Field label="기업명">
+                <input
+                  className="input-base"
+                  value={studentForm.company_name}
+                  onChange={e => setStudentForm(f => ({ ...f, company_name: e.target.value }))}
+                  placeholder="기업명 (선택)"
+                />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="연락처">
+                  <input
+                    className="input-base"
+                    value={studentForm.phone}
+                    onChange={e => setStudentForm(f => ({ ...f, phone: e.target.value }))}
+                    placeholder="010-0000-0000"
+                  />
+                </Field>
+                <Field label="이메일">
+                  <input
+                    type="email"
+                    className="input-base"
+                    value={studentForm.email}
+                    onChange={e => setStudentForm(f => ({ ...f, email: e.target.value }))}
+                    placeholder="example@email.com"
+                  />
+                </Field>
+              </div>
+              <Field label="상태">
+                <select
+                  className="input-base"
+                  value={studentForm.status}
+                  onChange={e => setStudentForm(f => ({ ...f, status: e.target.value }))}
+                >
+                  {APP_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </Field>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setShowStudentModal(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
+              <button onClick={saveStudent} disabled={saving} className="px-4 py-2 text-sm text-white rounded-lg disabled:opacity-40" style={{ background: '#2E75B6' }}>
+                {saving ? '저장 중...' : '저장'}
+              </button>
             </div>
           </div>
         </div>
