@@ -73,9 +73,11 @@ export default function Sidebar({ onClose }) {
       {/* 로고 헤더 */}
       <div className="border-b border-white/10 flex items-center justify-between flex-shrink-0" style={{ padding: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ background: 'white', borderRadius: '8px', padding: '4px', display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
-            <img src="/logo.gif" alt="울산경제일자리진흥원" style={{ height: '32px', width: 'auto' }} />
-          </div>
+          <img
+            src="/logo.gif"
+            alt="울산경제일자리진흥원"
+            style={{ height: '32px', width: 'auto', flexShrink: 0, filter: 'brightness(0) invert(1)', opacity: 0.95 }}
+          />
           <div>
             <div style={{ fontSize: '11px', color: '#94a3b8' }}>울산경제일자리진흥원</div>
             <div style={{ fontSize: '13px', fontWeight: 'bold', color: 'white' }}>창업지원 통합관리</div>

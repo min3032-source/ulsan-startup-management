@@ -114,10 +114,12 @@ export default function EducationApply() {
 
         <div className="relative max-w-5xl mx-auto px-6 pt-12 pb-20">
           <div className="flex items-center gap-3 mb-5">
-            <div style={{ background: 'white', borderRadius: '8px', padding: '4px', display: 'inline-flex', alignItems: 'center' }}>
-              <img src="/logo.gif" alt="울산경제일자리진흥원" style={{ height: '36px', width: 'auto' }} />
-            </div>
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold text-white backdrop-blur-sm" style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.35)' }}>
+            <img
+              src="/logo.gif"
+              alt="울산경제일자리진흥원"
+              style={{ height: '42px', width: 'auto', opacity: 0.95, filter: 'brightness(0) invert(1)' }}
+            />
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold text-white backdrop-blur-sm" style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.35)' }}>
               🚀 울산경제일자리진흥원
             </span>
           </div>
