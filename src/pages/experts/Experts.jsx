@@ -8,7 +8,7 @@ import { StatusBadge } from '../../components/common/Badge'
 import Modal from '../../components/common/Modal'
 import StatCard from '../../components/common/StatCard'
 import Avatar from '../../components/common/Avatar'
-import { Plus, Search, Pencil, Trash2, Eye, ClipboardList, CheckCircle, XCircle, Upload, Download, X } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Eye, ClipboardList, CheckCircle, XCircle, Upload, Download, X, Sparkles } from 'lucide-react'
 
 const TECH_FIELDS = [
   '제조', 'IT·소프트웨어', '교육·훈련', '서비스업', '농업·식품',
@@ -64,6 +64,8 @@ export default function Experts() {
   const [bulkPreview, setBulkPreview] = useState([])
   const [bulkSaving, setBulkSaving] = useState(false)
   const excelInputRef = useRef(null)
+  const pdfRef = useRef(null)
+  const [pdfLoading, setPdfLoading] = useState(false)
 
   useEffect(() => { loadData() }, [])
   useEffect(() => { if (activeTab === 'applications' && canApprove) loadApplications() }, [activeTab])
@@ -242,6 +244,68 @@ export default function Experts() {
     alert(`${payload.length}명의 전문가가 등록되었습니다.`)
   }
 
+  // ── PDF AI 자동 파싱 ──────────────────────────────────────
+  function handlePdfUpload(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    e.target.value = ''
+    const reader = new FileReader()
+    reader.onload = async (evt) => {
+      const dataUrl = evt.target.result
+      // dataUrl format: "data:application/pdf;base64,<base64data>"
+      const base64 = dataUrl.split(',')[1]
+      setPdfLoading(true)
+      try {
+        const { data, error } = await supabase.functions.invoke('parse-expert-pdf', {
+          body: { pdf_base64: base64 },
+        })
+        if (error || !data?.result) throw new Error(error?.message || '파싱 실패')
+        const r = data.result
+        setForm({
+          ...emptyForm(),
+          name: r.name || '',
+          birth_date: r.birth_date || '',
+          phone: r.phone || '',
+          email: r.email || '',
+          org: r.affiliation || '',
+          role: r.position || '',
+          bank_account: r.bank_account || '',
+          education: r.education || '',
+          major: r.major || '',
+          address: r.address || '',
+          sub_field: r.specialty || '',
+          tech_fields: Array.isArray(r.tech_fields) ? r.tech_fields : [],
+          fields: EXPERT_FIELDS.filter(f => (r.specialty || '').includes(f)),
+          licenses: Array.isArray(r.licenses)
+            ? r.licenses.map(l => ({ name: l.name || '', date: l.date || '', org: l.org || '' }))
+            : [],
+          work_history: Array.isArray(r.work_history)
+            ? r.work_history.map(w => ({
+                org: w.org || '', period: w.period || '',
+                dept: w.dept || '', role: w.role || '',
+                duties: w.task || '',
+              }))
+            : [],
+          consulting_history: Array.isArray(r.consulting_history)
+            ? r.consulting_history.map(c => ({
+                org: c.org || '', period: c.period || '',
+                project: c.project || '', content: c.content || '',
+              }))
+            : [],
+        })
+        setEditingId(null)
+        setModalTab(0)
+        setModalOpen(true)
+      } catch {
+        alert('PDF에서 정보를 읽지 못했습니다. 직접 입력해주세요.')
+        openAdd()
+      } finally {
+        setPdfLoading(false)
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+
   // ── form 헬퍼 ────────────────────────────────────────────
   const addWorkRow = () => setField('work_history', [...form.work_history, { org: '', period: '', dept: '', role: '', duties: '' }])
   const updateWorkRow = (i, k, v) => setField('work_history', form.work_history.map((r, idx) => idx === i ? { ...r, [k]: v } : r))
@@ -404,6 +468,16 @@ export default function Experts() {
                 <Upload size={14} /> 일괄 등록 (Excel)
               </button>
               <input ref={excelInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleExcelUpload} />
+              {/* PDF AI 자동입력 */}
+              <button
+                onClick={() => pdfRef.current?.click()}
+                disabled={pdfLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-700 border border-purple-300 rounded-lg hover:bg-purple-50 transition disabled:opacity-60"
+              >
+                <Sparkles size={14} />
+                {pdfLoading ? 'AI 분석 중...' : 'PDF로 등록 (AI 자동입력)'}
+              </button>
+              <input ref={pdfRef} type="file" accept=".pdf" className="hidden" onChange={handlePdfUpload} />
               {/* 개별 등록 */}
               <button
                 onClick={openAdd}
