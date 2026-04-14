@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { VerdictBadge } from '../../components/common/Badge'
 import StatCard from '../../components/common/StatCard'
 import Avatar from '../../components/common/Avatar'
-import { BookOpen, Search, ExternalLink, ChevronDown } from 'lucide-react'
+import { BookOpen, Search, ExternalLink, ChevronDown, Plus, X } from 'lucide-react'
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -14,6 +14,15 @@ const STATUSES = ['후속필요', '상담완료']
 const STATUS_COLOR = {
   '후속필요': 'bg-orange-100 text-orange-700',
   '상담완료': 'bg-green-100 text-green-700',
+}
+const STARTUP_TYPES = ['로컬', '테크', '상담후결정']
+
+function emptyWalkIn() {
+  return {
+    name: '', phone: '', biz: '', startup_type: '상담후결정',
+    assignee: '', consult_date: today(), method: '방문상담',
+    content: '', result: '',
+  }
 }
 
 export default function Consult() {
@@ -35,6 +44,11 @@ export default function Consult() {
   })
   const [saving, setSaving] = useState(false)
 
+  // 현장상담 등록 모달
+  const [showWalkInModal, setShowWalkInModal] = useState(false)
+  const [walkInForm, setWalkInForm] = useState(emptyWalkIn())
+  const [walkInSaving, setWalkInSaving] = useState(false)
+
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
@@ -43,8 +57,6 @@ export default function Consult() {
       supabase
         .from('founders')
         .select('*')
-        .not('assignee', 'is', null)
-        .neq('assignee', '')
         .order('created_at', { ascending: false }),
       supabase
         .from('consults')
@@ -57,7 +69,12 @@ export default function Consult() {
         .order('name'),
     ])
 
-    const foundersWithConsults = (f || []).map(founder => ({
+    // 담당자 배정된 창업자 + 현장상담으로 직접 등록된 창업자 모두 표시
+    const relevant = (f || []).filter(founder =>
+      founder.source === '현장상담' ||
+      (founder.assignee && founder.assignee.trim() !== '')
+    )
+    const foundersWithConsults = relevant.map(founder => ({
       ...founder,
       consults: (c || []).filter(con => con.founder_id === founder.id),
     }))
@@ -114,6 +131,51 @@ export default function Consult() {
       next_date: '', assignee: selectedFounder.assignee || '', status: '상담완료',
     })
     showToast('상담일지가 저장되었습니다.')
+  }
+
+  // ── 현장상담 직접 등록 ────────────────────────────────────
+  async function saveWalkIn() {
+    if (!walkInForm.name.trim()) { alert('상담자 이름을 입력해주세요'); return }
+    if (!walkInForm.content.trim()) { alert('상담 내용을 입력해주세요'); return }
+    setWalkInSaving(true)
+
+    // 1) founders 테이블에 신규 창업자 삽입
+    const { data: founder, error: fe } = await supabase
+      .from('founders')
+      .insert([{
+        name: walkInForm.name,
+        phone: walkInForm.phone || null,
+        biz: walkInForm.biz || null,
+        verdict: walkInForm.startup_type,
+        assignee: walkInForm.assignee || null,
+        source: '현장상담',
+        status: 'pending',
+      }])
+      .select()
+      .single()
+
+    if (fe) { alert('창업자 등록 실패: ' + fe.message); setWalkInSaving(false); return }
+
+    // 2) consults 테이블에 상담일지 삽입
+    const { error: ce } = await supabase.from('consults').insert([{
+      founder_id: founder.id,
+      date: walkInForm.consult_date,
+      method: walkInForm.method,
+      content: walkInForm.content,
+      result: walkInForm.result,
+      assignee: walkInForm.assignee || null,
+      staff: walkInForm.assignee || null,
+      status: '상담완료',
+      source: '현장상담',
+    }])
+
+    setWalkInSaving(false)
+    if (ce) { alert('상담일지 저장 실패: ' + ce.message); return }
+
+    setShowWalkInModal(false)
+    setWalkInForm(emptyWalkIn())
+    loadData()
+    showToast('현장상담이 등록되었습니다.')
   }
 
   // ── AI 상담 도우미 (claude.ai 연동) ──────────────────────
@@ -179,7 +241,16 @@ export default function Consult() {
         </div>
       )}
 
-      <h1 className="text-xl font-bold text-gray-800">상담일지</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-gray-800">상담일지</h1>
+        <button
+          onClick={() => { setWalkInForm(emptyWalkIn()); setShowWalkInModal(true) }}
+          className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-white rounded-lg transition-colors hover:opacity-90"
+          style={{ background: '#2E75B6' }}
+        >
+          <Plus size={15} /> 현장상담 등록
+        </button>
+      </div>
 
       {/* 통계 카드 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -239,9 +310,13 @@ export default function Consult() {
               return (
                 <tr key={f.id} className="border-b border-gray-50 hover:bg-blue-50/30 transition-colors">
                   <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <Avatar name={f.name} />
                       <span className="font-medium text-gray-800 text-xs">{f.name}</span>
+                      {f.source === '현장상담'
+                        ? <span className="px-1.5 py-0.5 text-[10px] font-bold bg-orange-100 text-orange-600 rounded leading-none">현장</span>
+                        : <span className="px-1.5 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-600 rounded leading-none">온라인</span>
+                      }
                     </div>
                   </td>
                   <td className="px-4 py-2.5 text-xs text-gray-600">{f.biz || '-'}</td>
@@ -502,6 +577,114 @@ export default function Consult() {
                 style={{ background: '#2E75B6' }}
               >
                 {saving ? '저장 중...' : '저장'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 현장상담 등록 모달 ── */}
+      {showWalkInModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowWalkInModal(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+              <div>
+                <h2 className="text-base font-bold text-gray-800">현장상담 등록</h2>
+                <p className="text-xs text-gray-400 mt-0.5">창업자 정보와 상담 내용을 함께 등록합니다</p>
+              </div>
+              <button onClick={() => setShowWalkInModal(false)} className="p-1 rounded hover:bg-gray-100">
+                <X size={18} className="text-gray-400" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+
+              {/* 상담자 정보 */}
+              <div className="space-y-3">
+                <p className="text-xs font-bold text-orange-600 flex items-center gap-1">
+                  <span className="px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded text-[10px] font-bold">현장</span>
+                  상담자 정보
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">이름 *</label>
+                    <input className="form-input" placeholder="홍길동"
+                      value={walkInForm.name} onChange={e => setWalkInForm(p => ({ ...p, name: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">연락처</label>
+                    <input className="form-input" placeholder="010-0000-0000"
+                      value={walkInForm.phone} onChange={e => setWalkInForm(p => ({ ...p, phone: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">기업명</label>
+                    <input className="form-input" placeholder="예: (주)울산스타트업"
+                      value={walkInForm.biz} onChange={e => setWalkInForm(p => ({ ...p, biz: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">창업유형</label>
+                    <select className="form-input"
+                      value={walkInForm.startup_type}
+                      onChange={e => setWalkInForm(p => ({ ...p, startup_type: e.target.value }))}
+                    >
+                      {STARTUP_TYPES.map(t => <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* 상담 정보 */}
+              <div className="space-y-3 border-t border-gray-100 pt-4">
+                <p className="text-xs font-bold text-gray-600">상담 정보</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">상담일시</label>
+                    <input type="date" className="form-input"
+                      value={walkInForm.consult_date}
+                      onChange={e => setWalkInForm(p => ({ ...p, consult_date: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">상담방법</label>
+                    <select className="form-input"
+                      value={walkInForm.method}
+                      onChange={e => setWalkInForm(p => ({ ...p, method: e.target.value }))}
+                    >
+                      {METHODS.map(m => <option key={m}>{m}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">담당자</label>
+                  <input className="form-input" placeholder="담당자명"
+                    value={walkInForm.assignee}
+                    onChange={e => setWalkInForm(p => ({ ...p, assignee: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">상담내용 *</label>
+                  <textarea className="form-input" rows={3} placeholder="상담 내용을 입력하세요"
+                    value={walkInForm.content}
+                    onChange={e => setWalkInForm(p => ({ ...p, content: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">상담결과</label>
+                  <textarea className="form-input" rows={2} placeholder="상담 결과 및 특이사항"
+                    value={walkInForm.result}
+                    onChange={e => setWalkInForm(p => ({ ...p, result: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2 shrink-0">
+              <button onClick={() => setShowWalkInModal(false)}
+                className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">닫기</button>
+              <button onClick={saveWalkIn} disabled={walkInSaving}
+                className="px-5 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50"
+                style={{ background: '#2E75B6' }}>
+                {walkInSaving ? '저장 중...' : '현장상담 저장'}
               </button>
             </div>
           </div>

@@ -144,6 +144,18 @@ export default function Apply() {
                 setStep(1)
               }}
             />
+            <div className="text-center pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setQuizResult({ verdict: '상담후결정', answers: {} })
+                  setStep(1)
+                }}
+                className="text-sm text-gray-400 hover:text-gray-600 underline underline-offset-2 transition-colors py-1"
+              >
+                지금은 건너뛰기 (담당자와 상담 후 결정)
+              </button>
+            </div>
           </div>
         )}
 
