@@ -282,6 +282,27 @@ export default function EducationApply() {
             })}
           </div>
         )}
+
+        {/* ── 수강생 포털 안내 배너 ── */}
+        <div className="mt-4 rounded-2xl overflow-hidden border border-blue-100 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 shadow-sm">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-5">
+            <div className="flex items-start gap-3">
+              <span className="text-3xl leading-none select-none">🎓</span>
+              <div>
+                <p className="text-sm font-bold text-gray-800">수료증 발급 안내</p>
+                <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                  교육 수료 후 <strong className="text-indigo-600">수강생 포털</strong>에서 만족도 조사를 완료하시면 수료증을 발급받으실 수 있습니다.
+                </p>
+              </div>
+            </div>
+            <a
+              href="/student-portal"
+              className="shrink-0 inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:opacity-90 hover:shadow-md active:scale-95 transition-all duration-200"
+            >
+              수강생 포털 바로가기 →
+            </a>
+          </div>
+        </div>
       </main>
 
       {/* ── 포스터 원본 이미지 모달 ── */}
