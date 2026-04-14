@@ -65,6 +65,7 @@ export default function Education() {
 
   const [toast, setToast] = useState('')
   const [saving, setSaving] = useState(false)
+  const [posterFile, setPosterFile] = useState(null)
 
   useEffect(() => { loadAll() }, [])
 
@@ -151,42 +152,62 @@ export default function Education() {
 
   function defaultProgramForm() {
     return {
-      title: '', description: '', category: '창업기초', program_type: '집합교육',
+      title: '', description: '', overview: '', category: '창업기초', program_type: '집합교육',
       instructor: '', location: '', start_date: '', end_date: '',
-      total_sessions: 1, hours_per_session: 2, max_participants: '', assignee: '', status: '모집중', completion_rate: 80
+      total_sessions: 1, hours_per_session: 2, max_participants: '', assignee: '', status: '모집중', completion_rate: 80,
+      poster_url: ''
     }
   }
 
   function openAddProgram() {
     setEditProgram(null)
     setProgramForm(defaultProgramForm())
+    setPosterFile(null)
     setShowProgramModal(true)
   }
 
   function openEditProgram(p) {
     setEditProgram(p)
     setProgramForm({
-      title: p.title || '', description: p.description || '',
+      title: p.title || '', description: p.description || '', overview: p.overview || '',
       category: p.category || '창업기초', program_type: p.program_type || '집합교육',
       instructor: p.instructor || '', location: p.location || '',
       start_date: p.start_date || '', end_date: p.end_date || '',
       total_sessions: p.total_sessions || 1, hours_per_session: p.hours_per_session || 2, max_participants: p.max_participants || '',
-      assignee: p.assignee || '', status: p.status || '모집중', completion_rate: p.completion_rate ?? 80
+      assignee: p.assignee || '', status: p.status || '모집중', completion_rate: p.completion_rate ?? 80,
+      poster_url: p.poster_url || ''
     })
+    setPosterFile(null)
     setShowProgramModal(true)
   }
 
   async function saveProgram() {
     if (!programForm.title.trim()) { alert('교육명을 입력해주세요'); return }
     setSaving(true)
+
+    let posterUrl = programForm.poster_url || null
+    if (posterFile) {
+      const ext = posterFile.name.split('.').pop()
+      const fileName = `poster_${Date.now()}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('education-posters')
+        .upload(fileName, posterFile, { upsert: true })
+      if (!uploadError) {
+        const { data: { publicUrl } } = supabase.storage.from('education-posters').getPublicUrl(fileName)
+        posterUrl = publicUrl
+      }
+    }
+
     const totalHours = (programForm.total_sessions || 1) * (programForm.hours_per_session || 2)
     const payload = {
       ...programForm,
+      poster_url: posterUrl,
       start_date: programForm.start_date || null,
       end_date: programForm.end_date || null,
       max_participants: programForm.max_participants ? Number(programForm.max_participants) : null,
       hours_per_session: programForm.hours_per_session || null,
       total_hours: totalHours || null,
+      overview: programForm.overview || null,
     }
     let error
     if (editProgram) {
@@ -460,7 +481,7 @@ export default function Education() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  {['이름', '기업명', '연락처', '이메일', '프로그램', '신청일', '상태', '출석률', '관리'].map(h => (
+                  {['이름', '기업명', '연락처', '이메일', '프로그램', '신청일', '상태', '출석률', '만족도조사', '관리'].map(h => (
                     <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
                   ))}
                 </tr>
@@ -516,6 +537,21 @@ export default function Education() {
                           </div>
                         )
                       })()}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {a.survey_completed ? (
+                        <div className="space-y-0.5">
+                          <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded font-medium">조사완료</span>
+                          {a.survey_data && (() => {
+                            const ratings = [a.survey_data.q1, a.survey_data.q2, a.survey_data.q3, a.survey_data.q4, a.survey_data.q5].filter(Boolean)
+                            if (ratings.length === 0) return null
+                            const avg = (ratings.reduce((s, v) => s + v, 0) / ratings.length).toFixed(1)
+                            return <div className="text-[10px] text-gray-500">평균 {avg}점</div>
+                          })()}
+                        </div>
+                      ) : (
+                        <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-500 rounded font-medium">미완료</span>
+                      )}
                     </td>
                     <td className="px-4 py-2.5">
                       {canWrite && (
@@ -626,7 +662,24 @@ export default function Education() {
                 <input className="input-base" value={programForm.title} onChange={e => setProgramForm(f => ({ ...f, title: e.target.value }))} placeholder="교육 프로그램명 입력" />
               </Field>
               <Field label="교육 설명">
-                <textarea className="input-base h-20 resize-none" value={programForm.description} onChange={e => setProgramForm(f => ({ ...f, description: e.target.value }))} placeholder="교육 내용 설명" />
+                <textarea className="input-base h-20 resize-none" value={programForm.description} onChange={e => setProgramForm(f => ({ ...f, description: e.target.value }))} placeholder="교육 내용 설명 (짧은 소개)" />
+              </Field>
+              <Field label="교육 개요 (아코디언 펼침 내용)">
+                <textarea className="input-base h-24 resize-none" value={programForm.overview} onChange={e => setProgramForm(f => ({ ...f, overview: e.target.value }))} placeholder="교육 세부 개요, 커리큘럼, 주요 내용 등" />
+              </Field>
+              <Field label="교육 포스터 이미지">
+                {programForm.poster_url && !posterFile && (
+                  <div className="mb-2">
+                    <img src={programForm.poster_url} alt="현재 포스터" className="h-24 rounded-lg object-cover border border-gray-200" />
+                    <p className="text-xs text-gray-400 mt-1">현재 포스터 (새 파일 선택 시 교체됩니다)</p>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={e => setPosterFile(e.target.files[0] || null)}
+                  className="block w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="카테고리">

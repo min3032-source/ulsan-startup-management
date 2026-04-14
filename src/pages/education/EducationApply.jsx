@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { formatPhone } from '../../utils/formatPhone'
-import { MapPin, User, Calendar, Users, X, Clock, Award, ChevronDown, Loader2 } from 'lucide-react'
+import { MapPin, User, Calendar, Users, X, Clock, Award, ChevronDown, Loader2, ZoomIn } from 'lucide-react'
 
 const CATEGORY_GRADIENT = {
   '창업기초': 'from-blue-500 to-cyan-400',
@@ -21,11 +21,13 @@ export default function EducationApply() {
   const [programs, setPrograms] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedProgram, setSelectedProgram] = useState(null)
-  const [form, setForm] = useState({ name: '', phone: '', email: '', company_name: '', motivation: '', agree: false })
+  const [form, setForm] = useState({ name: '', phone: '', email: '', company_name: '', motivation: '', password: '', agree: false })
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
   const [errors, setErrors] = useState({})
   const [privacyOpen, setPrivacyOpen] = useState(false)
+  const [overviewOpen, setOverviewOpen] = useState(null) // prog.id or null
+  const [posterModal, setPosterModal] = useState(null) // poster_url string
 
   useEffect(() => {
     async function load() {
@@ -45,6 +47,8 @@ export default function EducationApply() {
     if (!form.name.trim()) e.name = '이름을 입력해주세요'
     if (!form.phone.trim()) e.phone = '연락처를 입력해주세요'
     if (!form.email.trim()) e.email = '이메일을 입력해주세요'
+    if (!form.password.trim()) e.password = '접속 비밀번호를 입력해주세요'
+    else if (!/^\d{4}$/.test(form.password)) e.password = '숫자 4자리를 입력해주세요'
     if (!form.agree) e.agree = '개인정보 수집·이용에 동의해주세요'
     return e
   }
@@ -62,6 +66,7 @@ export default function EducationApply() {
       company_name: form.company_name || null,
       memo: form.motivation || null,
       status: '신청',
+      access_password: form.password,
     })
     if (error) { alert('신청 실패: ' + error.message); setSubmitting(false); return }
 
@@ -88,7 +93,7 @@ export default function EducationApply() {
 
   function openApply(prog) {
     setSelectedProgram(prog)
-    setForm({ name: '', phone: '', email: '', company_name: '', motivation: '', agree: false })
+    setForm({ name: '', phone: '', email: '', company_name: '', motivation: '', password: '', agree: false })
     setErrors({})
     setDone(false)
     setPrivacyOpen(false)
@@ -165,21 +170,44 @@ export default function EducationApply() {
                   key={prog.id}
                   className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden hover:-translate-y-2 hover:shadow-xl transition-all duration-300"
                 >
-                  {/* 카드 상단 배너 */}
-                  <div className={`bg-gradient-to-r ${gradient} px-5 py-4 flex items-center justify-between`}>
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl">{icon}</span>
-                      <span className="text-white font-semibold text-sm">{prog.category}</span>
+                  {/* 카드 상단 - 포스터 이미지 또는 그라디언트 배너 */}
+                  {prog.poster_url ? (
+                    <div className="relative overflow-hidden" style={{ height: 160 }}>
+                      <img
+                        src={prog.poster_url}
+                        alt={prog.title}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      />
+                      <button
+                        onClick={() => setPosterModal(prog.poster_url)}
+                        className="absolute top-2 right-2 p-1.5 bg-black/40 rounded-full hover:bg-black/60 transition"
+                        title="원본 이미지 보기"
+                      >
+                        <ZoomIn size={14} className="text-white" />
+                      </button>
+                      <div className="absolute bottom-0 left-0 right-0 px-3 py-2 flex items-center justify-between" style={{ background: 'linear-gradient(transparent, rgba(0,0,0,0.55))' }}>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-lg">{icon}</span>
+                          <span className="text-white text-xs font-semibold drop-shadow">{prog.category}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-2 py-0.5 bg-white/25 text-white text-xs font-medium rounded-full backdrop-blur-sm">{prog.program_type}</span>
+                          {isFull && <span className="px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full">마감</span>}
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="px-2 py-0.5 bg-white/25 text-white text-xs font-medium rounded-full">
-                        {prog.program_type}
-                      </span>
-                      {isFull && (
-                        <span className="px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full">마감</span>
-                      )}
+                  ) : (
+                    <div className={`bg-gradient-to-r ${gradient} px-5 py-4 flex items-center justify-between`}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">{icon}</span>
+                        <span className="text-white font-semibold text-sm">{prog.category}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-2 py-0.5 bg-white/25 text-white text-xs font-medium rounded-full">{prog.program_type}</span>
+                        {isFull && <span className="px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full">마감</span>}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* 카드 본문 */}
                   <div className="p-5 flex flex-col gap-4 flex-1">
@@ -218,6 +246,25 @@ export default function EducationApply() {
                       )}
                     </div>
 
+                    {/* 교육 개요 아코디언 */}
+                    {prog.overview && (
+                      <div className="rounded-xl border border-gray-100 overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setOverviewOpen(o => (o === prog.id ? null : prog.id))}
+                          className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 text-xs font-medium text-gray-600 hover:bg-gray-100 transition"
+                        >
+                          <span>교육 개요 보기</span>
+                          <ChevronDown size={13} className={`text-gray-400 transition-transform duration-200 ${overviewOpen === prog.id ? 'rotate-180' : ''}`} />
+                        </button>
+                        {overviewOpen === prog.id && (
+                          <div className="px-3 py-3 text-xs text-gray-600 bg-white whitespace-pre-line leading-relaxed">
+                            {prog.overview}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <button
                       onClick={() => openApply(prog)}
                       disabled={isFull}
@@ -236,6 +283,29 @@ export default function EducationApply() {
           </div>
         )}
       </main>
+
+      {/* ── 포스터 원본 이미지 모달 ── */}
+      {posterModal && (
+        <div
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setPosterModal(null)}
+        >
+          <div className="relative max-w-2xl w-full" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => setPosterModal(null)}
+              className="absolute -top-10 right-0 p-1.5 rounded-full bg-white/20 hover:bg-white/30 transition"
+            >
+              <X size={18} className="text-white" />
+            </button>
+            <img
+              src={posterModal}
+              alt="교육 포스터"
+              className="w-full rounded-2xl shadow-2xl"
+              style={{ maxHeight: '85vh', objectFit: 'contain' }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* ── 신청 모달 ── */}
       {selectedProgram && (
@@ -300,6 +370,15 @@ export default function EducationApply() {
                       className="w-full border-0 border-b border-gray-200 pb-2 text-sm focus:outline-none focus:border-blue-500 bg-transparent placeholder-gray-300 transition-colors"
                       value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                       placeholder="example@email.com"
+                    />
+                  </MinimalField>
+                  <MinimalField label="접속 비밀번호 설정" required error={errors.password}>
+                    <p className="text-xs text-gray-400 mb-2">수료증 발급 및 만족도 조사 시 사용할 비밀번호를 설정해주세요 (숫자 4자리)</p>
+                    <input
+                      type="password"
+                      className="w-full border-0 border-b border-gray-200 pb-2 text-sm focus:outline-none focus:border-blue-500 bg-transparent placeholder-gray-300 transition-colors"
+                      value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
+                      placeholder="숫자 4자리" maxLength={4}
                     />
                   </MinimalField>
                   <MinimalField label="기업명">

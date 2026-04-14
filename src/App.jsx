@@ -21,6 +21,7 @@ import Founders from './pages/founders/Founders'
 import Education from './pages/education/Education'
 import EducationApply from './pages/education/EducationApply'
 import Certificate from './pages/education/Certificate'
+import StudentPortal from './pages/education/StudentPortal'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -47,6 +48,7 @@ function AppRoutes() {
       <Route path="/expert-apply" element={<ExpertApply />} />
       <Route path="/education-apply" element={<EducationApply />} />
       <Route path="/certificate/:id" element={<Certificate />} />
+      <Route path="/student-portal" element={<StudentPortal />} />
       <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
         <Route index element={<Dashboard />} />
         <Route path="stats" element={<Stats />} />
