@@ -596,15 +596,7 @@ export default function Intake() {
                 ))}
               </select>
             </div>
-            {canWrite && (
-              <button
-                onClick={openAdd}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white rounded-lg"
-                style={{ background: '#2E75B6' }}
-              >
-                <Plus size={15} /> 상담 등록
-              </button>
-            )}
+{/* 상담 등록 버튼 제거 - 현장상담 페이지에서 직접 등록 */}
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
