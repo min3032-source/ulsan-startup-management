@@ -11,8 +11,14 @@ import Avatar from '../../components/common/Avatar'
 import { Plus, Search, Pencil, Trash2, Eye, ClipboardList, CheckCircle, XCircle, Upload, Download, X, Sparkles } from 'lucide-react'
 
 const TECH_FIELDS = [
-  '제조', 'IT·소프트웨어', '교육·훈련', '서비스업', '농업·식품',
-  '의료·바이오', '환경·에너지', '건설·부동산', '문화·콘텐츠', '유통·물류', '기타',
+  '제조(기계, 에너지)',
+  '제조(패션, 주얼리)',
+  'IT(헬스케어)',
+  'IT(e-커머스)',
+  'IT(제조)',
+  'IT(서비스)',
+  '교육 서비스',
+  '서비스(일반)',
 ]
 
 const MODAL_TABS = ['기본정보', '전문분야', '근무경력', '컨설팅실적', '동의']
@@ -493,16 +499,16 @@ export default function Experts() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  {['이름', '분야', '세부전문', '소속·직위', '가능일정', '비용', '누적상담', '상태', '관리'].map(h => (
+                  {['이름', '분야', '세부전문', '소속·직위', '누적상담', '상태', '관리'].map(h => (
                     <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={9} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
+                  <tr><td colSpan={7} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={9} className="text-center py-10 text-gray-400 text-sm">등록된 전문가가 없습니다</td></tr>
+                  <tr><td colSpan={7} className="text-center py-10 text-gray-400 text-sm">등록된 전문가가 없습니다</td></tr>
                 ) : filtered.map(e => {
                   const cnt = mentorings.filter(m => m.expert_id === e.id).length
                   return (
@@ -522,8 +528,6 @@ export default function Experts() {
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">{e.sub_field || '-'}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">{e.org} <span className="text-gray-400">{e.role}</span></td>
-                      <td className="px-4 py-2.5 text-xs text-gray-500">{e.avail || '-'}</td>
-                      <td className="px-4 py-2.5 text-xs text-gray-600">{e.cost || '-'}</td>
                       <td className="px-4 py-2.5">
                         <button className="text-xs font-bold text-blue-600 underline" onClick={() => navigate('/mentoring')}>{cnt}건</button>
                       </td>
@@ -601,16 +605,14 @@ export default function Experts() {
                     <FI label="전공"><input className="form-input" value={form.major} onChange={e => setField('major', e.target.value)} /></FI>
                   </div>
                   <FI label="주소"><input className="form-input" value={form.address} onChange={e => setField('address', e.target.value)} /></FI>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <FI label="활동 상태">
                       <select className="form-input" value={form.status} onChange={e => setField('status', e.target.value)}>
                         <option>활동중</option><option>휴식중</option><option>종료</option>
                       </select>
                     </FI>
-                    <FI label="가능 일정"><input className="form-input" value={form.avail} onChange={e => setField('avail', e.target.value)} placeholder="예: 평일 오전" /></FI>
-                    <FI label="비용"><input className="form-input" value={form.cost} onChange={e => setField('cost', e.target.value)} placeholder="예: 무료" /></FI>
+                    <FI label="메모"><input className="form-input" value={form.memo} onChange={e => setField('memo', e.target.value)} /></FI>
                   </div>
-                  <FI label="메모"><input className="form-input" value={form.memo} onChange={e => setField('memo', e.target.value)} /></FI>
                 </div>
               )}
 

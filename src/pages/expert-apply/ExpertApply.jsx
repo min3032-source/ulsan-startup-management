@@ -1,67 +1,120 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { EXPERT_FIELDS } from '../../lib/constants'
-import { CheckCircle, ChevronRight, ChevronLeft } from 'lucide-react'
+import { CheckCircle, Plus, X } from 'lucide-react'
 import PublicHeader from '../../components/common/PublicHeader'
 
-const FIELD_ICONS = {
-  '창업':        { icon: '🚀', color: '#0D6EFD', bg: '#E7F1FF' },
-  '기술·R&D':   { icon: '⚙️', color: '#2E75B6', bg: '#EBF3FB' },
-  '경영·마케팅': { icon: '📊', color: '#17627A', bg: '#E8F4F7' },
-  '법무·특허':   { icon: '⚖️', color: '#6B3FA0', bg: '#F3EDF9' },
-  '재무·투자':   { icon: '💰', color: '#1E5631', bg: '#EBF5EE' },
-  '인사·노무':   { icon: '👥', color: '#8B6914', bg: '#FBF5E6' },
-  '세무·회계':   { icon: '🧾', color: '#8B6914', bg: '#FBF5E6' },
-  '수출·글로벌': { icon: '🌐', color: '#17627A', bg: '#E8F4F7' },
-  '디자인·UX':   { icon: '🎨', color: '#C55A11', bg: '#FCF0E8' },
-  '기타':        { icon: '💡', color: '#6B7280', bg: '#F3F4F6' },
-}
+const TECH_FIELDS = [
+  '제조(기계, 에너지)',
+  '제조(패션, 주얼리)',
+  'IT(헬스케어)',
+  'IT(e-커머스)',
+  'IT(제조)',
+  'IT(서비스)',
+  '교육 서비스',
+  '서비스(일반)',
+]
 
-const STEPS = ['기본 정보 & 전문 분야', '경력 & 상담 내용', '신청 완료']
+const TABS = ['기본정보', '전문분야', '근무경력', '컨설팅실적', '동의']
 
 function emptyForm() {
   return {
-    name: '', phone: '', email: '',
-    org: '', role: '',
-    fields: [], sub_field: '',
-    career: '', avail_content: '',
+    name: '', birth_date: '', phone: '', email: '',
+    org: '', role: '', education: '', major: '', address: '', bank_account: '',
+    fields: [], tech_fields: [],
+    licenses: [],
+    work_history: [],
+    consulting_history: [],
+    privacy_agreed: false,
+    integrity_agreed: false,
   }
 }
 
 export default function ExpertApply() {
-  const [step, setStep]       = useState(0)
-  const [form, setForm]       = useState(emptyForm())
+  const [tab, setTab] = useState(0)
+  const [form, setForm] = useState(emptyForm())
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError]     = useState('')
+  const [submitted, setSubmitted] = useState(false)
+  const [error, setError] = useState('')
 
   function set(k, v) { setForm(p => ({ ...p, [k]: v })) }
 
-  const step0Done = form.name && form.phone && form.email && form.fields.length > 0
-  const step1Done = form.career.trim().length >= 10
+  // ── 자격증
+  const addLicense = () => set('licenses', [...form.licenses, { name: '', date: '', org: '' }])
+  const updateLicense = (i, k, v) => set('licenses', form.licenses.map((r, idx) => idx === i ? { ...r, [k]: v } : r))
+  const removeLicense = i => set('licenses', form.licenses.filter((_, idx) => idx !== i))
 
-  function toggleField(f) {
-    set('fields', form.fields.includes(f) ? form.fields.filter(x => x !== f) : [...form.fields, f])
-  }
+  // ── 근무경력
+  const addWork = () => set('work_history', [...form.work_history, { org: '', period: '', dept: '', role: '', duties: '' }])
+  const updateWork = (i, k, v) => set('work_history', form.work_history.map((r, idx) => idx === i ? { ...r, [k]: v } : r))
+  const removeWork = i => set('work_history', form.work_history.filter((_, idx) => idx !== i))
+
+  // ── 컨설팅실적
+  const addConsult = () => set('consulting_history', [...form.consulting_history, { org: '', period: '', project: '', content: '' }])
+  const updateConsult = (i, k, v) => set('consulting_history', form.consulting_history.map((r, idx) => idx === i ? { ...r, [k]: v } : r))
+  const removeConsult = i => set('consulting_history', form.consulting_history.filter((_, idx) => idx !== i))
+
+  const canSubmit = form.privacy_agreed && form.integrity_agreed
 
   async function handleSubmit() {
+    if (!form.name.trim()) { alert('성명을 입력해주세요.'); setTab(0); return }
+    if (!form.phone.trim()) { alert('연락처를 입력해주세요.'); setTab(0); return }
+    if (!form.email.trim()) { alert('이메일을 입력해주세요.'); setTab(0); return }
     setSubmitting(true); setError('')
-    const expertiseField = [form.fields.join(','), form.sub_field].filter(Boolean).join(' · ')
     const { error } = await supabase.from('expert_applications').insert({
-      applicant_name: form.name, email: form.email, phone: form.phone,
-      current_organization: form.org, position: form.role,
-      expertise_field: expertiseField,
-      career_years: form.career.trim() ? parseInt(form.career, 10) : null,
-      introduction: form.avail_content,
+      applicant_name: form.name,
+      email: form.email,
+      phone: form.phone,
+      current_organization: form.org,
+      position: form.role,
+      expertise_field: form.fields.join(', '),
+      introduction: JSON.stringify({
+        birth_date: form.birth_date,
+        education: form.education,
+        major: form.major,
+        address: form.address,
+        bank_account: form.bank_account,
+        tech_fields: form.tech_fields,
+        licenses: form.licenses,
+        work_history: form.work_history,
+        consulting_history: form.consulting_history,
+      }),
     })
     setSubmitting(false)
     if (error) {
       setError('제출 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.')
     } else {
-      setStep(2)
+      setSubmitted(true)
     }
   }
 
-  const firstFieldInfo = FIELD_ICONS[form.fields[0]] || null
+  if (submitted) {
+    return (
+      <div className="min-h-screen" style={{ background: '#F0F4F8' }}>
+        <PublicHeader title="전문가 등록 신청" />
+        <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+          <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6" style={{ background: '#EBF3FB' }}>
+            <CheckCircle size={40} style={{ color: '#2E75B6' }} />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-3">신청이 접수되었습니다!</h1>
+          <p className="text-gray-500 text-sm leading-relaxed mb-8">
+            담당자 검토 후 등록 여부를 안내해드리겠습니다.<br />
+            <strong>{form.email}</strong>으로 결과를 안내드립니다.
+          </p>
+          <div className="bg-white rounded-xl border border-gray-200 p-5 text-left shadow-sm">
+            <div className="text-sm font-bold text-gray-700 mb-3">접수 내용 요약</div>
+            <div className="space-y-2 text-sm">
+              <Row label="성명" value={form.name} />
+              <Row label="연락처" value={form.phone} />
+              <Row label="이메일" value={form.email} />
+              {form.org && <Row label="소속" value={`${form.org}${form.role ? ' · ' + form.role : ''}`} />}
+              {form.fields.length > 0 && <Row label="전문분야" value={<span className="font-semibold text-blue-700">{form.fields.join(', ')}</span>} />}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen" style={{ background: '#F0F4F8' }}>
@@ -69,235 +122,290 @@ export default function ExpertApply() {
 
       <div className="max-w-2xl mx-auto px-4 py-8">
 
-        {/* 진행 단계 */}
-        {step < 2 && (
-          <div className="flex items-center mb-8">
-            {STEPS.slice(0, 2).map((label, i) => (
-              <div key={i} className="flex items-center flex-1">
-                <div className="flex items-center gap-2">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                    i < step ? 'bg-green-500 text-white' :
-                    i === step ? 'text-white' : 'bg-gray-200 text-gray-400'
-                  }`} style={i === step ? { background: '#2E75B6' } : {}}>
-                    {i < step ? <CheckCircle size={14} /> : i + 1}
-                  </div>
-                  <span className={`text-xs font-medium hidden sm:block ${i === step ? 'text-gray-800' : 'text-gray-400'}`}>
-                    {label}
-                  </span>
-                </div>
-                {i < 1 && (
-                  <div className={`flex-1 h-0.5 mx-3 ${i < step ? 'bg-green-400' : 'bg-gray-200'}`} />
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+        {/* 탭 진행 표시 */}
+        <div className="flex items-center mb-6 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          {TABS.map((label, i) => (
+            <button
+              key={i}
+              onClick={() => setTab(i)}
+              className={`flex-1 flex flex-col items-center py-3 text-xs font-medium transition-colors border-b-2 ${
+                tab === i
+                  ? 'border-blue-500 text-blue-600 bg-blue-50/60'
+                  : i < tab
+                  ? 'border-green-400 text-green-600 bg-green-50/40'
+                  : 'border-transparent text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold mb-1 ${
+                i < tab ? 'bg-green-500 text-white' :
+                tab === i ? 'text-white' : 'bg-gray-200 text-gray-400'
+              }`} style={tab === i ? { background: '#2E75B6' } : {}}>
+                {i < tab ? '✓' : i + 1}
+              </span>
+              <span className="hidden sm:block">{label}</span>
+            </button>
+          ))}
+        </div>
 
-        {/* ── STEP 0: 기본 정보 & 전문 분야 ── */}
-        {step === 0 && (
-          <div className="space-y-5">
-            <div className="text-center mb-6">
-              <h1 className="text-xl font-bold text-gray-900 mb-1">기본 정보 & 전문 분야</h1>
-              <p className="text-sm text-gray-500">창업자 멘토링·자문을 제공할 전문가를 모집합니다</p>
-            </div>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
 
-            {/* 기본 정보 */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-4">
-              <h2 className="text-sm font-bold text-gray-700 pb-2 border-b border-gray-100">기본 정보</h2>
-
-              <Field label="이름 *">
-                <input value={form.name} onChange={e => set('name', e.target.value)}
-                  placeholder="홍길동" className={inp()} />
-              </Field>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* ── Tab 0: 기본정보 ── */}
+          {tab === 0 && (
+            <div className="space-y-4">
+              <h2 className="text-base font-bold text-gray-800 mb-4">기본 정보</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Field label="성명 *">
+                  <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="홍길동" className={inp()} />
+                </Field>
+                <Field label="생년월일">
+                  <input type="date" value={form.birth_date} onChange={e => set('birth_date', e.target.value)} className={inp()} />
+                </Field>
                 <Field label="연락처 *">
-                  <input value={form.phone} onChange={e => set('phone', e.target.value)}
-                    placeholder="010-0000-0000" className={inp()} />
-                </Field>
-                <Field label="이메일 *">
-                  <input type="email" value={form.email} onChange={e => set('email', e.target.value)}
-                    placeholder="example@email.com" className={inp()} />
+                  <input value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="010-0000-0000" className={inp()} />
                 </Field>
               </div>
-
+              <Field label="이메일 *">
+                <input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="example@email.com" className={inp()} />
+              </Field>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="소속기관">
-                  <input value={form.org} onChange={e => set('org', e.target.value)}
-                    placeholder="예: 울산대학교, 법무법인 OO" className={inp()} />
+                  <input value={form.org} onChange={e => set('org', e.target.value)} placeholder="예: 울산대학교, 법무법인 OO" className={inp()} />
                 </Field>
-                <Field label="직위">
-                  <input value={form.role} onChange={e => set('role', e.target.value)}
-                    placeholder="예: 교수, 변호사, 대표" className={inp()} />
+                <Field label="직위·직책">
+                  <input value={form.role} onChange={e => set('role', e.target.value)} placeholder="예: 교수, 변호사, 대표" className={inp()} />
                 </Field>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="최종학력">
+                  <input value={form.education} onChange={e => set('education', e.target.value)} placeholder="예: 석사 졸업" className={inp()} />
+                </Field>
+                <Field label="전공">
+                  <input value={form.major} onChange={e => set('major', e.target.value)} className={inp()} />
+                </Field>
+              </div>
+              <Field label="주소">
+                <input value={form.address} onChange={e => set('address', e.target.value)} className={inp()} />
+              </Field>
+              <Field label="계좌번호">
+                <input value={form.bank_account} onChange={e => set('bank_account', e.target.value)} placeholder="은행명 포함 계좌번호" className={inp()} />
+              </Field>
+            </div>
+          )}
+
+          {/* ── Tab 1: 전문분야 ── */}
+          {tab === 1 && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-base font-bold text-gray-800 mb-1">전문 분야</h2>
+                <p className="text-xs text-gray-400 mb-4">복수 선택 가능합니다</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {EXPERT_FIELDS.map(f => (
+                    <label key={f} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all text-sm font-medium ${
+                      form.fields.includes(f)
+                        ? 'border-blue-400 bg-blue-50 text-blue-700'
+                        : 'border-gray-200 hover:border-gray-300 text-gray-600 bg-white'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={form.fields.includes(f)}
+                        onChange={e => set('fields', e.target.checked ? [...form.fields, f] : form.fields.filter(x => x !== f))}
+                        className="accent-blue-600 w-3.5 h-3.5"
+                      />
+                      {f}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <h2 className="text-base font-bold text-gray-800">기술 분야</h2>
+                  <span className="text-xs text-gray-400">복수 선택 가능</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  {TECH_FIELDS.map(f => (
+                    <label key={f} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all text-sm font-medium ${
+                      form.tech_fields.includes(f)
+                        ? 'border-teal-400 bg-teal-50 text-teal-700'
+                        : 'border-gray-200 hover:border-gray-300 text-gray-600 bg-white'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={form.tech_fields.includes(f)}
+                        onChange={e => set('tech_fields', e.target.checked ? [...form.tech_fields, f] : form.tech_fields.filter(x => x !== f))}
+                        className="accent-teal-600 w-3.5 h-3.5"
+                      />
+                      {f}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-base font-bold text-gray-800">자격증 · 면허</h2>
+                  <button type="button" onClick={addLicense} className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium">
+                    <Plus size={13} /> 추가
+                  </button>
+                </div>
+                {form.licenses.length === 0 ? (
+                  <p className="text-xs text-gray-400 py-5 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                    등록된 자격증·면허가 없습니다
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {form.licenses.map((lic, i) => (
+                      <div key={i} className="flex gap-2 items-center">
+                        <input className={inp() + ' flex-1'} placeholder="자격증·면허명" value={lic.name} onChange={e => updateLicense(i, 'name', e.target.value)} />
+                        <input className={inp() + ' w-36'} placeholder="발급기관" value={lic.org} onChange={e => updateLicense(i, 'org', e.target.value)} />
+                        <input className={inp() + ' w-36'} type="date" value={lic.date} onChange={e => updateLicense(i, 'date', e.target.value)} />
+                        <button type="button" onClick={() => removeLicense(i)} className="p-1.5 text-gray-300 hover:text-red-400"><X size={15} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
+          )}
 
-            {/* 전문 분야 선택 */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-              <h2 className="text-sm font-bold text-gray-700 pb-3 border-b border-gray-100 mb-4">
-                전문 분야 선택 * <span className="text-xs text-gray-400 font-normal">(복수 선택 가능)</span>
-              </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                {EXPERT_FIELDS.map(f => {
-                  const fi = FIELD_ICONS[f]
-                  const selected = form.fields.includes(f)
-                  return (
-                    <button
-                      key={f}
-                      type="button"
-                      onClick={() => toggleField(f)}
-                      className={`flex items-center gap-2.5 p-3 rounded-xl border-2 text-left transition-all ${
-                        selected ? 'border-2' : 'border-gray-200 hover:border-gray-300 bg-white'
-                      }`}
-                      style={selected ? { borderColor: fi?.color, background: fi?.bg } : {}}
-                    >
-                      <span className="text-lg leading-none">{fi?.icon}</span>
-                      <span className={`text-xs font-semibold leading-tight ${selected ? '' : 'text-gray-600'}`}
-                        style={selected ? { color: fi?.color } : {}}>
-                        {f}
-                      </span>
-                      {selected && (
-                        <span className="ml-auto w-4 h-4 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0"
-                          style={{ background: fi?.color }}>✓</span>
-                      )}
-                    </button>
-                  )
-                })}
+          {/* ── Tab 2: 근무경력 ── */}
+          {tab === 2 && (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-bold text-gray-800">근무 경력</h2>
+                <button type="button" onClick={addWork} className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium">
+                  <Plus size={13} /> 행 추가
+                </button>
               </div>
-
-              {/* 세부 분야 */}
-              {form.fields.length > 0 && (
-                <div className="mt-4">
-                  <Field label="세부 전문 분야">
-                    <input value={form.sub_field} onChange={e => set('sub_field', e.target.value)}
-                      placeholder="예: AI·빅데이터, 창업법률·특허, VC투자·IR"
-                      className={inp()} />
-                  </Field>
+              {form.work_history.length === 0 ? (
+                <p className="text-xs text-gray-400 py-10 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                  근무 경력을 추가해주세요
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {form.work_history.map((row, i) => (
+                    <div key={i} className="border border-gray-200 rounded-xl p-4 space-y-3 relative bg-gray-50/40">
+                      <button type="button" onClick={() => removeWork(i)} className="absolute top-3 right-3 p-1 text-gray-300 hover:text-red-400"><X size={14} /></button>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="소속기관">
+                          <input className={inp()} value={row.org} onChange={e => updateWork(i, 'org', e.target.value)} />
+                        </Field>
+                        <Field label="기간">
+                          <input className={inp()} value={row.period} onChange={e => updateWork(i, 'period', e.target.value)} placeholder="예: 2020.03 ~ 2023.02" />
+                        </Field>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="부서">
+                          <input className={inp()} value={row.dept} onChange={e => updateWork(i, 'dept', e.target.value)} />
+                        </Field>
+                        <Field label="직위">
+                          <input className={inp()} value={row.role} onChange={e => updateWork(i, 'role', e.target.value)} />
+                        </Field>
+                      </div>
+                      <Field label="담당업무">
+                        <input className={inp()} value={row.duties} onChange={e => updateWork(i, 'duties', e.target.value)} />
+                      </Field>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
+          )}
 
-            <button
-              disabled={!step0Done}
-              onClick={() => setStep(1)}
-              className="w-full py-3.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: step0Done ? '#2E75B6' : '#9CA3AF' }}
-            >
-              다음 단계 — 경력 & 상담 내용 <ChevronRight size={16} />
-            </button>
-          </div>
-        )}
-
-        {/* ── STEP 1: 경력 & 상담 내용 ── */}
-        {step === 1 && (
-          <div className="space-y-5">
-            <div className="text-center mb-6">
-              <h1 className="text-xl font-bold text-gray-900 mb-1">경력 & 상담 내용</h1>
-              <p className="text-sm text-gray-500">경력과 제공 가능한 자문 내용을 작성해주세요</p>
-            </div>
-
-            {/* 선택된 분야 요약 */}
-            {form.fields.length > 0 && (
-              <div className="rounded-xl p-4 border bg-blue-50 border-blue-100">
-                <div className="text-xs text-gray-500 mb-2">선택 분야</div>
-                <div className="flex flex-wrap gap-2">
-                  {form.fields.map(f => {
-                    const fi = FIELD_ICONS[f]
-                    return (
-                      <span key={f} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
-                        style={{ background: fi?.bg, color: fi?.color, border: `1px solid ${fi?.color}40` }}>
-                        <span>{fi?.icon}</span>{f}
-                      </span>
-                    )
-                  })}
-                  {form.sub_field && <span className="text-xs text-gray-500 self-center">· {form.sub_field}</span>}
-                </div>
+          {/* ── Tab 3: 컨설팅실적 ── */}
+          {tab === 3 && (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-bold text-gray-800">컨설팅 실적</h2>
+                <button type="button" onClick={addConsult} className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium">
+                  <Plus size={13} /> 행 추가
+                </button>
               </div>
-            )}
-
-            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-4">
-              <Field label="주요 경력 * (10자 이상)">
-                <textarea
-                  value={form.career}
-                  onChange={e => set('career', e.target.value)}
-                  rows={5}
-                  placeholder={`예:\n- 삼성전자 AI연구소 10년 근무\n- KAIST 컴퓨터공학 교수 5년\n- 스타트업 기술 자문 경험 다수`}
-                  className={inp() + ' resize-none'}
-                />
-                <div className={`text-xs mt-1 text-right ${form.career.length >= 10 ? 'text-green-500' : 'text-gray-400'}`}>
-                  {form.career.length}자 {form.career.length < 10 && '(최소 10자)'}
+              {form.consulting_history.length === 0 ? (
+                <p className="text-xs text-gray-400 py-10 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                  컨설팅 실적을 추가해주세요
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {form.consulting_history.map((row, i) => (
+                    <div key={i} className="border border-gray-200 rounded-xl p-4 space-y-3 relative bg-gray-50/40">
+                      <button type="button" onClick={() => removeConsult(i)} className="absolute top-3 right-3 p-1 text-gray-300 hover:text-red-400"><X size={14} /></button>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="수행기관">
+                          <input className={inp()} value={row.org} onChange={e => updateConsult(i, 'org', e.target.value)} />
+                        </Field>
+                        <Field label="기간">
+                          <input className={inp()} value={row.period} onChange={e => updateConsult(i, 'period', e.target.value)} placeholder="예: 2023.04 ~ 2023.06" />
+                        </Field>
+                      </div>
+                      <Field label="사업명">
+                        <input className={inp()} value={row.project} onChange={e => updateConsult(i, 'project', e.target.value)} />
+                      </Field>
+                      <Field label="주요 내용">
+                        <input className={inp()} value={row.content} onChange={e => updateConsult(i, 'content', e.target.value)} />
+                      </Field>
+                    </div>
+                  ))}
                 </div>
-              </Field>
-
-              <Field label="상담 가능 내용">
-                <textarea
-                  value={form.avail_content}
-                  onChange={e => set('avail_content', e.target.value)}
-                  rows={4}
-                  placeholder={`예:\n- 초기 창업자 기술 로드맵 수립\n- AI·머신러닝 기술 자문\n- 정부 R&D 과제 기획 지원`}
-                  className={inp() + ' resize-none'}
-                />
-              </Field>
+              )}
             </div>
+          )}
 
-            {error && (
-              <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-xl border border-red-200">
-                {error}
-              </div>
-            )}
+          {/* ── Tab 4: 동의 ── */}
+          {tab === 4 && (
+            <div className="space-y-4">
+              <h2 className="text-base font-bold text-gray-800 mb-4">동의 사항</h2>
+              <AgreeBox
+                title="개인정보 수집·이용 동의 (필수)"
+                body={`수집 항목: 성명, 생년월일, 연락처, 이메일, 소속, 경력, 계좌번호 등\n수집 목적: 전문가 DB 구축 및 창업 지원 사업 운영\n보유 기간: 활동 종료 후 3년\n※ 동의를 거부하실 수 있으나, 거부 시 전문가 등록이 불가합니다.`}
+                checked={form.privacy_agreed}
+                onChange={v => set('privacy_agreed', v)}
+              />
+              <AgreeBox
+                title="청렴 서약 동의 (필수)"
+                body={`본인은 울산경제일자리진흥원 전문가로서 창업 지원 사업에 공정하고 투명하게 참여하며,\n금품·향응 수수, 부당한 청탁 등 일체의 부정행위를 하지 않겠습니다.\n또한 직무와 관련된 비밀을 외부에 누설하지 않겠습니다.`}
+                checked={form.integrity_agreed}
+                onChange={v => set('integrity_agreed', v)}
+              />
 
-            <div className="flex gap-3">
-              <button onClick={() => setStep(0)}
-                className="flex items-center gap-1 px-5 py-3 rounded-xl text-sm font-medium text-gray-600 border border-gray-300 hover:bg-gray-50 transition-colors">
-                <ChevronLeft size={15} /> 이전
-              </button>
+              {error && (
+                <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-xl border border-red-200">{error}</div>
+              )}
+
               <button
-                disabled={!step1Done || submitting}
+                disabled={!canSubmit || submitting}
                 onClick={handleSubmit}
-                className="flex-1 py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{ background: step1Done ? '#2E75B6' : '#9CA3AF' }}
+                className="w-full py-3.5 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed mt-2"
+                style={{ background: canSubmit ? '#2E75B6' : '#9CA3AF' }}
               >
-                {submitting ? '제출 중...' : '전문가 등록 신청'}
-                {!submitting && <ChevronRight size={16} />}
+                {submitting ? '제출 중...' : '전문가 등록 신청 완료'}
               </button>
+              {!canSubmit && (
+                <p className="text-xs text-center text-gray-400">두 항목 모두 동의해야 제출할 수 있습니다</p>
+              )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* ── STEP 2: 완료 ── */}
-        {step === 2 && (
-          <div className="text-center py-8">
-            <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"
-              style={{ background: '#EBF3FB' }}>
-              <CheckCircle size={40} style={{ color: '#2E75B6' }} />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-3">신청이 접수되었습니다!</h1>
-            <p className="text-gray-500 text-sm leading-relaxed mb-8">
-              담당자 검토 후 등록 여부를 안내해드리겠습니다.<br />
-              <strong>{form.email}</strong>으로 결과를 안내드립니다.
-            </p>
-
-            <div className="bg-white rounded-xl border border-gray-200 p-5 text-left mb-6 shadow-sm">
-              <div className="text-sm font-bold text-gray-700 mb-3">접수 내용 요약</div>
-              <div className="space-y-2 text-sm">
-                <Row label="이름"   value={form.name} />
-                <Row label="연락처" value={form.phone} />
-                <Row label="이메일" value={form.email} />
-                {form.org  && <Row label="소속" value={`${form.org}${form.role ? ' · ' + form.role : ''}`} />}
-                {form.fields.length > 0 && (
-                  <Row label="전문 분야"
-                    value={
-                      <span className="font-semibold text-blue-700">
-                        {form.fields.join(', ')}{form.sub_field ? ` · ${form.sub_field}` : ''}
-                      </span>
-                    }
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        {/* 탭 이동 버튼 */}
+        <div className="flex justify-between mt-4">
+          <button
+            onClick={() => setTab(t => Math.max(0, t - 1))}
+            disabled={tab === 0}
+            className="px-5 py-2.5 rounded-xl text-sm font-medium text-gray-600 border border-gray-300 hover:bg-gray-50 transition-colors disabled:opacity-30"
+          >
+            ← 이전
+          </button>
+          {tab < TABS.length - 1 && (
+            <button
+              onClick={() => setTab(t => Math.min(TABS.length - 1, t + 1))}
+              className="px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-colors"
+              style={{ background: '#2E75B6' }}
+            >
+              다음 →
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -317,6 +425,21 @@ function Row({ label, value }) {
     <div className="flex gap-2">
       <span className="text-gray-400 min-w-[72px]">{label}</span>
       <span className="text-gray-800 font-medium">{value}</span>
+    </div>
+  )
+}
+
+function AgreeBox({ title, body, checked, onChange }) {
+  return (
+    <div className={`rounded-xl border-2 p-4 transition-colors ${checked ? 'border-blue-300 bg-blue-50/40' : 'border-gray-200'}`}>
+      <div className="text-sm font-semibold text-gray-700 mb-2">{title}</div>
+      <pre className="text-xs text-gray-500 whitespace-pre-wrap leading-relaxed mb-4 font-sans bg-white rounded-lg p-3 border border-gray-100">{body}</pre>
+      <label className="flex items-center gap-2.5 cursor-pointer" onClick={() => onChange(!checked)}>
+        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0 ${checked ? 'bg-blue-500 border-blue-500' : 'border-gray-300'}`}>
+          {checked && <span className="text-white text-xs font-bold">✓</span>}
+        </div>
+        <span className="text-sm font-medium text-gray-700">위 내용에 동의합니다</span>
+      </label>
     </div>
   )
 }
