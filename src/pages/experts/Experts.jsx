@@ -474,7 +474,7 @@ export default function Experts() {
                 <Upload size={14} /> 일괄 등록 (Excel)
               </button>
               <input ref={excelInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleExcelUpload} />
-              {/* PDF AI 자동입력 */}
+              {/* PDF AI 자동입력 - 임시 비활성화 (크레딧 충전 후 활성화)
               <button
                 onClick={() => pdfRef.current?.click()}
                 disabled={pdfLoading}
@@ -483,6 +483,7 @@ export default function Experts() {
                 <Sparkles size={14} />
                 {pdfLoading ? 'AI 분석 중...' : 'PDF로 등록 (AI 자동입력)'}
               </button>
+              */}
               <input ref={pdfRef} type="file" accept=".pdf" className="hidden" onChange={handlePdfUpload} />
               {/* 개별 등록 */}
               <button
