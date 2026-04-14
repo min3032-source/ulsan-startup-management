@@ -10,7 +10,11 @@ function today() {
 }
 
 const METHODS = ['방문상담', '화상상담', '전화상담', '이메일', '기타']
-const STATUSES = ['상담중', '완료', '후속필요', '보류']
+const STATUSES = ['후속필요', '상담완료']
+const STATUS_COLOR = {
+  '후속필요': 'bg-orange-100 text-orange-700',
+  '상담완료': 'bg-green-100 text-green-700',
+}
 
 export default function Consult() {
   const [founders, setFounders] = useState([])
@@ -27,7 +31,7 @@ export default function Consult() {
   const [expandedLogId, setExpandedLogId] = useState(null)
   const [newLog, setNewLog] = useState({
     consult_date: today(), method: '', content: '', result: '',
-    next_date: '', assignee: '', status: '상담중',
+    next_date: '', assignee: '', status: '상담완료',
   })
   const [saving, setSaving] = useState(false)
 
@@ -72,7 +76,7 @@ export default function Consult() {
     setSelectedFounder(founder)
     setNewLog({
       consult_date: today(), method: '', content: '', result: '',
-      next_date: '', assignee: founder.assignee || '', status: '상담중',
+      next_date: '', assignee: founder.assignee || '', status: '상담완료',
     })
     setExpandedLogId(null)
     setShowModal(true)
@@ -107,7 +111,7 @@ export default function Consult() {
     setSelectedFounder(prev => ({ ...prev, consults: [data, ...prev.consults] }))
     setNewLog({
       consult_date: today(), method: '', content: '', result: '',
-      next_date: '', assignee: selectedFounder.assignee || '', status: '상담중',
+      next_date: '', assignee: selectedFounder.assignee || '', status: '상담완료',
     })
     showToast('상담일지가 저장되었습니다.')
   }
@@ -162,7 +166,7 @@ export default function Consult() {
     return matchSearch && matchAssignee
   })
 
-  const doneCount = allConsults.filter(c => c.status === '완료').length
+  const doneCount = allConsults.filter(c => c.status === '상담완료').length
   const followCount = allConsults.filter(c => c.status === '후속필요').length
   const staffSet = new Set(founders.map(f => f.assignee).filter(Boolean))
 
@@ -349,7 +353,7 @@ export default function Consult() {
                               <div className="flex items-center gap-1.5">
                                 {j.method && <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">{j.method}</span>}
                                 {(j.assignee || j.staff) && <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{j.assignee || j.staff}</span>}
-                                {j.status && <span className="px-2 py-0.5 bg-green-50 text-green-600 rounded-full">{j.status}</span>}
+                                {j.status && <span className={`px-2 py-0.5 rounded-full ${STATUS_COLOR[j.status] || 'bg-gray-100 text-gray-600'}`}>{j.status}</span>}
                                 <ChevronDown
                                   size={13}
                                   className={`text-gray-400 ml-1 transition-transform duration-200 ${isOpen ? 'rotate-180 text-blue-500' : ''}`}
