@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { VerdictBadge } from '../../components/common/Badge'
 import StatCard from '../../components/common/StatCard'
 import Avatar from '../../components/common/Avatar'
-import { BookOpen, Search, ExternalLink } from 'lucide-react'
+import { BookOpen, Search, ExternalLink, ChevronDown } from 'lucide-react'
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -24,6 +24,7 @@ export default function Consult() {
   // 상담일지 모달
   const [showModal, setShowModal] = useState(false)
   const [selectedFounder, setSelectedFounder] = useState(null)
+  const [expandedLogId, setExpandedLogId] = useState(null)
   const [newLog, setNewLog] = useState({
     consult_date: today(), method: '', content: '', result: '',
     next_date: '', assignee: '', status: '상담중',
@@ -73,6 +74,7 @@ export default function Consult() {
       consult_date: today(), method: '', content: '', result: '',
       next_date: '', assignee: founder.assignee || '', status: '상담중',
     })
+    setExpandedLogId(null)
     setShowModal(true)
   }
 
@@ -325,28 +327,58 @@ export default function Consult() {
                     아직 상담 내역이 없습니다. 첫 상담을 등록해주세요.
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                  <div className="space-y-1.5 max-h-64 overflow-y-auto">
                     {[...selectedFounder.consults]
                       .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-                      .map(j => (
-                        <div key={j.id} className="border border-gray-100 rounded-xl p-3 bg-white text-xs space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold text-gray-700">{j.date?.slice(0, 10)}</span>
-                            <div className="flex gap-1.5">
-                              {j.method && <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">{j.method}</span>}
-                              {(j.assignee || j.staff) && <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{j.assignee || j.staff}</span>}
-                              {j.status && <span className="px-2 py-0.5 bg-green-50 text-green-600 rounded-full">{j.status}</span>}
-                            </div>
+                      .map(j => {
+                        const isOpen = expandedLogId === j.id
+                        return (
+                          <div
+                            key={j.id}
+                            className={`border rounded-xl overflow-hidden text-xs transition-colors ${isOpen ? 'border-blue-200 bg-blue-50/40' : 'border-gray-100 bg-white'}`}
+                          >
+                            {/* 헤더 행 — 클릭으로 펼치기/접기 */}
+                            <button
+                              type="button"
+                              onClick={() => setExpandedLogId(isOpen ? null : j.id)}
+                              className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-blue-50/60 transition-colors text-left"
+                            >
+                              <span className={`font-semibold ${isOpen ? 'text-blue-700' : 'text-gray-700'}`}>
+                                {j.date?.slice(0, 10)}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                {j.method && <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">{j.method}</span>}
+                                {(j.assignee || j.staff) && <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{j.assignee || j.staff}</span>}
+                                {j.status && <span className="px-2 py-0.5 bg-green-50 text-green-600 rounded-full">{j.status}</span>}
+                                <ChevronDown
+                                  size={13}
+                                  className={`text-gray-400 ml-1 transition-transform duration-200 ${isOpen ? 'rotate-180 text-blue-500' : ''}`}
+                                />
+                              </div>
+                            </button>
+
+                            {/* 펼침 내용 */}
+                            {isOpen && (
+                              <div className="px-3 pb-3 pt-1 space-y-2 border-t border-blue-100">
+                                <div>
+                                  <p className="text-gray-500 font-medium mb-0.5">📝 상담내용</p>
+                                  <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{j.content || '-'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-500 font-medium mb-0.5">✅ 상담결과</p>
+                                  <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{j.result || '-'}</p>
+                                </div>
+                                {j.next_date && (
+                                  <div>
+                                    <p className="text-gray-500 font-medium mb-0.5">📅 다음 상담 예정일</p>
+                                    <p className="text-orange-600 font-semibold">{j.next_date}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          {j.content && (
-                            <p className="text-gray-600 leading-relaxed">
-                              {j.content.length > 80 ? j.content.slice(0, 80) + '...' : j.content}
-                            </p>
-                          )}
-                          {j.result && <p className="text-blue-600">→ {j.result}</p>}
-                          {j.next_date && <p className="text-orange-500 font-medium">다음 상담: {j.next_date}</p>}
-                        </div>
-                      ))}
+                        )
+                      })}
                   </div>
                 )}
               </div>
