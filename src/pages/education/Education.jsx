@@ -6,6 +6,14 @@ import { BookOpen, Users, Award, Plus, X, Search, ChevronDown, Printer, Mail } f
 import StatCard from '../../components/common/StatCard'
 import PageHeader from '../../components/common/PageHeader'
 
+const DEFAULT_SURVEY_QUESTIONS = [
+  '교육 내용은 창업에 도움이 되었나요?',
+  '강사의 강의 전달력은 어땠나요?',
+  '교육 환경(장소, 시설)은 만족스러웠나요?',
+  '교육 일정과 시간은 적절했나요?',
+  '이 교육을 다른 분께 추천하시겠어요?',
+]
+
 const CATEGORIES = ['창업기초', '마케팅', '재무', '기술', '네트워킹', '기타']
 const PROGRAM_TYPES = ['집합교육', '온라인', '혼합']
 const PROGRAM_STATUSES = ['모집중', '진행중', '완료', '취소']
@@ -155,7 +163,7 @@ export default function Education() {
       title: '', description: '', overview: '', category: '창업기초', program_type: '집합교육',
       instructor: '', location: '', start_date: '', end_date: '',
       total_sessions: 1, hours_per_session: 2, max_participants: '', assignee: '', status: '모집중', completion_rate: 80,
-      poster_url: ''
+      poster_url: '', survey_questions: [...DEFAULT_SURVEY_QUESTIONS]
     }
   }
 
@@ -175,7 +183,8 @@ export default function Education() {
       start_date: p.start_date || '', end_date: p.end_date || '',
       total_sessions: p.total_sessions || 1, hours_per_session: p.hours_per_session || 2, max_participants: p.max_participants || '',
       assignee: p.assignee || '', status: p.status || '모집중', completion_rate: p.completion_rate ?? 80,
-      poster_url: p.poster_url || ''
+      poster_url: p.poster_url || '',
+      survey_questions: p.survey_questions?.length ? p.survey_questions : [...DEFAULT_SURVEY_QUESTIONS]
     })
     setPosterFile(null)
     setShowProgramModal(true)
@@ -208,6 +217,7 @@ export default function Education() {
       hours_per_session: programForm.hours_per_session || null,
       total_hours: totalHours || null,
       overview: programForm.overview || null,
+      survey_questions: programForm.survey_questions?.filter(q => q.trim()) || null,
     }
     let error
     if (editProgram) {
@@ -745,6 +755,45 @@ export default function Education() {
                   </select>
                 </Field>
               </div>
+              <Field label="만족도 조사 문항">
+                <p className="text-xs text-gray-400 mb-2">수강생 포털 만족도 조사에 사용될 문항입니다. 비워두면 기본 5개 문항이 사용됩니다.</p>
+                <div className="space-y-2">
+                  {(programForm.survey_questions || []).map((q, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400 w-5 shrink-0 text-right">{idx + 1}.</span>
+                      <input
+                        className="input-base flex-1"
+                        value={q}
+                        onChange={e => setProgramForm(f => ({
+                          ...f,
+                          survey_questions: f.survey_questions.map((v, i) => i === idx ? e.target.value : v)
+                        }))}
+                        placeholder={`문항 ${idx + 1}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setProgramForm(f => ({
+                          ...f,
+                          survey_questions: f.survey_questions.filter((_, i) => i !== idx)
+                        }))}
+                        className="p-1 text-gray-300 hover:text-red-400 transition shrink-0"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setProgramForm(f => ({
+                      ...f,
+                      survey_questions: [...(f.survey_questions || []), '']
+                    }))}
+                    className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 transition mt-1"
+                  >
+                    <Plus size={13} /> 문항 추가
+                  </button>
+                </div>
+              </Field>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
               <button onClick={() => setShowProgramModal(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>

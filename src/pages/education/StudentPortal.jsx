@@ -4,12 +4,12 @@ import { formatPhone } from '../../utils/formatPhone'
 import { LogIn, BookOpen, ClipboardList, Award, Star, Printer, ChevronLeft, Loader2, X } from 'lucide-react'
 import { CertificateView } from './Education'
 
-const SURVEY_QUESTIONS = [
-  'Q1. 교육 내용은 창업에 도움이 되었나요?',
-  'Q2. 강사의 강의 전달력은 어땠나요?',
-  'Q3. 교육 환경(장소, 시설)은 만족스러웠나요?',
-  'Q4. 교육 일정과 시간은 적절했나요?',
-  'Q5. 이 교육을 다른 분께 추천하시겠어요?',
+const DEFAULT_SURVEY_QUESTIONS = [
+  '교육 내용은 창업에 도움이 되었나요?',
+  '강사의 강의 전달력은 어땠나요?',
+  '교육 환경(장소, 시설)은 만족스러웠나요?',
+  '교육 일정과 시간은 적절했나요?',
+  '이 교육을 다른 분께 추천하시겠어요?',
 ]
 
 export default function StudentPortal() {
@@ -23,7 +23,8 @@ export default function StudentPortal() {
   const [loginLoading, setLoginLoading] = useState(false)
 
   // survey
-  const [ratings, setRatings] = useState([0, 0, 0, 0, 0])
+  const [surveyQuestions, setSurveyQuestions] = useState(DEFAULT_SURVEY_QUESTIONS)
+  const [ratings, setRatings] = useState(DEFAULT_SURVEY_QUESTIONS.map(() => 0))
   const [opinion, setOpinion] = useState('')
   const [submittingSurvey, setSubmittingSurvey] = useState(false)
   const [surveyDone, setSurveyDone] = useState(false)
@@ -38,7 +39,7 @@ export default function StudentPortal() {
     setLoginLoading(true)
     const { data, error } = await supabase
       .from('education_applications')
-      .select('*, education_programs(title, start_date, end_date, total_hours, completion_rate)')
+      .select('*, education_programs(title, start_date, end_date, total_hours, completion_rate, survey_questions)')
       .eq('applicant_name', loginForm.name.trim())
       .eq('phone', loginForm.phone.trim())
       .eq('access_password', loginForm.password.trim())
@@ -55,9 +56,13 @@ export default function StudentPortal() {
       .select('*')
       .eq('application_id', data.id)
       .maybeSingle()
+    const qs = data.education_programs?.survey_questions?.length
+      ? data.education_programs.survey_questions
+      : DEFAULT_SURVEY_QUESTIONS
     setStudent(data)
     setCert(certData || null)
-    setRatings([0, 0, 0, 0, 0])
+    setSurveyQuestions(qs)
+    setRatings(qs.map(() => 0))
     setOpinion('')
     setSurveyDone(false)
     setScreen('main')
@@ -70,7 +75,7 @@ export default function StudentPortal() {
     }
     setSubmittingSurvey(true)
     const surveyData = {
-      q1: ratings[0], q2: ratings[1], q3: ratings[2], q4: ratings[3], q5: ratings[4],
+      answers: ratings,
       opinion,
     }
     const { error } = await supabase
@@ -165,9 +170,9 @@ export default function StudentPortal() {
               <h2 className="text-xl font-extrabold text-gray-800">만족도 조사</h2>
               <p className="text-sm text-gray-400 mt-1">{prog?.title}</p>
             </div>
-            {SURVEY_QUESTIONS.map((q, idx) => (
+            {surveyQuestions.map((q, idx) => (
               <div key={idx} className="space-y-2">
-                <p className="text-sm font-medium text-gray-700">{q}</p>
+                <p className="text-sm font-medium text-gray-700"><span className="text-gray-400 mr-1">Q{idx + 1}.</span>{q}</p>
                 <div className="flex gap-1">
                   {[1, 2, 3, 4, 5].map(star => (
                     <button
@@ -318,7 +323,11 @@ export default function StudentPortal() {
               <div className="flex items-center gap-2">
                 <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-lg">조사완료</span>
                 {student.survey_data && (() => {
-                  const vals = [student.survey_data.q1, student.survey_data.q2, student.survey_data.q3, student.survey_data.q4, student.survey_data.q5].filter(Boolean)
+                  const vals = (
+                    student.survey_data.answers
+                      ? student.survey_data.answers
+                      : [student.survey_data.q1, student.survey_data.q2, student.survey_data.q3, student.survey_data.q4, student.survey_data.q5]
+                  ).filter(v => v != null && v > 0)
                   if (!vals.length) return null
                   const avg = (vals.reduce((s, v) => s + v, 0) / vals.length).toFixed(1)
                   return (
