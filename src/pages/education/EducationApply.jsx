@@ -168,15 +168,15 @@ export default function EducationApply() {
               return (
                 <div
                   key={prog.id}
-                  className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden hover:-translate-y-2 hover:shadow-xl transition-all duration-300"
+                  className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden hover:-translate-y-1 hover:shadow-xl transition-all duration-300 min-h-[480px]"
                 >
-                  {/* 카드 상단 - 포스터 이미지 또는 그라디언트 배너 */}
+                  {/* 카드 상단 - 포스터 이미지 또는 그라디언트 배너 (높이 200px 통일) */}
                   {prog.poster_url ? (
-                    <div className="relative overflow-hidden" style={{ height: 160 }}>
+                    <div className="relative overflow-hidden shrink-0" style={{ height: 200 }}>
                       <img
                         src={prog.poster_url}
                         alt={prog.title}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center', display: 'block' }}
                       />
                       <button
                         onClick={() => setPosterModal(prog.poster_url)}
@@ -185,53 +185,61 @@ export default function EducationApply() {
                       >
                         <ZoomIn size={14} className="text-white" />
                       </button>
-                      <div className="absolute bottom-0 left-0 right-0 px-3 py-2 flex items-center justify-between" style={{ background: 'linear-gradient(transparent, rgba(0,0,0,0.55))' }}>
+                      {/* 카테고리·유형·마감 오버레이 */}
+                      <div className="absolute bottom-0 left-0 right-0 px-3 py-2.5 flex items-center justify-between" style={{ background: 'linear-gradient(transparent, rgba(0,0,0,0.6))' }}>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-lg">{icon}</span>
+                          <span className="text-base">{icon}</span>
                           <span className="text-white text-xs font-semibold drop-shadow">{prog.category}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                          <span className="px-2 py-0.5 bg-white/25 text-white text-xs font-medium rounded-full backdrop-blur-sm">{prog.program_type}</span>
+                          <span className="px-2 py-0.5 bg-white/20 text-white text-xs font-medium rounded-full backdrop-blur-sm border border-white/20">{prog.program_type}</span>
                           {isFull && <span className="px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full">마감</span>}
                         </div>
                       </div>
                     </div>
                   ) : (
-                    <div className={`bg-gradient-to-r ${gradient} px-5 py-4 flex items-center justify-between`}>
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl">{icon}</span>
-                        <span className="text-white font-semibold text-sm">{prog.category}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="px-2 py-0.5 bg-white/25 text-white text-xs font-medium rounded-full">{prog.program_type}</span>
-                        {isFull && <span className="px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full">마감</span>}
+                    <div className={`relative bg-gradient-to-br ${gradient} shrink-0 flex flex-col items-start justify-end px-5 py-4`} style={{ height: 200 }}>
+                      {/* 배경 장식 */}
+                      <div className="absolute top-4 right-4 text-6xl opacity-20 select-none">{icon}</div>
+                      {/* 카테고리·유형·마감 오버레이 */}
+                      <div className="w-full flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-2xl">{icon}</span>
+                          <span className="text-white font-bold text-sm drop-shadow">{prog.category}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-2 py-0.5 bg-white/20 text-white text-xs font-medium rounded-full border border-white/20">{prog.program_type}</span>
+                          {isFull && <span className="px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full">마감</span>}
+                        </div>
                       </div>
                     </div>
                   )}
 
                   {/* 카드 본문 */}
-                  <div className="p-5 flex flex-col gap-4 flex-1">
+                  <div className="p-5 flex flex-col gap-3 flex-1">
+                    {/* 교육명 + 설명 */}
                     <div>
-                      <h2 className="text-base font-bold text-gray-900 leading-snug mb-1">{prog.title}</h2>
+                      <h2 className="text-lg font-bold text-gray-900 leading-snug mb-1">{prog.title}</h2>
                       {prog.description && (
-                        <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed">{prog.description}</p>
+                        <p className="text-xs text-gray-400 line-clamp-3 leading-relaxed">{prog.description}</p>
                       )}
                     </div>
 
+                    {/* 정보 아이콘 목록 */}
                     <div className="space-y-2 text-xs text-gray-500">
                       {(prog.start_date || prog.end_date) && (
-                        <InfoRow icon={<Calendar size={13} />} text={`${prog.start_date || ''} ~ ${prog.end_date || ''}`} />
+                        <InfoRow icon={<Calendar size={13} className="text-gray-400" />} text={`${prog.start_date || ''} ~ ${prog.end_date || ''}`} />
                       )}
-                      {prog.location && <InfoRow icon={<MapPin size={13} />} text={prog.location} />}
-                      {prog.instructor && <InfoRow icon={<User size={13} />} text={`${prog.instructor} 강사`} />}
-                      {prog.total_hours && <InfoRow icon={<Clock size={13} />} text={`총 교육시간 ${prog.total_hours}시간`} />}
-                      <InfoRow icon={<Award size={13} />} text={`수료 기준 출석률 ${prog.completion_rate ?? 80}% 이상`} />
+                      {prog.location && <InfoRow icon={<MapPin size={13} className="text-gray-400" />} text={prog.location} />}
+                      {prog.instructor && <InfoRow icon={<User size={13} className="text-gray-400" />} text={`${prog.instructor} 강사`} />}
+                      {prog.total_hours && <InfoRow icon={<Clock size={13} className="text-gray-400" />} text={`총 교육시간 ${prog.total_hours}시간`} />}
+                      <InfoRow icon={<Award size={13} className="text-gray-400" />} text={`수료 기준 출석률 ${prog.completion_rate ?? 80}% 이상`} />
                     </div>
 
                     {/* 신청 현황 프로그레스 바 */}
-                    <div className="mt-auto space-y-1.5">
+                    <div className="space-y-1.5">
                       <div className="flex justify-between items-center text-xs">
-                        <span className="text-gray-400 flex items-center gap-1"><Users size={12} /> 신청 현황</span>
+                        <span className="text-gray-400 flex items-center gap-1"><Users size={12} className="text-gray-400" /> 신청 현황</span>
                         <span className="font-semibold text-gray-700">
                           {count}명 {max ? `/ ${max}명` : ''}
                         </span>
@@ -265,17 +273,20 @@ export default function EducationApply() {
                       </div>
                     )}
 
-                    <button
-                      onClick={() => openApply(prog)}
-                      disabled={isFull}
-                      className={`w-full py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${
-                        isFull
-                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                          : `bg-gradient-to-r ${gradient} text-white hover:opacity-90 hover:shadow-md active:scale-95`
-                      }`}
-                    >
-                      {isFull ? '마감되었습니다' : '신청하기 →'}
-                    </button>
+                    {/* 신청 버튼 — 항상 하단 고정 */}
+                    <div className="mt-auto pt-1">
+                      <button
+                        onClick={() => openApply(prog)}
+                        disabled={isFull}
+                        className={`w-full py-3 rounded-xl text-sm font-bold transition-all duration-200 ${
+                          isFull
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : `bg-gradient-to-r ${gradient} text-white hover:opacity-90 hover:shadow-md active:scale-95`
+                        }`}
+                      >
+                        {isFull ? '마감되었습니다' : '신청하기 →'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )
