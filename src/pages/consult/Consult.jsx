@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../context/AuthContext'
 import { VerdictBadge } from '../../components/common/Badge'
 import StatCard from '../../components/common/StatCard'
 import Avatar from '../../components/common/Avatar'
@@ -26,6 +27,7 @@ function emptyWalkIn() {
 }
 
 export default function Consult() {
+  const { profile } = useAuth()
   const [founders, setFounders] = useState([])
   const [allConsults, setAllConsults] = useState([])
   const [loading, setLoading] = useState(true)
@@ -149,7 +151,6 @@ export default function Consult() {
         verdict: walkInForm.startup_type,
         assignee: walkInForm.assignee || null,
         source: '현장상담',
-        status: 'pending',
       }])
       .select()
       .single()
@@ -244,7 +245,7 @@ export default function Consult() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-800">상담일지</h1>
         <button
-          onClick={() => { setWalkInForm(emptyWalkIn()); setShowWalkInModal(true) }}
+          onClick={() => { setWalkInForm({ ...emptyWalkIn(), assignee: profile?.name || '' }); setShowWalkInModal(true) }}
           className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-white rounded-lg transition-colors hover:opacity-90"
           style={{ background: '#2E75B6' }}
         >
@@ -659,9 +660,15 @@ export default function Consult() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">담당자</label>
-                  <input className="form-input" placeholder="담당자명"
+                  <select className="form-input"
                     value={walkInForm.assignee}
-                    onChange={e => setWalkInForm(p => ({ ...p, assignee: e.target.value }))} />
+                    onChange={e => setWalkInForm(p => ({ ...p, assignee: e.target.value }))}
+                  >
+                    <option value="">선택</option>
+                    {users.map(u => (
+                      <option key={u.id} value={u.name}>{u.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">상담내용 *</label>
