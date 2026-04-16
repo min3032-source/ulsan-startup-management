@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { ULSAN_REGIONS, DEFAULT_SETTINGS, NOTE_TYPES, today } from '../../lib/constants'
@@ -6,13 +6,19 @@ import { VerdictBadge, StatusBadge } from '../../components/common/Badge'
 import Modal from '../../components/common/Modal'
 import StatCard from '../../components/common/StatCard'
 import Avatar from '../../components/common/Avatar'
-import { Plus, Search, Pencil, Trash2, Eye } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Eye, Upload, Download, X } from 'lucide-react'
+import * as XLSX from 'xlsx'
 
+// ─────────────────────────────────────────────
+// 빈 폼 생성 함수
+// ─────────────────────────────────────────────
 const emptyFirmForm = () => ({
   company_name: '', ceo: '', biz_no: '', found_year: '', employees: '',
   biz_type: '', biz_item: '', sector: '', type: '테크', region: '',
   gender: '', phone: '', email: '',
-  program: '', sub_program: '', staff: '', start_date: today(), end_date: '',
+  item: '',
+  support_programs: [{ program: '', sub_program: '' }],
+  staff: '', start_date: today(), end_date: '',
   amount: '', status: '지원중', post_mgmt: '후속관리중', memo: '',
 })
 
@@ -28,6 +34,7 @@ export default function Selected() {
   const [firms, setFirms] = useState([])
   const [notes, setNotes] = useState([])
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
+  const [profiles, setProfiles] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('list')
   const [search, setSearch] = useState('')
@@ -42,19 +49,26 @@ export default function Selected() {
   const [detailFirm, setDetailFirm] = useState(null)
   const [detailOpen, setDetailOpen] = useState(false)
 
+  // 엑셀 일괄 등록
+  const [xlsxModal, setXlsxModal] = useState(false)
+  const [xlsxPreview, setXlsxPreview] = useState([])
+  const fileInputRef = useRef(null)
+
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
     setLoading(true)
     try {
-      const [{ data: f }, { data: n }, { data: s }] = await Promise.all([
+      const [{ data: f }, { data: n }, { data: s }, { data: p }] = await Promise.all([
         supabase.from('selected_firms').select('*').order('start_date', { ascending: false }),
         supabase.from('selected_notes').select('*').order('date', { ascending: false }),
         supabase.from('team_settings').select('*').limit(1).single(),
+        supabase.from('profiles').select('id, name, email').order('name'),
       ])
       setFirms(f || [])
       setNotes(n || [])
       if (s) setSettings({ ...DEFAULT_SETTINGS, ...s })
+      setProfiles(p || [])
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
   }
@@ -62,16 +76,43 @@ export default function Selected() {
   function setFF(k, v) { setFirmForm(p => ({ ...p, [k]: v })) }
   function setNF(k, v) { setNoteForm(p => ({ ...p, [k]: v })) }
 
+  // 지원사업 행 추가/변경/삭제
+  function setSP(idx, field, value) {
+    setFirmForm(prev => {
+      const sp = [...prev.support_programs]
+      sp[idx] = { ...sp[idx], [field]: value }
+      return { ...prev, support_programs: sp }
+    })
+  }
+  function addSP() {
+    setFirmForm(prev => ({ ...prev, support_programs: [...prev.support_programs, { program: '', sub_program: '' }] }))
+  }
+  function removeSP(idx) {
+    setFirmForm(prev => {
+      const sp = prev.support_programs.filter((_, i) => i !== idx)
+      return { ...prev, support_programs: sp.length ? sp : [{ program: '', sub_program: '' }] }
+    })
+  }
+
   function openAddFirm() { setFirmEditId(null); setFirmForm(emptyFirmForm()); setFirmModal(true) }
   function openEditFirm(f) {
     setFirmEditId(f.id)
+    // support_programs: DB에 저장된 jsonb 또는 기존 단일 program/sub_program으로 복원
+    let sp = [{ program: '', sub_program: '' }]
+    if (Array.isArray(f.support_programs) && f.support_programs.length > 0) {
+      sp = f.support_programs
+    } else if (f.program) {
+      sp = [{ program: f.program || '', sub_program: f.sub_program || '' }]
+    }
     setFirmForm({
       company_name: f.company_name || '', ceo: f.ceo || '', biz_no: f.biz_no || '',
       found_year: f.found_year || '', employees: f.employees || '',
       biz_type: f.biz_type || '', biz_item: f.biz_item || '', sector: f.sector || '',
       type: f.type || '테크', region: f.region || '', gender: f.gender || '',
       phone: f.phone || '', email: f.email || '',
-      program: f.program || '', sub_program: f.sub_program || '', staff: f.staff || '',
+      item: f.item || '',
+      support_programs: sp,
+      staff: f.staff || '',
       start_date: f.start_date || today(), end_date: f.end_date || '',
       amount: f.amount || '', status: f.status || '지원중',
       post_mgmt: f.post_mgmt || '후속관리중', memo: f.memo || '',
@@ -82,18 +123,46 @@ export default function Selected() {
   async function saveFirm() {
     if (!firmForm.company_name.trim()) { alert('기업명을 입력해주세요'); return }
     if (!firmForm.ceo.trim()) { alert('대표자를 입력해주세요'); return }
+
+    const validSP = firmForm.support_programs.filter(sp => sp.program.trim())
+    const firstProgram = validSP[0]?.program || ''
+    const firstSubProgram = validSP[0]?.sub_program || ''
+
     const payload = {
-      ...firmForm,
+      company_name: firmForm.company_name,
+      ceo: firmForm.ceo,
+      biz_no: firmForm.biz_no,
+      found_year: firmForm.found_year,
+      employees: firmForm.employees ? Number(firmForm.employees) : null,
+      biz_type: firmForm.biz_type,
+      biz_item: firmForm.biz_item,
       sector: (firmForm.biz_type || '') + (firmForm.biz_item ? ' / ' + firmForm.biz_item : ''),
+      type: firmForm.type,
+      region: firmForm.region,
+      gender: firmForm.gender,
+      phone: firmForm.phone,
+      email: firmForm.email,
+      item: firmForm.item,
+      support_programs: validSP,
+      program: firstProgram,
+      sub_program: firstSubProgram,
+      staff: firmForm.staff,
+      start_date: firmForm.start_date || null,
+      end_date: firmForm.end_date || null,
+      amount: firmForm.amount ? Number(firmForm.amount) : null,
+      status: firmForm.status,
+      post_mgmt: firmForm.status === '완료' ? firmForm.post_mgmt : null,
+      memo: firmForm.memo,
     }
+
     try {
       if (firmEditId) {
         const { error } = await supabase.from('selected_firms').update(payload).eq('id', firmEditId)
-        if (error) throw error
+        if (error) { console.error('저장 오류:', error); throw error }
         setFirms(prev => prev.map(f => f.id === firmEditId ? { ...f, ...payload } : f))
       } else {
         const { data, error } = await supabase.from('selected_firms').insert([payload]).select().single()
-        if (error) throw error
+        if (error) { console.error('저장 오류:', error); throw error }
         setFirms(prev => [data, ...prev])
       }
       setFirmModal(false)
@@ -119,15 +188,22 @@ export default function Selected() {
   async function saveNote() {
     if (!noteForm.firm_id) { alert('기업을 선택해주세요'); return }
     if (!noteForm.content.trim()) { alert('내용을 입력해주세요'); return }
-    const payload = { ...noteForm }
+    const payload = {
+      firm_id: noteForm.firm_id,
+      staff: noteForm.staff,
+      date: noteForm.date,
+      type: noteForm.type,
+      content: noteForm.content,
+      next_date: noteForm.next_date || null,
+    }
     try {
       if (noteEditId) {
         const { error } = await supabase.from('selected_notes').update(payload).eq('id', noteEditId)
-        if (error) throw error
+        if (error) { console.error('저장 오류:', error); throw error }
         setNotes(prev => prev.map(n => n.id === noteEditId ? { ...n, ...payload } : n))
       } else {
         const { data, error } = await supabase.from('selected_notes').insert([payload]).select().single()
-        if (error) throw error
+        if (error) { console.error('저장 오류:', error); throw error }
         setNotes(prev => [data, ...prev])
       }
       setNoteModal(false)
@@ -138,6 +214,72 @@ export default function Selected() {
     if (!confirm('이 기록을 삭제하시겠습니까?')) return
     await supabase.from('selected_notes').delete().eq('id', id)
     setNotes(prev => prev.filter(n => n.id !== id))
+  }
+
+  // ── 엑셀 템플릿 다운로드 ──
+  function downloadTemplate() {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['기업명', '대표자', '연락처', '업종', '담당자', '지원사업명', '세부프로그램', '아이템'],
+      ['(주)예시기업', '홍길동', '010-1234-5678', '소프트웨어 개발', '김민준', '예비창업패키지', '비즈니스모델 혁신 트랙', '스마트 물류 플랫폼'],
+    ])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '선정기업_등록')
+    XLSX.writeFile(wb, '선정기업_일괄등록_템플릿.xlsx')
+  }
+
+  // ── 엑셀 파일 파싱 ──
+  function handleXlsxFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const wb = XLSX.read(ev.target.result, { type: 'binary' })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 })
+      if (rows.length < 2) { alert('데이터가 없습니다.'); return }
+      const parsed = rows.slice(1).filter(r => r[0]).map(r => ({
+        company_name: String(r[0] || '').trim(),
+        ceo: String(r[1] || '').trim(),
+        phone: String(r[2] || '').trim(),
+        sector: String(r[3] || '').trim(),
+        staff: String(r[4] || '').trim(),
+        program: String(r[5] || '').trim(),
+        sub_program: String(r[6] || '').trim(),
+        item: String(r[7] || '').trim(),
+      }))
+      setXlsxPreview(parsed)
+      setXlsxModal(true)
+    }
+    reader.readAsBinaryString(file)
+    e.target.value = ''
+  }
+
+  // ── 엑셀 일괄 저장 ──
+  async function saveBulkXlsx() {
+    if (xlsxPreview.length === 0) return
+    const rows = xlsxPreview.map(r => ({
+      company_name: r.company_name,
+      ceo: r.ceo,
+      phone: r.phone,
+      sector: r.sector,
+      biz_type: r.sector,
+      staff: r.staff,
+      program: r.program,
+      sub_program: r.sub_program,
+      support_programs: r.program ? [{ program: r.program, sub_program: r.sub_program }] : [],
+      item: r.item,
+      type: '테크',
+      status: '지원중',
+      start_date: today(),
+    }))
+    try {
+      const { data, error } = await supabase.from('selected_firms').insert(rows).select()
+      if (error) { console.error('일괄 저장 오류:', error); throw error }
+      setFirms(prev => [...(data || []), ...prev])
+      setXlsxModal(false)
+      setXlsxPreview([])
+      alert(`${(data || []).length}개 기업이 등록되었습니다.`)
+    } catch (e) { alert('일괄 저장 실패: ' + e.message) }
   }
 
   const filteredFirms = firms.filter(f =>
@@ -152,6 +294,11 @@ export default function Selected() {
   const postCount = firms.filter(f => f.post_mgmt === '후속관리중').length
 
   const programs = [...new Set(firms.map(f => f.program).filter(Boolean))]
+
+  // 담당자 목록: profiles 테이블 우선, 없으면 settings 폴백
+  const staffOptions = profiles.length > 0
+    ? profiles.map(p => p.name || p.email)
+    : settings.staff
 
   return (
     <div className="p-6 space-y-5">
@@ -173,9 +320,18 @@ export default function Selected() {
             </button>
           ))}
         </div>
-        <button onClick={openAddFirm} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white rounded-lg" style={{ background: '#2E75B6' }}>
-          <Plus size={15} /> 선정기업 등록
-        </button>
+        <div className="flex gap-2">
+          <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleXlsxFile} />
+          <button onClick={downloadTemplate} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+            <Download size={14} /> 템플릿
+          </button>
+          <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+            <Upload size={14} /> 일괄 등록 (Excel)
+          </button>
+          <button onClick={openAddFirm} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white rounded-lg" style={{ background: '#2E75B6' }}>
+            <Plus size={15} /> 선정기업 등록
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -202,7 +358,7 @@ export default function Selected() {
         <PostTab firms={firms} notes={notes} onAddNote={openAddNote} onDeleteNote={deleteNote} />
       }
 
-      {/* Firm modal */}
+      {/* ── 선정기업 등록/수정 모달 ── */}
       <Modal isOpen={firmModal} onClose={() => setFirmModal(false)} title={firmEditId ? '선정기업 수정' : '선정기업 등록'} wide
         footer={
           <>
@@ -212,6 +368,7 @@ export default function Selected() {
         }
       >
         <div className="space-y-3">
+          {/* 기업 기본 정보 */}
           <div className="bg-gray-50 rounded-xl p-3 space-y-3">
             <div className="text-xs font-semibold text-gray-600">기업 기본 정보</div>
             <div className="grid grid-cols-2 gap-3">
@@ -227,6 +384,7 @@ export default function Selected() {
               <div><label className="block text-xs font-medium text-gray-600 mb-1">대표 업태</label><input className="form-input" value={firmForm.biz_type} onChange={e => setFF('biz_type', e.target.value)} placeholder="제조업, 서비스업" /></div>
               <div><label className="block text-xs font-medium text-gray-600 mb-1">대표 종목</label><input className="form-input" value={firmForm.biz_item} onChange={e => setFF('biz_item', e.target.value)} placeholder="소프트웨어 개발" /></div>
             </div>
+            <div><label className="block text-xs font-medium text-gray-600 mb-1">아이템</label><input className="form-input" value={firmForm.item} onChange={e => setFF('item', e.target.value)} placeholder="주요 제품/서비스 아이템 입력" /></div>
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">기업 유형</label>
@@ -253,33 +411,50 @@ export default function Selected() {
               <div><label className="block text-xs font-medium text-gray-600 mb-1">이메일</label><input className="form-input" value={firmForm.email} onChange={e => setFF('email', e.target.value)} /></div>
             </div>
           </div>
+
+          {/* 지원사업 정보 */}
           <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 space-y-3">
-            <div className="text-xs font-semibold text-blue-800">지원사업 정보</div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">지원사업명 *</label>
-                <select className="form-input" value={firmForm.program} onChange={e => setFF('program', e.target.value)}>
-                  <option value="">선택</option>
-                  {settings.programs.map(p => <option key={p}>{p}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">세부 프로그램</label>
-                <input className="form-input" value={firmForm.sub_program} onChange={e => setFF('sub_program', e.target.value)} placeholder="예: 비즈니스 모델 혁신 트랙" />
-              </div>
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-semibold text-blue-800">지원사업 정보</div>
+              <button type="button" onClick={addSP} className="text-xs text-white px-2 py-1 rounded flex items-center gap-1" style={{ background: '#2E75B6' }}>
+                <Plus size={12} /> 지원사업 추가
+              </button>
             </div>
+            {firmForm.support_programs.map((sp, idx) => (
+              <div key={idx} className="grid grid-cols-2 gap-2 items-end">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">지원사업명 {idx === 0 && '*'}</label>
+                  <select className="form-input" value={sp.program} onChange={e => setSP(idx, 'program', e.target.value)}>
+                    <option value="">선택</option>
+                    {settings.programs.map(p => <option key={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div className="flex gap-1 items-end">
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">세부 프로그램</label>
+                    <input className="form-input" value={sp.sub_program} onChange={e => setSP(idx, 'sub_program', e.target.value)} placeholder="예: 비즈니스 모델 혁신 트랙" />
+                  </div>
+                  {firmForm.support_programs.length > 1 && (
+                    <button type="button" onClick={() => removeSP(idx)} className="mb-0.5 p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">담당자</label>
               <select className="form-input" value={firmForm.staff} onChange={e => setFF('staff', e.target.value)}>
                 <option value="">선택</option>
-                {settings.staff.map(s => <option key={s}>{s}</option>)}
+                {staffOptions.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-xs font-medium text-gray-600 mb-1">지원 시작일 *</label><input type="date" className="form-input" value={firmForm.start_date} onChange={e => setFF('start_date', e.target.value)} /></div>
               <div><label className="block text-xs font-medium text-gray-600 mb-1">지원 종료일</label><input type="date" className="form-input" value={firmForm.end_date} onChange={e => setFF('end_date', e.target.value)} /></div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-xs font-medium text-gray-600 mb-1">지원금액(만원)</label><input type="number" className="form-input" value={firmForm.amount} onChange={e => setFF('amount', e.target.value)} /></div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">지원 상태</label>
@@ -287,19 +462,22 @@ export default function Selected() {
                   <option>지원중</option><option>완료</option>
                 </select>
               </div>
+            </div>
+            {firmForm.status === '완료' && (
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">사후관리 상태</label>
                 <select className="form-input" value={firmForm.post_mgmt} onChange={e => setFF('post_mgmt', e.target.value)}>
                   <option>후속관리중</option><option>성장추적중</option><option>완료</option>
                 </select>
               </div>
-            </div>
+            )}
           </div>
+
           <div><label className="block text-xs font-medium text-gray-600 mb-1">메모</label><textarea className="form-input" value={firmForm.memo} onChange={e => setFF('memo', e.target.value)} /></div>
         </div>
       </Modal>
 
-      {/* Note modal */}
+      {/* ── 사후관리 기록 모달 ── */}
       <Modal isOpen={noteModal} onClose={() => setNoteModal(false)} title="사후관리 기록 추가"
         footer={
           <>
@@ -321,7 +499,7 @@ export default function Selected() {
               <label className="block text-xs font-medium text-gray-600 mb-1">담당자</label>
               <select className="form-input" value={noteForm.staff} onChange={e => setNF('staff', e.target.value)}>
                 <option value="">선택</option>
-                {settings.staff.map(s => <option key={s}>{s}</option>)}
+                {staffOptions.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
           </div>
@@ -339,14 +517,53 @@ export default function Selected() {
         </div>
       </Modal>
 
-      {/* Detail Modal */}
+      {/* ── 엑셀 일괄 등록 미리보기 모달 ── */}
+      <Modal isOpen={xlsxModal} onClose={() => { setXlsxModal(false); setXlsxPreview([]) }}
+        title={`엑셀 일괄 등록 미리보기 (${xlsxPreview.length}건)`}
+        wide
+        footer={
+          <>
+            <button onClick={() => { setXlsxModal(false); setXlsxPreview([]) }} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
+            <button onClick={saveBulkXlsx} className="px-4 py-1.5 text-sm text-white rounded-lg" style={{ background: '#2E75B6' }}>일괄 저장</button>
+          </>
+        }
+      >
+        <div className="overflow-x-auto max-h-96">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                {['기업명', '대표자', '연락처', '업종', '담당자', '지원사업명', '세부프로그램', '아이템'].map(h => (
+                  <th key={h} className="text-left px-2 py-2 font-medium text-gray-500">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {xlsxPreview.map((r, i) => (
+                <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
+                  <td className="px-2 py-1.5 font-semibold text-blue-700">{r.company_name}</td>
+                  <td className="px-2 py-1.5">{r.ceo}</td>
+                  <td className="px-2 py-1.5 text-gray-500">{r.phone}</td>
+                  <td className="px-2 py-1.5 text-gray-500">{r.sector}</td>
+                  <td className="px-2 py-1.5">{r.staff}</td>
+                  <td className="px-2 py-1.5 text-blue-600">{r.program}</td>
+                  <td className="px-2 py-1.5 text-gray-500">{r.sub_program}</td>
+                  <td className="px-2 py-1.5">{r.item}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Modal>
+
+      {/* ── 상세 모달 ── */}
       {detailFirm && (
         <Modal isOpen={detailOpen} onClose={() => setDetailOpen(false)} title={`${detailFirm.company_name} 상세`} wide>
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-2">
               {[['대표자', detailFirm.ceo], ['사업자번호', detailFirm.biz_no], ['설립연도', detailFirm.found_year],
-                ['업종', detailFirm.sector], ['지역', detailFirm.region], ['임직원수', detailFirm.employees ? detailFirm.employees + '명' : '-'],
-                ['연락처', detailFirm.phone], ['이메일', detailFirm.email], ['기업유형', detailFirm.type]].map(([l, v]) => (
+                ['업종', detailFirm.sector], ['아이템', detailFirm.item], ['지역', detailFirm.region],
+                ['임직원수', detailFirm.employees ? detailFirm.employees + '명' : '-'],
+                ['연락처', detailFirm.phone], ['기업유형', detailFirm.type]].map(([l, v]) => (
                 <div key={l} className="bg-gray-50 rounded-lg p-2.5">
                   <div className="text-xs text-gray-400">{l}</div>
                   <div className="text-sm font-medium text-gray-700">{v || '-'}</div>
@@ -355,13 +572,25 @@ export default function Selected() {
             </div>
             <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
               <div className="text-xs font-semibold text-blue-700 mb-2">지원사업 정보</div>
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                <div><span className="text-gray-500">사업명: </span><strong>{detailFirm.program}</strong></div>
+              {Array.isArray(detailFirm.support_programs) && detailFirm.support_programs.length > 0 ? (
+                <div className="space-y-1.5">
+                  {detailFirm.support_programs.map((sp, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">{sp.program}</span>
+                      {sp.sub_program && <span className="text-gray-500">{sp.sub_program}</span>}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-xs text-gray-500">{detailFirm.program || '-'} {detailFirm.sub_program && `· ${detailFirm.sub_program}`}</div>
+              )}
+              <div className="grid grid-cols-3 gap-2 text-xs mt-2">
                 <div><span className="text-gray-500">시작일: </span>{detailFirm.start_date}</div>
                 <div><span className="text-gray-500">종료일: </span>{detailFirm.end_date || <span className="text-orange-500">진행중</span>}</div>
                 <div><span className="text-gray-500">지원금: </span><strong className="text-green-700">{detailFirm.amount ? Number(detailFirm.amount).toLocaleString() + '만원' : '-'}</strong></div>
                 <div><span className="text-gray-500">담당자: </span>{detailFirm.staff}</div>
                 <div><span className="text-gray-500">상태: </span><StatusBadge status={detailFirm.status} /></div>
+                {detailFirm.post_mgmt && <div><span className="text-gray-500">사후관리: </span>{detailFirm.post_mgmt}</div>}
               </div>
             </div>
             <div>
@@ -395,13 +624,16 @@ export default function Selected() {
   )
 }
 
+// ─────────────────────────────────────────────
+// 기업 목록 탭
+// ─────────────────────────────────────────────
 function FirmListTab({ firms, notes, onEdit, onDelete, onDetail }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-gray-50 border-b border-gray-100">
-            {['기업명', '대표자', '업종', '유형', '지원사업', '지원기간', '지원금(만원)', '담당', '상태', '사후관리', '관리'].map(h => (
+            {['기업명', '대표자', '업종/아이템', '유형', '지원사업', '지원기간', '지원금(만원)', '담당', '상태', '사후관리', '관리'].map(h => (
               <th key={h} className="text-left px-3 py-2.5 text-xs font-medium text-gray-500">{h}</th>
             ))}
           </tr>
@@ -411,24 +643,36 @@ function FirmListTab({ firms, notes, onEdit, onDelete, onDetail }) {
             <tr><td colSpan={11} className="text-center py-10 text-gray-400 text-sm">등록된 선정기업이 없습니다</td></tr>
           ) : firms.map(f => {
             const lastNote = notes.filter(n => n.firm_id === f.id).sort((a, b) => b.date.localeCompare(a.date))[0]
+            const spList = Array.isArray(f.support_programs) && f.support_programs.length > 0
+              ? f.support_programs
+              : f.program ? [{ program: f.program, sub_program: f.sub_program }] : []
             return (
               <tr key={f.id} className="border-b border-gray-50 hover:bg-gray-50">
                 <td className="px-3 py-2.5">
                   <button onClick={() => onDetail(f)} className="font-bold text-blue-600 underline text-xs">{f.company_name}</button>
                 </td>
                 <td className="px-3 py-2.5 text-xs">{f.ceo}</td>
-                <td className="px-3 py-2.5 text-xs text-gray-500 max-w-[80px] truncate">{f.sector}</td>
+                <td className="px-3 py-2.5 text-xs text-gray-500 max-w-[100px]">
+                  <div className="truncate">{f.sector}</div>
+                  {f.item && <div className="text-gray-400 truncate">{f.item}</div>}
+                </td>
                 <td className="px-3 py-2.5"><VerdictBadge verdict={f.type} /></td>
-                <td className="px-3 py-2.5 text-xs font-medium">{f.program}</td>
+                <td className="px-3 py-2.5 text-xs font-medium max-w-[120px]">
+                  {spList.map((sp, i) => (
+                    <div key={i} className="truncate">{sp.program}{sp.sub_program && <span className="text-gray-400"> · {sp.sub_program}</span>}</div>
+                  ))}
+                </td>
                 <td className="px-3 py-2.5 text-xs text-gray-500">{f.start_date}<br />{f.end_date || <span className="text-orange-500">진행중</span>}</td>
                 <td className="px-3 py-2.5 text-xs font-bold text-green-700">{f.amount ? Number(f.amount).toLocaleString() : '-'}</td>
                 <td className="px-3 py-2.5 text-xs">{f.staff}</td>
                 <td className="px-3 py-2.5"><StatusBadge status={f.status} /></td>
                 <td className="px-3 py-2.5">
-                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                    f.post_mgmt === '후속관리중' ? 'bg-orange-100 text-orange-700' :
-                    f.post_mgmt === '성장추적중' ? 'bg-teal-100 text-teal-700' : 'bg-green-100 text-green-700'
-                  }`}>{f.post_mgmt || '-'}</span>
+                  {f.post_mgmt ? (
+                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                      f.post_mgmt === '후속관리중' ? 'bg-orange-100 text-orange-700' :
+                      f.post_mgmt === '성장추적중' ? 'bg-teal-100 text-teal-700' : 'bg-green-100 text-green-700'
+                    }`}>{f.post_mgmt}</span>
+                  ) : <span className="text-xs text-gray-300">-</span>}
                   {lastNote && <div className="text-xs text-gray-400 mt-0.5">{lastNote.date}</div>}
                 </td>
                 <td className="px-3 py-2.5">
@@ -447,6 +691,9 @@ function FirmListTab({ firms, notes, onEdit, onDelete, onDetail }) {
   )
 }
 
+// ─────────────────────────────────────────────
+// 사업별 현황 탭
+// ─────────────────────────────────────────────
 function ProgramTab({ firms }) {
   const byProg = {}
   firms.forEach(f => { if (!byProg[f.program]) byProg[f.program] = []; byProg[f.program].push(f) })
@@ -470,7 +717,7 @@ function ProgramTab({ firms }) {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead><tr className="bg-gray-50 border-b border-gray-100">
-                  {['기업명', '대표자', '유형', '지원기간', '지원금', '담당', '상태'].map(h => (
+                  {['기업명', '대표자', '아이템', '유형', '지원기간', '지원금', '담당', '상태'].map(h => (
                     <th key={h} className="text-left px-4 py-2 text-xs font-medium text-gray-500">{h}</th>
                   ))}
                 </tr></thead>
@@ -479,6 +726,7 @@ function ProgramTab({ firms }) {
                     <tr key={f.id} className="border-b border-gray-50 hover:bg-gray-50">
                       <td className="px-4 py-2 text-xs font-semibold">{f.company_name}</td>
                       <td className="px-4 py-2 text-xs">{f.ceo}</td>
+                      <td className="px-4 py-2 text-xs text-gray-500 max-w-[100px] truncate">{f.item || '-'}</td>
                       <td className="px-4 py-2"><VerdictBadge verdict={f.type} /></td>
                       <td className="px-4 py-2 text-xs text-gray-500">{f.start_date} ~ {f.end_date || '진행중'}</td>
                       <td className="px-4 py-2 text-xs font-bold text-green-700">{f.amount ? Number(f.amount).toLocaleString() + ' 만' : '-'}</td>
@@ -496,6 +744,9 @@ function ProgramTab({ firms }) {
   )
 }
 
+// ─────────────────────────────────────────────
+// 사후관리 탭
+// ─────────────────────────────────────────────
 function PostTab({ firms, notes, onAddNote, onDeleteNote }) {
   const targets = firms.filter(f => f.post_mgmt !== '완료')
   return (
@@ -520,7 +771,9 @@ function PostTab({ firms, notes, onAddNote, onDeleteNote }) {
                   <div className="font-bold text-sm text-gray-800">{f.company_name}</div>
                   <div className="text-xs text-gray-400">{f.program} · 담당: {f.staff}</div>
                 </div>
-                <span className={`text-xs px-1.5 py-0.5 rounded font-medium ml-1 ${f.post_mgmt === '후속관리중' ? 'bg-orange-100 text-orange-700' : 'bg-teal-100 text-teal-700'}`}>{f.post_mgmt}</span>
+                {f.post_mgmt && (
+                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium ml-1 ${f.post_mgmt === '후속관리중' ? 'bg-orange-100 text-orange-700' : 'bg-teal-100 text-teal-700'}`}>{f.post_mgmt}</span>
+                )}
                 {overdue && <span className="bg-red-100 text-red-600 text-xs px-1.5 py-0.5 rounded font-medium">다음관리 기한 초과!</span>}
               </div>
               <button onClick={() => onAddNote(f.id)} className="text-xs text-white px-2 py-1 rounded" style={{ background: '#2E75B6' }}>+ 기록 추가</button>
