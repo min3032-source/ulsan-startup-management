@@ -329,17 +329,22 @@ export default function Selected() {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       const wb = XLSX.read(ev.target.result, { type: 'binary' })
       const ws = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1 })
       if (rows.length < 2) { alert('데이터가 없습니다.'); return }
       const s = (v) => String(v ?? '').trim()
+
+      // DB에서 최신 기업 목록 조회 (메모리 상태 대신 직접 조회)
+      const { data: existingFirms } = await supabase
+        .from('selected_firms')
+        .select('id, company_name, support_programs')
+
       const parsed = rows.slice(1).filter(r => r[0]).map(r => {
         const company_name = s(r[0])
-        // 기업명 기준 중복 체크 (대소문자·공백 무시)
-        const existing = firms.find(f =>
-          f.company_name?.trim().toLowerCase() === company_name.toLowerCase()
+        const existing = (existingFirms || []).find(f =>
+          f.company_name?.trim() === company_name.trim()
         )
         return {
           company_name, ceo: s(r[1]), biz_no: s(r[2]), found_year: s(r[3]), employees: s(r[4]),
@@ -349,7 +354,6 @@ export default function Selected() {
           program: s(r[13]), sub_program: s(r[14]),
           start_date: s(r[15]), end_date: s(r[16]),
           amount: s(r[17]), status: s(r[18]) || '지원중', staff: s(r[19]),
-          // 중복 여부
           isDuplicate: !!existing,
           existingId: existing?.id ?? null,
           existingSP: existing?.support_programs ?? [],
@@ -365,8 +369,26 @@ export default function Selected() {
   async function saveBulkXlsx() {
     if (xlsxPreview.length === 0) return
 
-    const newRows    = xlsxPreview.filter(r => !r.isDuplicate)
-    const updateRows = xlsxPreview.filter(r => r.isDuplicate)
+    // 저장 직전 DB 재조회 (미리보기 이후 변경 반영)
+    const { data: latestFirms, error: fetchErr } = await supabase
+      .from('selected_firms')
+      .select('id, company_name, support_programs')
+    if (fetchErr) { alert('기업 목록 조회 실패: ' + fetchErr.message); return }
+
+    const resolvedRows = xlsxPreview.map(r => {
+      const existing = (latestFirms || []).find(f =>
+        f.company_name?.trim() === r.company_name.trim()
+      )
+      return {
+        ...r,
+        isDuplicate: !!existing,
+        existingId: existing?.id ?? null,
+        existingSP: existing?.support_programs ?? [],
+      }
+    })
+
+    const newRows    = resolvedRows.filter(r => !r.isDuplicate)
+    const updateRows = resolvedRows.filter(r => r.isDuplicate)
 
     // 신규 항목 빌더
     const buildInsertRow = r => ({
