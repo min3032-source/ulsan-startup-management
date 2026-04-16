@@ -335,15 +335,26 @@ export default function Selected() {
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1 })
       if (rows.length < 2) { alert('데이터가 없습니다.'); return }
       const s = (v) => String(v ?? '').trim()
-      const parsed = rows.slice(1).filter(r => r[0]).map(r => ({
-        company_name: s(r[0]), ceo: s(r[1]), biz_no: s(r[2]), found_year: s(r[3]), employees: s(r[4]),
-        biz_type: s(r[5]), biz_item: s(r[6]), item: s(r[7]),
-        type: s(r[8]) || '테크', region: s(r[9]), gender: s(r[10]),
-        phone: s(r[11]), email: s(r[12]),
-        program: s(r[13]), sub_program: s(r[14]),
-        start_date: s(r[15]), end_date: s(r[16]),
-        amount: s(r[17]), status: s(r[18]) || '지원중', staff: s(r[19]),
-      }))
+      const parsed = rows.slice(1).filter(r => r[0]).map(r => {
+        const company_name = s(r[0])
+        // 기업명 기준 중복 체크 (대소문자·공백 무시)
+        const existing = firms.find(f =>
+          f.company_name?.trim().toLowerCase() === company_name.toLowerCase()
+        )
+        return {
+          company_name, ceo: s(r[1]), biz_no: s(r[2]), found_year: s(r[3]), employees: s(r[4]),
+          biz_type: s(r[5]), biz_item: s(r[6]), item: s(r[7]),
+          type: s(r[8]) || '테크', region: s(r[9]), gender: s(r[10]),
+          phone: s(r[11]), email: s(r[12]),
+          program: s(r[13]), sub_program: s(r[14]),
+          start_date: s(r[15]), end_date: s(r[16]),
+          amount: s(r[17]), status: s(r[18]) || '지원중', staff: s(r[19]),
+          // 중복 여부
+          isDuplicate: !!existing,
+          existingId: existing?.id ?? null,
+          existingSP: existing?.support_programs ?? [],
+        }
+      })
       setXlsxPreview(parsed)
       setXlsxModal(true)
     }
@@ -353,14 +364,20 @@ export default function Selected() {
 
   async function saveBulkXlsx() {
     if (xlsxPreview.length === 0) return
-    const rows = xlsxPreview.map(r => ({
-      company_name: r.company_name, ceo: r.ceo,
+
+    const newRows    = xlsxPreview.filter(r => !r.isDuplicate)
+    const updateRows = xlsxPreview.filter(r => r.isDuplicate)
+
+    // 신규 항목 빌더
+    const buildInsertRow = r => ({
+      company_name: r.company_name, ceo: r.ceo || null,
       biz_no: r.biz_no || null, found_year: r.found_year || null,
       employees: r.employees ? Number(r.employees) : null,
       biz_type: r.biz_type || null, biz_item: r.biz_item || null,
       sector: (r.biz_type || '') + (r.biz_item ? ' / ' + r.biz_item : '') || null,
-      item: r.item || null, type: r.type || '테크', region: r.region || null,
-      gender: r.gender || null, phone: r.phone || null, email: r.email || null,
+      item: r.item || null, type: r.type || '테크',
+      region: r.region || null, gender: r.gender || null,
+      phone: r.phone || null, email: r.email || null,
       program: r.program || null,
       support_programs: r.program ? [{ program: r.program, sub_program: r.sub_program,
         staff: r.staff, start_date: r.start_date, end_date: r.end_date,
@@ -368,13 +385,67 @@ export default function Selected() {
       staff: r.staff || null,
       start_date: r.start_date || today(), end_date: r.end_date || null,
       amount: r.amount ? Number(r.amount) : null, status: r.status || '지원중',
-    }))
+    })
+
     try {
-      const { data, error } = await supabase.from('selected_firms').insert(rows).select()
-      if (error) { console.error('일괄 저장 오류:', error); throw error }
-      setFirms(prev => [...(data || []), ...prev])
-      setXlsxModal(false); setXlsxPreview([])
-      alert(`${(data || []).length}개 기업이 등록되었습니다.`)
+      let insertedCount = 0
+      let updatedCount  = 0
+
+      // ── 신규 insert ──
+      if (newRows.length > 0) {
+        const { data, error } = await supabase
+          .from('selected_firms').insert(newRows.map(buildInsertRow)).select()
+        if (error) { console.error('신규 등록 오류:', error); throw error }
+        setFirms(prev => [...(data || []), ...prev])
+        insertedCount = (data || []).length
+      }
+
+      // ── 중복 update ──
+      for (const r of updateRows) {
+        // support_programs: 기존 배열에 새 항목 추가 (program+sub_program 동일하면 스킵)
+        const newSP = r.program ? {
+          program: r.program, sub_program: r.sub_program,
+          staff: r.staff, start_date: r.start_date, end_date: r.end_date,
+          amount: r.amount ? Number(r.amount) : null, status: r.status || '지원중',
+        } : null
+        const existingSP = Array.isArray(r.existingSP) ? r.existingSP : []
+        const alreadyHasSP = newSP && existingSP.some(sp =>
+          sp.program === newSP.program && sp.sub_program === newSP.sub_program
+        )
+        const mergedSP = newSP && !alreadyHasSP ? [...existingSP, newSP] : existingSP
+        const firstSP = mergedSP[0]
+
+        const updatePayload = {
+          // 업데이트 항목 (최신 엑셀 데이터로 덮어씀)
+          ceo:      r.ceo      || null,
+          phone:    r.phone    || null,
+          email:    r.email    || null,
+          biz_type: r.biz_type || null,
+          biz_item: r.biz_item || null,
+          sector:   (r.biz_type || '') + (r.biz_item ? ' / ' + r.biz_item : '') || null,
+          item:     r.item     || null,
+          staff:    r.staff    || null,
+          // support_programs 병합
+          support_programs: mergedSP,
+          program:    firstSP?.program    || null,
+          start_date: firstSP?.start_date || null,
+          end_date:   firstSP?.end_date   || null,
+          amount:     firstSP?.amount     ?? null,
+          status:     mergedSP.every(sp => sp.status === '완료') ? '완료' : '지원중',
+        }
+
+        const { error } = await supabase
+          .from('selected_firms').update(updatePayload).eq('id', r.existingId)
+        if (error) { console.error('업데이트 오류:', error); throw error }
+        setFirms(prev => prev.map(f =>
+          f.id === r.existingId ? { ...f, ...updatePayload } : f
+        ))
+        updatedCount++
+      }
+
+      setXlsxModal(false)
+      setXlsxPreview([])
+      alert(`신규 등록 ${insertedCount}개, 업데이트 ${updatedCount}개 완료`)
     } catch (e) { alert('일괄 저장 실패: ' + e.message) }
   }
 
@@ -645,7 +716,7 @@ export default function Selected() {
 
       {/* ── 엑셀 일괄 등록 미리보기 모달 ── */}
       <Modal isOpen={xlsxModal} onClose={() => { setXlsxModal(false); setXlsxPreview([]) }}
-        title={`엑셀 일괄 등록 미리보기 (${xlsxPreview.length}건)`} wide
+        title={`엑셀 일괄 등록 미리보기 — 신규 ${xlsxPreview.filter(r=>!r.isDuplicate).length}개 / 업데이트 ${xlsxPreview.filter(r=>r.isDuplicate).length}개`} wide
         footer={
           <>
             <button onClick={() => { setXlsxModal(false); setXlsxPreview([]) }} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
@@ -657,7 +728,7 @@ export default function Selected() {
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-gray-200" style={{ background: '#2E75B6' }}>
-                {['기업명','대표자','사업자번호','설립연도','임직원','업태','업종','아이템','유형','지역','성별','연락처','이메일','지원사업명','세부프로그램','시작일','종료일','지원금(만)','상태','담당자'].map(h => (
+                {['구분','기업명','대표자','사업자번호','설립연도','임직원','업태','업종','아이템','유형','지역','성별','연락처','이메일','지원사업명','세부프로그램','시작일','종료일','지원금(만)','상태','담당자'].map(h => (
                   <th key={h} className="text-left px-2 py-2 font-medium whitespace-nowrap" style={{ color: '#fff' }}>{h}</th>
                 ))}
               </tr>
@@ -665,6 +736,12 @@ export default function Selected() {
             <tbody>
               {xlsxPreview.map((r, i) => (
                 <tr key={i} className="border-b border-gray-100 hover:bg-blue-50">
+                  <td className="px-2 py-1.5 whitespace-nowrap">
+                    {r.isDuplicate
+                      ? <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-xs font-medium">업데이트</span>
+                      : <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-xs font-medium">신규</span>
+                    }
+                  </td>
                   <td className="px-2 py-1.5 font-semibold text-blue-700 whitespace-nowrap">{r.company_name}</td>
                   <td className="px-2 py-1.5 whitespace-nowrap">{r.ceo}</td>
                   <td className="px-2 py-1.5 text-gray-500">{r.biz_no}</td>
