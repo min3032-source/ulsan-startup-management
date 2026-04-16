@@ -48,6 +48,9 @@ export default function Selected() {
   const [noteForm, setNoteForm] = useState(emptyNoteForm())
   const [detailFirm, setDetailFirm] = useState(null)
   const [detailOpen, setDetailOpen] = useState(false)
+  const [detailTab, setDetailTab] = useState('info')
+  const [detailConsults, setDetailConsults] = useState([])
+  const [consultsLoading, setConsultsLoading] = useState(false)
 
   // 엑셀 일괄 등록
   const [xlsxModal, setXlsxModal] = useState(false)
@@ -173,6 +176,34 @@ export default function Selected() {
     await supabase.from('selected_notes').delete().eq('firm_id', id)
     setFirms(prev => prev.filter(f => f.id !== id))
     setNotes(prev => prev.filter(n => n.firm_id !== id))
+  }
+
+  async function openDetail(f) {
+    setDetailFirm(f)
+    setDetailTab('info')
+    setDetailConsults([])
+    setDetailOpen(true)
+    loadDetailConsults(f.company_name)
+  }
+
+  async function loadDetailConsults(companyName) {
+    setConsultsLoading(true)
+    try {
+      // founders.biz 또는 founders.name으로 매칭
+      const { data: fList } = await supabase
+        .from('founders')
+        .select('id')
+        .or(`biz.ilike.%${companyName}%,name.ilike.%${companyName}%`)
+      const ids = (fList || []).map(f => f.id)
+      if (ids.length === 0) { setDetailConsults([]); return }
+      const { data: cList } = await supabase
+        .from('consults')
+        .select('*')
+        .in('founder_id', ids)
+        .order('date', { ascending: false })
+      setDetailConsults(cList || [])
+    } catch (e) { console.error('상담일지 로드 오류:', e) }
+    finally { setConsultsLoading(false) }
   }
 
   function openAddNote(preFirmId = '') {
@@ -429,7 +460,7 @@ export default function Selected() {
       )}
 
       {loading ? <div className="text-center py-16 text-gray-400">로딩 중...</div> :
-        activeTab === 'list' ? <FirmListTab firms={filteredFirms} notes={notes} onEdit={openEditFirm} onDelete={deleteFirm} onDetail={f => { setDetailFirm(f); setDetailOpen(true) }} /> :
+        activeTab === 'list' ? <FirmListTab firms={filteredFirms} notes={notes} onEdit={openEditFirm} onDelete={deleteFirm} onDetail={openDetail} /> :
         activeTab === 'program' ? <ProgramTab firms={firms} /> :
         <PostTab firms={firms} notes={notes} onAddNote={openAddNote} onDeleteNote={deleteNote} />
       }
@@ -648,47 +679,106 @@ export default function Selected() {
       {/* ── 상세 모달 ── */}
       {detailFirm && (
         <Modal isOpen={detailOpen} onClose={() => setDetailOpen(false)} title={`${detailFirm.company_name} 상세`} wide>
-          <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-2">
-              {[['대표자', detailFirm.ceo], ['사업자번호', detailFirm.biz_no], ['설립연도', detailFirm.found_year],
-                ['업종', detailFirm.sector], ['아이템', detailFirm.item], ['지역', detailFirm.region],
-                ['임직원수', detailFirm.employees ? detailFirm.employees + '명' : '-'],
-                ['연락처', detailFirm.phone], ['기업유형', detailFirm.type]].map(([l, v]) => (
-                <div key={l} className="bg-gray-50 rounded-lg p-2.5">
-                  <div className="text-xs text-gray-400">{l}</div>
-                  <div className="text-sm font-medium text-gray-700">{v || '-'}</div>
+          {/* 탭 헤더 */}
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-1 mb-4">
+            {[['info', '기업정보'], ['consult', `상담일지 (${detailConsults.length})`], ['post', `사후관리 (${notes.filter(n => n.firm_id === detailFirm.id).length})`]].map(([k, l]) => (
+              <button key={k} onClick={() => setDetailTab(k)}
+                className={`px-3 py-1.5 text-sm rounded-md transition-colors flex-1 ${detailTab === k ? 'bg-white text-gray-800 font-medium shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                {l}
+              </button>
+            ))}
+          </div>
+
+          {/* ── 기업정보 탭 ── */}
+          {detailTab === 'info' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-2">
+                {[['대표자', detailFirm.ceo], ['사업자번호', detailFirm.biz_no], ['설립연도', detailFirm.found_year],
+                  ['업종', detailFirm.sector], ['아이템', detailFirm.item], ['지역', detailFirm.region],
+                  ['임직원수', detailFirm.employees ? detailFirm.employees + '명' : '-'],
+                  ['연락처', detailFirm.phone], ['기업유형', detailFirm.type]].map(([l, v]) => (
+                  <div key={l} className="bg-gray-50 rounded-lg p-2.5">
+                    <div className="text-xs text-gray-400">{l}</div>
+                    <div className="text-sm font-medium text-gray-700">{v || '-'}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
+                <div className="text-xs font-semibold text-blue-700 mb-2">지원사업 정보</div>
+                {Array.isArray(detailFirm.support_programs) && detailFirm.support_programs.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {detailFirm.support_programs.map((sp, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">{sp.program}</span>
+                        {sp.sub_program && <span className="text-gray-500">{sp.sub_program}</span>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs text-gray-500">{detailFirm.program || '-'} {detailFirm.sub_program && `· ${detailFirm.sub_program}`}</div>
+                )}
+                <div className="grid grid-cols-3 gap-2 text-xs mt-2">
+                  <div><span className="text-gray-500">시작일: </span>{detailFirm.start_date}</div>
+                  <div><span className="text-gray-500">종료일: </span>{detailFirm.end_date || <span className="text-orange-500">진행중</span>}</div>
+                  <div><span className="text-gray-500">지원금: </span><strong className="text-green-700">{detailFirm.amount ? Number(detailFirm.amount).toLocaleString() + '만원' : '-'}</strong></div>
+                  <div><span className="text-gray-500">담당자: </span>{detailFirm.staff}</div>
+                  <div><span className="text-gray-500">상태: </span><StatusBadge status={detailFirm.status} /></div>
+                  {detailFirm.post_mgmt && <div><span className="text-gray-500">사후관리: </span>{detailFirm.post_mgmt}</div>}
                 </div>
-              ))}
+              </div>
+              {detailFirm.memo && (
+                <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-600">
+                  <div className="font-semibold text-gray-500 mb-1">메모</div>
+                  {detailFirm.memo}
+                </div>
+              )}
             </div>
-            <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
-              <div className="text-xs font-semibold text-blue-700 mb-2">지원사업 정보</div>
-              {Array.isArray(detailFirm.support_programs) && detailFirm.support_programs.length > 0 ? (
-                <div className="space-y-1.5">
-                  {detailFirm.support_programs.map((sp, i) => (
-                    <div key={i} className="flex items-center gap-2 text-xs">
-                      <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">{sp.program}</span>
-                      {sp.sub_program && <span className="text-gray-500">{sp.sub_program}</span>}
+          )}
+
+          {/* ── 상담일지 탭 ── */}
+          {detailTab === 'consult' && (
+            <div className="min-h-[200px]">
+              {consultsLoading ? (
+                <div className="text-center py-10 text-gray-400 text-sm">로딩 중...</div>
+              ) : detailConsults.length === 0 ? (
+                <div className="text-center py-10 text-gray-400 text-sm">연결된 상담일지가 없습니다</div>
+              ) : (
+                <div className="space-y-0">
+                  {detailConsults.map(c => (
+                    <div key={c.id} className="flex gap-3 py-3 border-b border-gray-100">
+                      <div className="min-w-[80px] text-xs text-gray-400">{c.date || c.consult_date}</div>
+                      <div className="flex-1">
+                        <div className="flex gap-2 mb-1 flex-wrap items-center">
+                          {c.method && <span className="bg-gray-100 text-gray-600 text-xs px-1.5 py-0.5 rounded">{c.method}</span>}
+                          {c.assignee && <span className="text-xs text-gray-500">{c.assignee}</span>}
+                          {c.status && (
+                            <span className={`text-xs px-1.5 py-0.5 rounded ml-auto ${c.status === '상담완료' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                              {c.status}
+                            </span>
+                          )}
+                        </div>
+                        {c.content && <div className="text-sm text-gray-700 mb-1">{c.content}</div>}
+                        {c.result && <div className="text-xs text-teal-700 bg-teal-50 rounded px-2 py-1">결과: {c.result}</div>}
+                        {c.next_date && <div className="text-xs text-orange-600 mt-1">다음 상담 예정: {c.next_date}</div>}
+                      </div>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div className="text-xs text-gray-500">{detailFirm.program || '-'} {detailFirm.sub_program && `· ${detailFirm.sub_program}`}</div>
               )}
-              <div className="grid grid-cols-3 gap-2 text-xs mt-2">
-                <div><span className="text-gray-500">시작일: </span>{detailFirm.start_date}</div>
-                <div><span className="text-gray-500">종료일: </span>{detailFirm.end_date || <span className="text-orange-500">진행중</span>}</div>
-                <div><span className="text-gray-500">지원금: </span><strong className="text-green-700">{detailFirm.amount ? Number(detailFirm.amount).toLocaleString() + '만원' : '-'}</strong></div>
-                <div><span className="text-gray-500">담당자: </span>{detailFirm.staff}</div>
-                <div><span className="text-gray-500">상태: </span><StatusBadge status={detailFirm.status} /></div>
-                {detailFirm.post_mgmt && <div><span className="text-gray-500">사후관리: </span>{detailFirm.post_mgmt}</div>}
-              </div>
             </div>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-xs font-semibold text-gray-500">사후관리 기록 ({notes.filter(n => n.firm_id === detailFirm.id).length}건)</div>
-                <button onClick={() => { setDetailOpen(false); openAddNote(detailFirm.id) }} className="text-xs text-white px-2 py-1 rounded" style={{ background: '#2E75B6' }}>+ 기록 추가</button>
+          )}
+
+          {/* ── 사후관리 탭 ── */}
+          {detailTab === 'post' && (
+            <div className="min-h-[200px]">
+              <div className="flex justify-end mb-3">
+                <button onClick={() => { setDetailOpen(false); openAddNote(detailFirm.id) }} className="text-xs text-white px-2.5 py-1.5 rounded flex items-center gap-1" style={{ background: '#2E75B6' }}>
+                  <Plus size={12} /> 기록 추가
+                </button>
               </div>
-              {notes.filter(n => n.firm_id === detailFirm.id).map(n => (
+              {notes.filter(n => n.firm_id === detailFirm.id).length === 0 ? (
+                <div className="text-center py-10 text-gray-400 text-sm">사후관리 기록이 없습니다</div>
+              ) : notes.filter(n => n.firm_id === detailFirm.id).map(n => (
                 <div key={n.id} className="flex gap-3 py-2.5 border-b border-gray-100">
                   <span className="text-xs text-gray-400 min-w-[80px]">{n.date}</span>
                   <div className="flex-1">
@@ -703,7 +793,8 @@ export default function Selected() {
                 </div>
               ))}
             </div>
-          </div>
+          )}
+
           <div className="mt-4 flex justify-end gap-2">
             <button onClick={() => setDetailOpen(false)} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg">닫기</button>
             <button onClick={() => { setDetailOpen(false); openEditFirm(detailFirm) }} className="px-4 py-1.5 text-sm text-white rounded-lg" style={{ background: '#2E75B6' }}>편집</button>
