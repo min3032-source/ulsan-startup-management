@@ -126,7 +126,6 @@ export default function Selected() {
 
     const validSP = firmForm.support_programs.filter(sp => sp.program.trim())
     const firstProgram = validSP[0]?.program || ''
-    const firstSubProgram = validSP[0]?.sub_program || ''
 
     const payload = {
       company_name: firmForm.company_name,
@@ -145,7 +144,6 @@ export default function Selected() {
       item: firmForm.item,
       support_programs: validSP,
       program: firstProgram,
-      sub_program: firstSubProgram,
       staff: firmForm.staff,
       start_date: firmForm.start_date || null,
       end_date: firmForm.end_date || null,
@@ -265,7 +263,6 @@ export default function Selected() {
       biz_type: r.sector,
       staff: r.staff,
       program: r.program,
-      sub_program: r.sub_program,
       support_programs: r.program ? [{ program: r.program, sub_program: r.sub_program }] : [],
       item: r.item,
       type: '테크',
