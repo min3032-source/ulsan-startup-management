@@ -6,8 +6,9 @@ import { VerdictBadge, StatusBadge } from '../../components/common/Badge'
 import Modal from '../../components/common/Modal'
 import StatCard from '../../components/common/StatCard'
 import Avatar from '../../components/common/Avatar'
-import { Plus, Search, Pencil, Trash2, Eye, Upload, Download, X } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Eye, Upload, Download, X, TrendingUp } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 // ─────────────────────────────────────────────
 // 빈 폼 생성 함수
@@ -60,12 +61,24 @@ export default function Selected() {
   const [consultsLoading, setConsultsLoading] = useState(false)
   const [consultForm, setConsultForm] = useState(null) // null=숨김, {}=표시
 
-  // 엑셀 일괄 등록
-  const [xlsxUploadModal, setXlsxUploadModal] = useState(false) // 1단계: 파일 선택
-  const [xlsxModal, setXlsxModal] = useState(false)              // 2단계: 미리보기
+  // 엑셀 일괄 등록 (선정기업)
+  const [xlsxUploadModal, setXlsxUploadModal] = useState(false)
+  const [xlsxModal, setXlsxModal] = useState(false)
   const [xlsxPreview, setXlsxPreview] = useState([])
   const [xlsxParsing, setXlsxParsing] = useState(false)
   const fileInputRef = useRef(null)
+
+  // 성장지표
+  const [detailMetrics, setDetailMetrics] = useState([])
+  const [metricsLoading, setMetricsLoading] = useState(false)
+  const emptyMetricForm = () => ({ year: new Date().getFullYear(), period_type: '연도', period_label: '', revenue: '', employees: '', investment: '', export_amount: '', patent_count: '', memo: '' })
+  const [metricForm, setMetricForm] = useState(null) // null=숨김
+  // 엑셀 일괄 등록 (성장지표)
+  const [gmUploadModal, setGmUploadModal] = useState(false)
+  const [gmPreviewModal, setGmPreviewModal] = useState(false)
+  const [gmPreview, setGmPreview] = useState([])
+  const [gmParsing, setGmParsing] = useState(false)
+  const gmFileRef = useRef(null)
 
   useEffect(() => { loadData() }, [])
 
@@ -204,9 +217,12 @@ export default function Selected() {
     setDetailFirm(f)
     setDetailTab('info')
     setDetailConsults([])
+    setDetailMetrics([])
     setConsultForm(null)
+    setMetricForm(null)
     setDetailOpen(true)
     loadDetailConsults(f.id)
+    loadDetailMetrics(f.id)
   }
 
   // firm_id로 직접 조회
@@ -222,6 +238,150 @@ export default function Selected() {
       setDetailConsults(cList || [])
     } catch (e) { console.error('상담일지 로드 오류:', e) }
     finally { setConsultsLoading(false) }
+  }
+
+  async function loadDetailMetrics(firmId) {
+    setMetricsLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('growth_metrics').select('*').eq('firm_id', firmId)
+        .order('year', { ascending: true }).order('period_label', { ascending: true })
+      if (error) console.error('성장지표 조회 오류:', error)
+      setDetailMetrics(data || [])
+    } catch (e) { console.error(e) }
+    finally { setMetricsLoading(false) }
+  }
+
+  async function saveMetric() {
+    if (!metricForm || !metricForm.year || !metricForm.period_label) { alert('연도와 기간 라벨을 입력해주세요'); return }
+    const payload = {
+      firm_id: detailFirm.id,
+      year: Number(metricForm.year),
+      period_type: metricForm.period_type,
+      period_label: metricForm.period_label,
+      revenue:       metricForm.revenue       ? Number(metricForm.revenue)       : null,
+      employees:     metricForm.employees     ? Number(metricForm.employees)     : null,
+      investment:    metricForm.investment    ? Number(metricForm.investment)    : null,
+      export_amount: metricForm.export_amount ? Number(metricForm.export_amount) : null,
+      patent_count:  metricForm.patent_count  ? Number(metricForm.patent_count)  : null,
+      memo: metricForm.memo || null,
+    }
+    try {
+      const { data, error } = await supabase.from('growth_metrics').insert([payload]).select().single()
+      if (error) throw error
+      setDetailMetrics(prev => [...prev, data].sort((a, b) => a.period_label.localeCompare(b.period_label)))
+      setMetricForm(null)
+    } catch (e) { alert('저장 실패: ' + e.message) }
+  }
+
+  async function deleteMetric(id) {
+    if (!confirm('이 성장지표를 삭제하시겠습니까?')) return
+    const { error } = await supabase.from('growth_metrics').delete().eq('id', id)
+    if (!error) setDetailMetrics(prev => prev.filter(m => m.id !== id))
+  }
+
+  // 성장지표 기간 라벨 자동 생성
+  function getPeriodLabel(year, type, half, quarter) {
+    if (type === '연도') return `${year}년`
+    if (type === '반기') return `${year}년 ${half}`
+    if (type === '분기') return `${year}년 ${quarter}`
+    return ''
+  }
+
+  // 성장지표 엑셀 템플릿 다운로드
+  function downloadGmTemplate() {
+    const HEADERS = ['기업명*', '연도*', '기간유형(연도/반기/분기)*', '기간라벨*', '매출액(만원)', '고용인원', '투자유치(만원)', '수출액(만원)', '특허건수', '메모']
+    const EXAMPLE = ['네오투', '2025', '연도', '2025년', '5000', '10', '3000', '500', '2', '전년 대비 성장']
+    const ws = XLSX.utils.aoa_to_sheet([HEADERS, EXAMPLE])
+    ws['!cols'] = HEADERS.map((h, i) => ({ wch: [14,8,18,16,12,8,12,10,8,20][i] }))
+    HEADERS.forEach((_, ci) => {
+      const ref = XLSX.utils.encode_cell({ r: 0, c: ci })
+      if (ws[ref]) ws[ref].s = { fill: { patternType: 'solid', fgColor: { rgb: '1E5631' } }, font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 10 }, alignment: { horizontal: 'center' } }
+    })
+    EXAMPLE.forEach((_, ci) => {
+      const ref = XLSX.utils.encode_cell({ r: 1, c: ci })
+      if (ws[ref]) ws[ref].s = { fill: { patternType: 'solid', fgColor: { rgb: 'F3F4F6' } }, font: { sz: 10 } }
+    })
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '성장지표_등록')
+    XLSX.writeFile(wb, '기업성장지표_일괄등록_템플릿.xlsx')
+  }
+
+  // 성장지표 엑셀 파싱
+  async function handleGmFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setGmParsing(true)
+    try {
+      const buf = await file.arrayBuffer()
+      const wb = XLSX.read(buf, { type: 'array' })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+      const s = v => String(v ?? '').trim()
+      const dataRows = rows.slice(1).filter(r => s(r[0]) && s(r[1]))
+      if (dataRows.length === 0) { alert('유효한 데이터 행이 없습니다.'); return }
+
+      // 기업 목록 및 기존 성장지표 조회
+      const [{ data: firmList }, { data: existingGm }] = await Promise.all([
+        supabase.from('selected_firms').select('id, company_name'),
+        supabase.from('growth_metrics').select('id, firm_id, year, period_label'),
+      ])
+      const parsed = dataRows.map(r => {
+        const company_name = s(r[0])
+        const firm = (firmList || []).find(f => f.company_name?.trim() === company_name)
+        const year = Number(s(r[1])) || null
+        const period_label = s(r[3])
+        const dup = firm && (existingGm || []).find(g => g.firm_id === firm.id && g.year === year && g.period_label === period_label)
+        return {
+          company_name, firm_id: firm?.id ?? null,
+          year, period_type: s(r[2]) || '연도', period_label,
+          revenue:       s(r[4]) ? Number(s(r[4])) : null,
+          employees:     s(r[5]) ? Number(s(r[5])) : null,
+          investment:    s(r[6]) ? Number(s(r[6])) : null,
+          export_amount: s(r[7]) ? Number(s(r[7])) : null,
+          patent_count:  s(r[8]) ? Number(s(r[8])) : null,
+          memo: s(r[9]) || null,
+          firmFound:   !!firm,
+          isDuplicate: !!dup,
+          dupId:       dup?.id ?? null,
+        }
+      })
+      setGmPreview(parsed)
+      setGmUploadModal(false)
+      setGmPreviewModal(true)
+    } catch (err) {
+      alert('파일 분석 실패: ' + err.message)
+    } finally {
+      setGmParsing(false)
+    }
+  }
+
+  // 성장지표 일괄 저장
+  async function saveGmBulk() {
+    if (gmPreview.length === 0) return
+    const valid = gmPreview.filter(r => r.firmFound)
+    if (valid.length === 0) { alert('매칭된 기업이 없습니다. 기업명을 확인해주세요.'); return }
+
+    const newRows = valid.filter(r => !r.isDuplicate)
+    const updateRows = valid.filter(r => r.isDuplicate)
+    const buildRow = r => ({ firm_id: r.firm_id, year: r.year, period_type: r.period_type, period_label: r.period_label, revenue: r.revenue, employees: r.employees, investment: r.investment, export_amount: r.export_amount, patent_count: r.patent_count, memo: r.memo })
+    try {
+      let inserted = 0, updated = 0
+      if (newRows.length > 0) {
+        const { data, error } = await supabase.from('growth_metrics').insert(newRows.map(buildRow)).select()
+        if (error) throw error
+        inserted = (data || []).length
+      }
+      for (const r of updateRows) {
+        const { error } = await supabase.from('growth_metrics').update(buildRow(r)).eq('id', r.dupId)
+        if (error) throw error
+        updated++
+      }
+      setGmPreviewModal(false)
+      setGmPreview([])
+      alert(`성장지표 신규 ${inserted}개, 업데이트 ${updated}개 완료`)
+    } catch (err) { alert('저장 실패: ' + err.message) }
   }
 
   async function saveConsult() {
@@ -508,6 +668,9 @@ export default function Selected() {
           ))}
         </div>
         <div className="flex gap-2">
+          <button onClick={() => setGmUploadModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+            <TrendingUp size={14} /> 성장지표 일괄등록
+          </button>
           <button onClick={() => setXlsxUploadModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
             <Upload size={14} /> 일괄 등록 (Excel)
           </button>
@@ -815,11 +978,92 @@ export default function Selected() {
         </div>
       </Modal>
 
+      {/* ── 성장지표 업로드 모달 (1단계) ── */}
+      <Modal isOpen={gmUploadModal} onClose={() => setGmUploadModal(false)} title="성장지표 일괄 등록"
+        footer={<button onClick={() => setGmUploadModal(false)} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">닫기</button>}
+      >
+        <div className="space-y-4">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-xs text-green-700 space-y-1">
+            <div className="font-semibold">사용 방법</div>
+            <div>① 템플릿을 다운로드해 데이터를 입력합니다.</div>
+            <div>② 기업명은 선정기업과 정확히 일치해야 합니다.</div>
+            <div>③ 동일 기업·연도·기간라벨이 있으면 업데이트, 없으면 신규 등록됩니다.</div>
+          </div>
+          <button onClick={downloadGmTemplate} className="flex items-center gap-2 w-full justify-center px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+            <Download size={15} /> 템플릿 다운로드 (.xlsx)
+          </button>
+          <label className={`flex flex-col items-center justify-center gap-2 w-full py-8 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${gmParsing ? 'border-green-300 bg-green-50' : 'border-gray-300 hover:border-green-400 hover:bg-green-50'}`}>
+            <input ref={gmFileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleGmFile} disabled={gmParsing} />
+            {gmParsing ? (
+              <>
+                <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm text-green-600 font-medium">파일 분석 중...</span>
+              </>
+            ) : (
+              <>
+                <TrendingUp size={24} className="text-gray-400" />
+                <span className="text-sm text-gray-600 font-medium">클릭하여 엑셀 파일 선택</span>
+                <span className="text-xs text-gray-400">.xlsx, .xls 형식 지원</span>
+              </>
+            )}
+          </label>
+        </div>
+      </Modal>
+
+      {/* ── 성장지표 미리보기 모달 (2단계) ── */}
+      <Modal isOpen={gmPreviewModal} onClose={() => { setGmPreviewModal(false); setGmPreview([]) }}
+        title={`성장지표 미리보기 — 신규 ${gmPreview.filter(r=>r.firmFound&&!r.isDuplicate).length}개 / 업데이트 ${gmPreview.filter(r=>r.isDuplicate).length}개 / 미매칭 ${gmPreview.filter(r=>!r.firmFound).length}개`} wide
+        footer={
+          <>
+            <button onClick={() => { setGmPreviewModal(false); setGmPreview([]) }} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
+            <button onClick={saveGmBulk} className="px-4 py-1.5 text-sm text-white rounded-lg" style={{ background: '#1E5631' }}>
+              저장 (신규 {gmPreview.filter(r=>r.firmFound&&!r.isDuplicate).length}개, 업데이트 {gmPreview.filter(r=>r.isDuplicate).length}개)
+            </button>
+          </>
+        }
+      >
+        <div className="overflow-x-auto max-h-[60vh]">
+          <table className="w-full text-xs">
+            <thead className="sticky top-0">
+              <tr style={{ background: '#1E5631' }}>
+                {['구분','기업명','연도','기간유형','기간라벨','매출액(만)','고용인원','투자유치(만)','수출액(만)','특허','메모'].map(h => (
+                  <th key={h} className="text-left px-2 py-2 font-medium whitespace-nowrap text-white">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {gmPreview.map((r, i) => (
+                <tr key={i} className={`border-b border-gray-100 hover:bg-gray-50 ${!r.firmFound ? 'bg-red-50' : r.isDuplicate ? 'bg-orange-50' : ''}`}>
+                  <td className="px-2 py-1.5 whitespace-nowrap">
+                    {!r.firmFound
+                      ? <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-xs font-medium">미매칭</span>
+                      : r.isDuplicate
+                        ? <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-xs font-medium">업데이트</span>
+                        : <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-xs font-medium">신규</span>
+                    }
+                  </td>
+                  <td className={`px-2 py-1.5 font-semibold whitespace-nowrap ${r.firmFound ? 'text-blue-700' : 'text-red-500'}`}>{r.company_name}</td>
+                  <td className="px-2 py-1.5">{r.year}</td>
+                  <td className="px-2 py-1.5">{r.period_type}</td>
+                  <td className="px-2 py-1.5 font-medium">{r.period_label}</td>
+                  <td className="px-2 py-1.5 text-green-700 font-semibold">{r.revenue?.toLocaleString()}</td>
+                  <td className="px-2 py-1.5">{r.employees}</td>
+                  <td className="px-2 py-1.5">{r.investment?.toLocaleString()}</td>
+                  <td className="px-2 py-1.5">{r.export_amount?.toLocaleString()}</td>
+                  <td className="px-2 py-1.5">{r.patent_count}</td>
+                  <td className="px-2 py-1.5 text-gray-400 max-w-[120px] truncate">{r.memo}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Modal>
+
       {/* ── 상세 모달 ── */}
       {detailFirm && (
         <Modal isOpen={detailOpen} onClose={() => setDetailOpen(false)} title={`${detailFirm.company_name} 상세`} wide>
           <div className="flex gap-1 bg-gray-100 rounded-lg p-1 mb-4">
-            {[['info', '기업정보'], ['consult', `상담일지 (${detailConsults.length})`], ['post', `사후관리 (${notes.filter(n => n.firm_id === detailFirm.id).length})`]].map(([k, l]) => (
+            {[['info', '기업정보'], ['consult', `상담일지 (${detailConsults.length})`], ['post', `사후관리 (${notes.filter(n => n.firm_id === detailFirm.id).length})`], ['growth', `성장지표 (${detailMetrics.length})`]].map(([k, l]) => (
               <button key={k} onClick={() => setDetailTab(k)}
                 className={`px-3 py-1.5 text-sm rounded-md transition-colors flex-1 ${detailTab === k ? 'bg-white text-gray-800 font-medium shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                 {l}
@@ -971,12 +1215,155 @@ export default function Selected() {
             </div>
           )}
 
+          {/* 성장지표 탭 */}
+          {detailTab === 'growth' && (
+            <div className="min-h-[200px] space-y-4">
+              {/* 입력 폼 */}
+              {metricForm ? (
+                <GrowthMetricForm
+                  form={metricForm} onChange={setMetricForm}
+                  onSave={saveMetric} onCancel={() => setMetricForm(null)}
+                  getPeriodLabel={getPeriodLabel}
+                />
+              ) : (
+                <div className="flex justify-end">
+                  <button onClick={() => setMetricForm(emptyMetricForm())} className="text-xs text-white px-2.5 py-1.5 rounded flex items-center gap-1" style={{ background: '#2E75B6' }}>
+                    <Plus size={12} /> 지표 등록
+                  </button>
+                </div>
+              )}
+
+              {/* 차트 */}
+              {detailMetrics.length >= 2 && (
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                  <div className="text-xs font-semibold text-gray-600 mb-3">매출액 / 고용인원 추이</div>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <LineChart data={detailMetrics} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis dataKey="period_label" tick={{ fontSize: 10 }} />
+                      <YAxis yAxisId="left" tick={{ fontSize: 10 }} />
+                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} />
+                      <Tooltip formatter={(v, n) => [v?.toLocaleString(), n]} />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Line yAxisId="left" type="monotone" dataKey="revenue" name="매출액(만원)" stroke="#2E75B6" strokeWidth={2} dot={{ r: 3 }} />
+                      <Line yAxisId="right" type="monotone" dataKey="employees" name="고용인원(명)" stroke="#1E5631" strokeWidth={2} dot={{ r: 3 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {/* 지표 목록 */}
+              {metricsLoading ? (
+                <div className="text-center py-8 text-gray-400 text-sm">로딩 중...</div>
+              ) : detailMetrics.length === 0 ? (
+                <div className="text-center py-8 text-gray-400 text-sm">등록된 성장지표가 없습니다</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        {['기간','매출액(만)','고용인원','투자유치(만)','수출액(만)','특허','메모',''].map(h => (
+                          <th key={h} className="px-2 py-2 text-left text-gray-500 font-medium whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detailMetrics.map(m => (
+                        <tr key={m.id} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="px-2 py-2 font-medium text-blue-700 whitespace-nowrap">{m.period_label}</td>
+                          <td className="px-2 py-2 text-green-700 font-semibold">{m.revenue?.toLocaleString() ?? '-'}</td>
+                          <td className="px-2 py-2">{m.employees ?? '-'}</td>
+                          <td className="px-2 py-2">{m.investment?.toLocaleString() ?? '-'}</td>
+                          <td className="px-2 py-2">{m.export_amount?.toLocaleString() ?? '-'}</td>
+                          <td className="px-2 py-2">{m.patent_count ?? '-'}</td>
+                          <td className="px-2 py-2 text-gray-400 max-w-[100px] truncate">{m.memo}</td>
+                          <td className="px-2 py-2">
+                            <button onClick={() => deleteMetric(m.id)} className="text-red-400 hover:text-red-600"><Trash2 size={11} /></button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="mt-4 flex justify-end gap-2">
             <button onClick={() => setDetailOpen(false)} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg">닫기</button>
             <button onClick={() => { setDetailOpen(false); openEditFirm(detailFirm) }} className="px-4 py-1.5 text-sm text-white rounded-lg" style={{ background: '#2E75B6' }}>편집</button>
           </div>
         </Modal>
       )}
+    </div>
+  )
+}
+
+function GrowthMetricForm({ form, onChange, onSave, onCancel, getPeriodLabel }) {
+  const [half, setHalf] = useState('상반기')
+  const [quarter, setQuarter] = useState('1분기')
+  const set = (k, v) => {
+    const updated = { ...form, [k]: v }
+    if (k === 'period_type' || k === 'year') {
+      updated.period_label = getPeriodLabel(updated.year, updated.period_type, half, quarter)
+    }
+    onChange(updated)
+  }
+  const setHalfQ = (h, q) => {
+    const newHalf = h ?? half
+    const newQuarter = q ?? quarter
+    if (h) setHalf(h)
+    if (q) setQuarter(q)
+    onChange({ ...form, period_label: getPeriodLabel(form.year, form.period_type, newHalf, newQuarter) })
+  }
+  return (
+    <div className="bg-green-50 rounded-xl p-3 border border-green-200 space-y-2">
+      <div className="text-xs font-semibold text-green-700 mb-1">성장지표 등록</div>
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <label className="block text-xs text-gray-600 mb-1">연도 *</label>
+          <input type="number" className="form-input" value={form.year} onChange={e => set('year', e.target.value)} placeholder="2025" />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-600 mb-1">기간 유형 *</label>
+          <select className="form-input" value={form.period_type} onChange={e => set('period_type', e.target.value)}>
+            <option>연도</option><option>반기</option><option>분기</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-gray-600 mb-1">
+            {form.period_type === '반기' ? '반기 선택' : form.period_type === '분기' ? '분기 선택' : '기간 라벨'}
+          </label>
+          {form.period_type === '반기' ? (
+            <select className="form-input" value={half} onChange={e => setHalfQ(e.target.value, null)}>
+              <option>상반기</option><option>하반기</option>
+            </select>
+          ) : form.period_type === '분기' ? (
+            <select className="form-input" value={quarter} onChange={e => setHalfQ(null, e.target.value)}>
+              <option>1분기</option><option>2분기</option><option>3분기</option><option>4분기</option>
+            </select>
+          ) : (
+            <input className="form-input bg-gray-100" value={form.period_label} readOnly />
+          )}
+        </div>
+      </div>
+      {form.period_type !== '연도' && (
+        <div className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">기간 라벨: <span className="font-medium">{getPeriodLabel(form.year, form.period_type, half, quarter)}</span></div>
+      )}
+      <div className="grid grid-cols-3 gap-2">
+        <div><label className="block text-xs text-gray-600 mb-1">매출액(만원)</label><input type="number" className="form-input" value={form.revenue} onChange={e => onChange({...form, revenue: e.target.value})} /></div>
+        <div><label className="block text-xs text-gray-600 mb-1">고용인원</label><input type="number" className="form-input" value={form.employees} onChange={e => onChange({...form, employees: e.target.value})} /></div>
+        <div><label className="block text-xs text-gray-600 mb-1">투자유치(만원)</label><input type="number" className="form-input" value={form.investment} onChange={e => onChange({...form, investment: e.target.value})} /></div>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <div><label className="block text-xs text-gray-600 mb-1">수출액(만원)</label><input type="number" className="form-input" value={form.export_amount} onChange={e => onChange({...form, export_amount: e.target.value})} /></div>
+        <div><label className="block text-xs text-gray-600 mb-1">특허건수</label><input type="number" className="form-input" value={form.patent_count} onChange={e => onChange({...form, patent_count: e.target.value})} /></div>
+        <div><label className="block text-xs text-gray-600 mb-1">메모</label><input className="form-input" value={form.memo} onChange={e => onChange({...form, memo: e.target.value})} /></div>
+      </div>
+      <div className="flex gap-2 justify-end">
+        <button onClick={onCancel} className="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50">취소</button>
+        <button onClick={onSave} className="px-3 py-1 text-xs text-white rounded" style={{ background: '#1E5631' }}>저장</button>
+      </div>
     </div>
   )
 }

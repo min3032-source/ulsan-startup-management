@@ -3,27 +3,31 @@ import { supabase } from '../../lib/supabase'
 import { ULSAN_REGIONS, getVerdictBadgeClass } from '../../lib/constants'
 import StatCard from '../../components/common/StatCard'
 import { VerdictBadge, StatusBadge } from '../../components/common/Badge'
+import {
+  LineChart, Line, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+} from 'recharts'
 
 export default function Stats() {
   const [founders, setFounders] = useState([])
   const [supports, setSupports] = useState([])
   const [selectedFirms, setSelectedFirms] = useState([])
-  const [growths, setGrowths] = useState([])
+  const [growthMetrics, setGrowthMetrics] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
       try {
-        const [{ data: f }, { data: s }, { data: sf }, { data: g }] = await Promise.all([
+        const [{ data: f }, { data: s }, { data: sf }, { data: gm }] = await Promise.all([
           supabase.from('founders').select('*'),
           supabase.from('support_items').select('*'),
           supabase.from('selected_firms').select('*'),
-          supabase.from('growths').select('*'),
+          supabase.from('growth_metrics').select('*'),
         ])
         setFounders(f || [])
         setSupports(s || [])
         setSelectedFirms(sf || [])
-        setGrowths(g || [])
+        setGrowthMetrics(gm || [])
       } catch (e) {
         console.error('Stats load error:', e)
       } finally {
@@ -81,14 +85,47 @@ export default function Stats() {
 
   const totalAmt = supports.filter(s => s.result === '선정').reduce((a, s) => a + (Number(s.amount) || 0), 0)
     + selectedFirms.reduce((a, f) => a + (Number(f.amount) || 0), 0)
-  const totalEmp = (() => {
-    const latestByFounder = {}
-    growths.forEach(g => {
-      const key = g.founder_id || g.company_id
-      if (!latestByFounder[key] || g.year > latestByFounder[key].year) latestByFounder[key] = g
-    })
-    return Object.values(latestByFounder).reduce((a, g) => a + (Number(g.employees) || 0), 0)
-  })()
+
+  // 성장지표 통계 (연도별, firm_id별 최신 연도 기준)
+  const latestByFirm = {}
+  growthMetrics.filter(g => g.period_type === '연도').forEach(g => {
+    if (!latestByFirm[g.firm_id] || g.year > latestByFirm[g.firm_id].year) latestByFirm[g.firm_id] = g
+  })
+  const latestMetrics = Object.values(latestByFirm)
+  const totalEmp = latestMetrics.reduce((a, g) => a + (Number(g.employees) || 0), 0)
+  const totalInvestment = growthMetrics.reduce((a, g) => a + (Number(g.investment) || 0), 0)
+
+  // 연도별 총 매출/고용 집계 (연도 타입만)
+  const yearlyGrowth = {}
+  growthMetrics.filter(g => g.period_type === '연도').forEach(g => {
+    if (!yearlyGrowth[g.year]) yearlyGrowth[g.year] = { year: g.year, revenue: 0, employees: 0, investment: 0 }
+    yearlyGrowth[g.year].revenue   += Number(g.revenue)   || 0
+    yearlyGrowth[g.year].employees += Number(g.employees) || 0
+    yearlyGrowth[g.year].investment+= Number(g.investment)|| 0
+  })
+  const yearlyGrowthArr = Object.values(yearlyGrowth).sort((a, b) => a.year - b.year)
+
+  // 평균 매출 증가율 (연도별 지표 2개 이상인 기업 기준)
+  const byFirmYear = {}
+  growthMetrics.filter(g => g.period_type === '연도' && g.revenue).forEach(g => {
+    if (!byFirmYear[g.firm_id]) byFirmYear[g.firm_id] = []
+    byFirmYear[g.firm_id].push(g)
+  })
+  const growthRates = []
+  Object.values(byFirmYear).forEach(list => {
+    const sorted = [...list].sort((a, b) => a.year - b.year)
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = Number(sorted[i - 1].revenue)
+      const curr = Number(sorted[i].revenue)
+      if (prev > 0) growthRates.push((curr - prev) / prev * 100)
+    }
+  })
+  const avgGrowthRate = growthRates.length > 0
+    ? (growthRates.reduce((a, r) => a + r, 0) / growthRates.length).toFixed(1)
+    : null
+
+  // 총 매출액 (최신 연도 기준 합계)
+  const totalRevenue = latestMetrics.reduce((a, g) => a + (Number(g.revenue) || 0), 0)
 
   return (
     <div className="p-6 space-y-6">
@@ -98,7 +135,7 @@ export default function Stats() {
         <StatCard label="창업 상담" value={`${founders.length}명`} color="blue" />
         <StatCard label="지원사업 연계" value={`${supports.length + selectedFirms.length}건`} color="green" />
         <StatCard label="총 지원금액" value={`${totalAmt >= 10000 ? (totalAmt / 10000).toFixed(1) + '억' : totalAmt.toLocaleString() + '만'}`} color="teal" />
-        <StatCard label="고용 창출" value={`${totalEmp}명`} color="orange" />
+        <StatCard label="고용 창출" value={`${totalEmp}명`} sub="성장지표 기준" color="orange" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -258,6 +295,90 @@ export default function Stats() {
               ))
           })()}
         </div>
+      </div>
+
+      {/* ── 성장지표 현황 ── */}
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold text-gray-700">기업 성장지표 현황</h2>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            label="평균 매출 증가율"
+            value={avgGrowthRate !== null ? `${avgGrowthRate}%` : '-'}
+            sub="전년 대비 (연도별 기준)"
+            color={avgGrowthRate !== null && Number(avgGrowthRate) >= 0 ? 'green' : 'orange'}
+          />
+          <StatCard
+            label="총 고용인원"
+            value={`${totalEmp.toLocaleString()}명`}
+            sub="최신 연도 기준"
+            color="blue"
+          />
+          <StatCard
+            label="총 매출액"
+            value={totalRevenue >= 10000 ? `${(totalRevenue / 10000).toFixed(1)}억` : `${totalRevenue.toLocaleString()}만`}
+            sub="최신 연도 기준"
+            color="teal"
+          />
+          <StatCard
+            label="투자유치 총액"
+            value={totalInvestment >= 10000 ? `${(totalInvestment / 10000).toFixed(1)}억` : `${totalInvestment.toLocaleString()}만`}
+            sub="전체 누적"
+            color="orange"
+          />
+        </div>
+
+        {yearlyGrowthArr.length >= 2 ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* 연도별 매출액 */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <div className="font-semibold text-gray-700 text-sm mb-4">연도별 총 매출액 (만원)</div>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={yearlyGrowthArr} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="year" tick={{ fontSize: 11 }} tickFormatter={y => `${y}년`} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={v => v >= 10000 ? `${(v/10000).toFixed(0)}억` : `${(v/1000).toFixed(0)}천`} />
+                  <Tooltip formatter={(v) => [`${v.toLocaleString()}만원`, '총 매출액']} labelFormatter={y => `${y}년`} />
+                  <Bar dataKey="revenue" name="총 매출액(만원)" fill="#2E75B6" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* 연도별 고용인원 + 투자유치 */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <div className="font-semibold text-gray-700 text-sm mb-4">연도별 고용인원 · 투자유치</div>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={yearlyGrowthArr} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="year" tick={{ fontSize: 11 }} tickFormatter={y => `${y}년`} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 10 }} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} tickFormatter={v => v >= 10000 ? `${(v/10000).toFixed(0)}억` : `${(v/1000).toFixed(0)}천`} />
+                  <Tooltip formatter={(v, n) => n === '고용인원(명)' ? [`${v}명`, n] : [`${v.toLocaleString()}만원`, n]} labelFormatter={y => `${y}년`} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Line yAxisId="left" type="monotone" dataKey="employees" name="고용인원(명)" stroke="#1E5631" strokeWidth={2} dot={{ r: 4 }} />
+                  <Line yAxisId="right" type="monotone" dataKey="investment" name="투자유치(만원)" stroke="#8B6914" strokeWidth={2} dot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        ) : yearlyGrowthArr.length === 1 ? (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <div className="font-semibold text-gray-700 text-sm mb-3">연도별 성장지표</div>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              {yearlyGrowthArr.map(y => (
+                <div key={y.year} className="bg-gray-50 rounded-lg p-3">
+                  <div className="text-xs text-gray-400 mb-1">{y.year}년</div>
+                  <div className="text-sm font-bold text-blue-700">{y.revenue.toLocaleString()}만원</div>
+                  <div className="text-xs text-gray-500 mt-0.5">고용 {y.employees}명 · 투자 {y.investment.toLocaleString()}만</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="bg-gray-50 rounded-xl border border-gray-200 p-8 text-center text-gray-400 text-sm">
+            성장지표 데이터가 없습니다. 선정기업 관리에서 성장지표를 등록해주세요.
+          </div>
+        )}
       </div>
 
       {/* Program stats table */}
