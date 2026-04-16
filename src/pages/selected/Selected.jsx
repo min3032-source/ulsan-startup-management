@@ -216,16 +216,73 @@ export default function Selected() {
 
   // ── 엑셀 템플릿 다운로드 ──
   function downloadTemplate() {
-    const ws = XLSX.utils.aoa_to_sheet([
-      ['기업명', '대표자', '연락처', '업종', '담당자', '지원사업명', '세부프로그램', '아이템'],
-      ['(주)예시기업', '홍길동', '010-1234-5678', '소프트웨어 개발', '김민준', '예비창업패키지', '비즈니스모델 혁신 트랙', '스마트 물류 플랫폼'],
-    ])
+    const HEADERS = [
+      '기업명*', '대표자*', '사업자번호', '설립연도', '임직원수',
+      '대표업태', '대표업종', '아이템',
+      '기업유형(테크/로컬/혼합형)', '지역', '성별(남/여)',
+      '연락처', '이메일',
+      '지원사업명', '세부프로그램',
+      '지원시작일(YYYY-MM-DD)', '지원종료일(YYYY-MM-DD)',
+      '지원금액(만원)', '지원상태(지원중/완료)', '담당자',
+    ]
+    const EXAMPLE = [
+      '네오투', '강동훈', '393-33-01777', '2020', '5',
+      '제조업', '스마트제조', '액화산소 대체 스마트산소발생기',
+      '테크', '울산 남구', '남',
+      '010-1234-5678', 'neo@example.com',
+      '울산창업 U-시리즈', '기술보호',
+      '2026-01-01', '2026-12-31',
+      '500', '지원중', '장영민',
+    ]
+
+    const ws = XLSX.utils.aoa_to_sheet([HEADERS, EXAMPLE])
+
+    // 컬럼 너비 설정
+    ws['!cols'] = [
+      { wch: 16 }, { wch: 10 }, { wch: 14 }, { wch: 8 }, { wch: 8 },
+      { wch: 10 }, { wch: 12 }, { wch: 26 },
+      { wch: 18 }, { wch: 12 }, { wch: 10 },
+      { wch: 14 }, { wch: 20 },
+      { wch: 20 }, { wch: 22 },
+      { wch: 20 }, { wch: 20 },
+      { wch: 12 }, { wch: 16 }, { wch: 10 },
+    ]
+
+    // 헤더 행 스타일 (파란 배경, 흰 텍스트, 굵게)
+    HEADERS.forEach((_, ci) => {
+      const cellRef = XLSX.utils.encode_cell({ r: 0, c: ci })
+      if (!ws[cellRef]) return
+      ws[cellRef].s = {
+        fill: { patternType: 'solid', fgColor: { rgb: '2E75B6' } },
+        font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 10 },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: {
+          bottom: { style: 'thin', color: { rgb: 'FFFFFF' } },
+          right:  { style: 'thin', color: { rgb: 'FFFFFF' } },
+        },
+      }
+    })
+
+    // 예시 행 스타일 (연한 회색 배경)
+    EXAMPLE.forEach((_, ci) => {
+      const cellRef = XLSX.utils.encode_cell({ r: 1, c: ci })
+      if (!ws[cellRef]) return
+      ws[cellRef].s = {
+        fill: { patternType: 'solid', fgColor: { rgb: 'F3F4F6' } },
+        font: { sz: 10, color: { rgb: '374151' } },
+        alignment: { vertical: 'center' },
+      }
+    })
+
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, '선정기업_등록')
     XLSX.writeFile(wb, '선정기업_일괄등록_템플릿.xlsx')
   }
 
   // ── 엑셀 파일 파싱 ──
+  // 컬럼 순서: 기업명, 대표자, 사업자번호, 설립연도, 임직원수,
+  //            대표업태, 대표업종, 아이템, 기업유형, 지역, 성별, 연락처, 이메일,
+  //            지원사업명, 세부프로그램, 지원시작일, 지원종료일, 지원금액, 지원상태, 담당자
   function handleXlsxFile(e) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -235,15 +292,28 @@ export default function Selected() {
       const ws = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1 })
       if (rows.length < 2) { alert('데이터가 없습니다.'); return }
+      const s = (v) => String(v ?? '').trim()
       const parsed = rows.slice(1).filter(r => r[0]).map(r => ({
-        company_name: String(r[0] || '').trim(),
-        ceo: String(r[1] || '').trim(),
-        phone: String(r[2] || '').trim(),
-        sector: String(r[3] || '').trim(),
-        staff: String(r[4] || '').trim(),
-        program: String(r[5] || '').trim(),
-        sub_program: String(r[6] || '').trim(),
-        item: String(r[7] || '').trim(),
+        company_name: s(r[0]),
+        ceo:          s(r[1]),
+        biz_no:       s(r[2]),
+        found_year:   s(r[3]),
+        employees:    s(r[4]),
+        biz_type:     s(r[5]),
+        biz_item:     s(r[6]),
+        item:         s(r[7]),
+        type:         s(r[8]) || '테크',
+        region:       s(r[9]),
+        gender:       s(r[10]),
+        phone:        s(r[11]),
+        email:        s(r[12]),
+        program:      s(r[13]),
+        sub_program:  s(r[14]),
+        start_date:   s(r[15]),
+        end_date:     s(r[16]),
+        amount:       s(r[17]),
+        status:       s(r[18]) || '지원중',
+        staff:        s(r[19]),
       }))
       setXlsxPreview(parsed)
       setXlsxModal(true)
@@ -256,18 +326,27 @@ export default function Selected() {
   async function saveBulkXlsx() {
     if (xlsxPreview.length === 0) return
     const rows = xlsxPreview.map(r => ({
-      company_name: r.company_name,
-      ceo: r.ceo,
-      phone: r.phone,
-      sector: r.sector,
-      biz_type: r.sector,
-      staff: r.staff,
-      program: r.program,
+      company_name:     r.company_name,
+      ceo:              r.ceo,
+      biz_no:           r.biz_no || null,
+      found_year:       r.found_year || null,
+      employees:        r.employees ? Number(r.employees) : null,
+      biz_type:         r.biz_type || null,
+      biz_item:         r.biz_item || null,
+      sector:           (r.biz_type || '') + (r.biz_item ? ' / ' + r.biz_item : '') || null,
+      item:             r.item || null,
+      type:             r.type || '테크',
+      region:           r.region || null,
+      gender:           r.gender || null,
+      phone:            r.phone || null,
+      email:            r.email || null,
+      program:          r.program || null,
       support_programs: r.program ? [{ program: r.program, sub_program: r.sub_program }] : [],
-      item: r.item,
-      type: '테크',
-      status: '지원중',
-      start_date: today(),
+      staff:            r.staff || null,
+      start_date:       r.start_date || today(),
+      end_date:         r.end_date || null,
+      amount:           r.amount ? Number(r.amount) : null,
+      status:           r.status || '지원중',
     }))
     try {
       const { data, error } = await supabase.from('selected_firms').insert(rows).select()
@@ -528,23 +607,37 @@ export default function Selected() {
         <div className="overflow-x-auto max-h-96">
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                {['기업명', '대표자', '연락처', '업종', '담당자', '지원사업명', '세부프로그램', '아이템'].map(h => (
-                  <th key={h} className="text-left px-2 py-2 font-medium text-gray-500">{h}</th>
+              <tr className="border-b border-gray-200" style={{ background: '#2E75B6' }}>
+                {['기업명', '대표자', '사업자번호', '설립연도', '임직원', '업태', '업종', '아이템',
+                  '유형', '지역', '성별', '연락처', '이메일',
+                  '지원사업명', '세부프로그램', '시작일', '종료일', '지원금(만)', '상태', '담당자'].map(h => (
+                  <th key={h} className="text-left px-2 py-2 font-medium whitespace-nowrap" style={{ color: '#fff' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {xlsxPreview.map((r, i) => (
-                <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="px-2 py-1.5 font-semibold text-blue-700">{r.company_name}</td>
-                  <td className="px-2 py-1.5">{r.ceo}</td>
-                  <td className="px-2 py-1.5 text-gray-500">{r.phone}</td>
-                  <td className="px-2 py-1.5 text-gray-500">{r.sector}</td>
-                  <td className="px-2 py-1.5">{r.staff}</td>
-                  <td className="px-2 py-1.5 text-blue-600">{r.program}</td>
+                <tr key={i} className="border-b border-gray-100 hover:bg-blue-50">
+                  <td className="px-2 py-1.5 font-semibold text-blue-700 whitespace-nowrap">{r.company_name}</td>
+                  <td className="px-2 py-1.5 whitespace-nowrap">{r.ceo}</td>
+                  <td className="px-2 py-1.5 text-gray-500">{r.biz_no}</td>
+                  <td className="px-2 py-1.5 text-gray-500">{r.found_year}</td>
+                  <td className="px-2 py-1.5 text-gray-500">{r.employees}</td>
+                  <td className="px-2 py-1.5 text-gray-500">{r.biz_type}</td>
+                  <td className="px-2 py-1.5 text-gray-500">{r.biz_item}</td>
+                  <td className="px-2 py-1.5 max-w-[120px] truncate">{r.item}</td>
+                  <td className="px-2 py-1.5">{r.type}</td>
+                  <td className="px-2 py-1.5 whitespace-nowrap">{r.region}</td>
+                  <td className="px-2 py-1.5">{r.gender}</td>
+                  <td className="px-2 py-1.5 whitespace-nowrap">{r.phone}</td>
+                  <td className="px-2 py-1.5 text-gray-500">{r.email}</td>
+                  <td className="px-2 py-1.5 text-blue-600 whitespace-nowrap">{r.program}</td>
                   <td className="px-2 py-1.5 text-gray-500">{r.sub_program}</td>
-                  <td className="px-2 py-1.5">{r.item}</td>
+                  <td className="px-2 py-1.5 whitespace-nowrap">{r.start_date}</td>
+                  <td className="px-2 py-1.5 whitespace-nowrap">{r.end_date}</td>
+                  <td className="px-2 py-1.5 font-bold text-green-700">{r.amount}</td>
+                  <td className="px-2 py-1.5"><span className="bg-blue-100 text-blue-700 px-1 py-0.5 rounded">{r.status}</span></td>
+                  <td className="px-2 py-1.5 whitespace-nowrap">{r.staff}</td>
                 </tr>
               ))}
             </tbody>
