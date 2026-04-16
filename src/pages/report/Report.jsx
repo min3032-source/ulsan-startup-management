@@ -66,7 +66,7 @@ export default function Report() {
       let mYear  = filterYear(m,  'date')
 
       // 사업별 탭용으로 프로그램 필터 전 데이터 저장
-      setYearData({ fYear, cYear, sYear })
+      setYearData({ fYear, cYear, sYear, sfYear })
 
       // 사업별 필터
       if (program) {
@@ -102,6 +102,12 @@ export default function Report() {
       const totalAmount     = sYear.reduce((sum, x) => sum + Number(x.amount || 0), 0)
       const founderCount    = fYear.filter(x => x.is_founder === true).length
 
+      // 선정기업 집계
+      const sfAmount = sfYear.reduce((sum, x) => sum + Number(x.amount || 0), 0)
+      const sfDone   = sfYear.filter(x => x.status === '완료').length
+      const sfByProgram = {}
+      sfYear.forEach(x => { const p = x.program || '기타'; if (!sfByProgram[p]) sfByProgram[p] = []; sfByProgram[p].push(x) })
+
       setData({
         founders: fYear.length, founderCount,
         consults: cYear.length, followUp: cYear.filter(x => x.status === '후속필요').length,
@@ -114,6 +120,7 @@ export default function Report() {
         programDist:  Object.entries(programDist).sort((a, b) => b[1] - a[1]),
         totalRevenue, totalEmployees, totalInvestment, growthCount: g.length,
         fYear,
+        sfYear, sfAmount, sfDone, sfByProgram,
       })
     } catch (e) {
       console.error('Report load error:', e)
@@ -225,6 +232,47 @@ export default function Report() {
               <StatCard label="총 고용인원" value={`${data.totalEmployees}명`} sub={`투자유치 ${data.totalInvestment.toLocaleString()}백만원`} color="amber" icon={Users} />
             </div>
           </div>
+
+          {/* 선정기업 현황 */}
+          {data.sfYear && data.sfYear.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold text-gray-600 mb-3 flex items-center gap-1.5">
+                <Building2 size={14} /> 선정기업 현황
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                <StatCard label="선정기업 합계" value={`${data.selectedFirms}개사`} color="blue" />
+                <StatCard label="지원중" value={`${data.sfYear.filter(f=>f.status==='지원중').length}개사`} color="orange" />
+                <StatCard label="지원 완료" value={`${data.sfDone}개사`} color="green" />
+                <StatCard label="선정기업 지원금" value={`${data.sfAmount >= 10000 ? (data.sfAmount/10000).toFixed(1)+'억' : data.sfAmount.toLocaleString()+'만'}`} color="teal" />
+              </div>
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 text-xs font-semibold text-gray-600">지원사업별 선정기업 목록</div>
+                {Object.entries(data.sfByProgram).map(([prog, list]) => (
+                  <div key={prog} className="border-b border-gray-100 last:border-0">
+                    <div className="px-4 py-2 bg-blue-50 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-blue-800">{prog}</span>
+                      <div className="flex gap-3 text-xs text-gray-500">
+                        <span>{list.length}개사</span>
+                        <span className="font-bold text-green-700">{list.reduce((a,f)=>a+Number(f.amount||0),0).toLocaleString()}만원</span>
+                        <span className="text-green-600">완료 {list.filter(f=>f.status==='완료').length}개</span>
+                      </div>
+                    </div>
+                    <div className="px-4 py-1">
+                      {list.map(f => (
+                        <div key={f.id} className="flex items-center gap-3 py-1.5 border-b border-gray-50 last:border-0 text-xs">
+                          <span className="font-medium text-gray-800 min-w-[100px]">{f.company_name}</span>
+                          <span className="text-gray-500">{f.ceo}</span>
+                          {f.item && <span className="text-gray-400 flex-1 truncate">{f.item}</span>}
+                          <span className={`px-1.5 py-0.5 rounded font-medium ${f.status === '완료' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{f.status}</span>
+                          {f.amount && <span className="font-semibold text-green-700">{Number(f.amount).toLocaleString()}만</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <SectionCard title="창업 유형 분포">

@@ -183,6 +183,83 @@ export default function Stats() {
         </div>
       </div>
 
+      {/* ── 선정기업 현황 ── */}
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold text-gray-700">선정기업 현황</h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard label="전체 선정기업" value={`${selectedFirms.length}개사`} color="blue" />
+          <StatCard label="지원 진행중" value={`${selectedFirms.filter(f => f.status === '지원중').length}개사`} color="orange" />
+          <StatCard label="지원 완료" value={`${selectedFirms.filter(f => f.status === '완료').length}개사`} color="green" />
+          <StatCard label="총 지원금액"
+            value={(() => { const t = selectedFirms.reduce((a, f) => a + (Number(f.amount) || 0), 0); return t >= 10000 ? (t/10000).toFixed(1)+'억' : t.toLocaleString()+'만' })()} color="teal" />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* 연도별 선정기업 */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <div className="font-semibold text-gray-700 text-sm mb-4">연도별 선정기업 수</div>
+            {(() => {
+              const yearMap = {}
+              selectedFirms.forEach(f => { const y = f.start_date?.slice(0,4); if (y) yearMap[y] = (yearMap[y]||0)+1 })
+              const entries = Object.entries(yearMap).sort()
+              const maxV = Math.max(...entries.map(([,v])=>v), 1)
+              return entries.length === 0
+                ? <div className="text-center text-gray-400 text-sm py-4">데이터 없음</div>
+                : <div className="flex items-end gap-4">{entries.map(([y, cnt]) => (
+                    <div key={y} className="flex flex-col items-center gap-1">
+                      <span className="text-xs font-bold text-blue-700">{cnt}개</span>
+                      <div style={{ height: `${Math.max(20, Math.round(cnt/maxV*80))}px`, width:'36px', background:'#2E75B6', borderRadius:'4px 4px 0 0', opacity:0.85 }} />
+                      <span className="text-xs text-gray-500">{y}</span>
+                    </div>
+                  ))}</div>
+            })()}
+          </div>
+
+          {/* 지원사업별 기업 수 + 기업유형 */}
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <div className="font-semibold text-gray-700 text-sm mb-3">기업유형별 비율</div>
+              {(() => {
+                const typeMap = {}
+                selectedFirms.forEach(f => { const t = f.type || '미정'; typeMap[t] = (typeMap[t]||0)+1 })
+                const maxV = Math.max(...Object.values(typeMap), 1)
+                return Object.entries(typeMap).map(([t, cnt]) => (
+                  <div key={t} className="flex items-center gap-3 mb-2">
+                    <div className="text-xs text-gray-600 min-w-[60px]">{t}</div>
+                    <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width:`${Math.round(cnt/maxV*100)}%`, background: t.includes('테크')?'#2E75B6':t.includes('로컬')?'#1E5631':'#8B6914' }} />
+                    </div>
+                    <div className="text-xs font-bold text-gray-700 min-w-[40px] text-right">{cnt}개 ({selectedFirms.length>0?Math.round(cnt/selectedFirms.length*100):0}%)</div>
+                  </div>
+                ))
+              })()}
+            </div>
+          </div>
+        </div>
+
+        {/* 지원사업별 기업 수 */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <div className="font-semibold text-gray-700 text-sm mb-4">지원사업별 선정기업 수</div>
+          {(() => {
+            const progMap = {}
+            selectedFirms.forEach(f => { const p = f.program||'미지정'; progMap[p] = (progMap[p]||0)+1 })
+            const entries = Object.entries(progMap).sort((a,b)=>b[1]-a[1])
+            const maxV = Math.max(...entries.map(([,v])=>v), 1)
+            return entries.length === 0
+              ? <div className="text-center text-gray-400 text-sm py-4">데이터 없음</div>
+              : entries.map(([p, cnt]) => (
+                <div key={p} className="flex items-center gap-3 mb-2">
+                  <div className="text-xs text-gray-600 min-w-[140px] truncate" title={p}>{p}</div>
+                  <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width:`${Math.round(cnt/maxV*100)}%`, background:'#2E75B6' }} />
+                  </div>
+                  <div className="text-xs font-bold text-blue-700 min-w-[36px] text-right">{cnt}개사</div>
+                </div>
+              ))
+          })()}
+        </div>
+      </div>
+
       {/* Program stats table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div className="px-5 py-3 border-b border-gray-100">
