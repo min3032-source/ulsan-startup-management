@@ -61,8 +61,10 @@ export default function Selected() {
   const [consultForm, setConsultForm] = useState(null) // null=숨김, {}=표시
 
   // 엑셀 일괄 등록
-  const [xlsxModal, setXlsxModal] = useState(false)
+  const [xlsxUploadModal, setXlsxUploadModal] = useState(false) // 1단계: 파일 선택
+  const [xlsxModal, setXlsxModal] = useState(false)              // 2단계: 미리보기
   const [xlsxPreview, setXlsxPreview] = useState([])
+  const [xlsxParsing, setXlsxParsing] = useState(false)
   const fileInputRef = useRef(null)
 
   useEffect(() => { loadData() }, [])
@@ -325,26 +327,32 @@ export default function Selected() {
     XLSX.writeFile(wb, '선정기업_일괄등록_템플릿.xlsx')
   }
 
-  function handleXlsxFile(e) {
+  async function handleXlsxFile(e) {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = async (ev) => {
-      const wb = XLSX.read(ev.target.result, { type: 'binary' })
+    e.target.value = ''
+    setXlsxParsing(true)
+    try {
+      // ArrayBuffer 방식으로 안정적으로 파싱
+      const buf = await file.arrayBuffer()
+      const wb = XLSX.read(buf, { type: 'array' })
       const ws = wb.Sheets[wb.SheetNames[0]]
-      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 })
-      if (rows.length < 2) { alert('데이터가 없습니다.'); return }
-      const s = (v) => String(v ?? '').trim()
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
 
-      // DB에서 최신 기업 목록 조회 (메모리 상태 대신 직접 조회)
-      const { data: existingFirms } = await supabase
+      const s = (v) => String(v ?? '').trim()
+      const dataRows = rows.slice(1).filter(r => s(r[0])) // 헤더 제외, 기업명 있는 행만
+      if (dataRows.length === 0) { alert('유효한 데이터 행이 없습니다.'); return }
+
+      // DB에서 최신 기업 목록 직접 조회
+      const { data: existingFirms, error: dbErr } = await supabase
         .from('selected_firms')
         .select('id, company_name, support_programs')
+      if (dbErr) throw dbErr
 
-      const parsed = rows.slice(1).filter(r => r[0]).map(r => {
+      const parsed = dataRows.map(r => {
         const company_name = s(r[0])
         const existing = (existingFirms || []).find(f =>
-          f.company_name?.trim() === company_name.trim()
+          f.company_name?.trim() === company_name
         )
         return {
           company_name, ceo: s(r[1]), biz_no: s(r[2]), found_year: s(r[3]), employees: s(r[4]),
@@ -360,50 +368,48 @@ export default function Selected() {
         }
       })
       setXlsxPreview(parsed)
+      setXlsxUploadModal(false)
       setXlsxModal(true)
+    } catch (err) {
+      alert('파일 분석 실패: ' + err.message)
+    } finally {
+      setXlsxParsing(false)
     }
-    reader.readAsBinaryString(file)
-    e.target.value = ''
   }
 
   async function saveBulkXlsx() {
     if (xlsxPreview.length === 0) return
 
-    // 저장 직전 DB 재조회 (미리보기 이후 변경 반영)
+    // 저장 직전 DB 재조회 (미리보기와 저장 사이에 변경된 내용 반영)
     const { data: latestFirms, error: fetchErr } = await supabase
-      .from('selected_firms')
-      .select('id, company_name, support_programs')
+      .from('selected_firms').select('id, company_name, support_programs')
     if (fetchErr) { alert('기업 목록 조회 실패: ' + fetchErr.message); return }
 
-    const resolvedRows = xlsxPreview.map(r => {
+    const resolved = xlsxPreview.map(r => {
       const existing = (latestFirms || []).find(f =>
         f.company_name?.trim() === r.company_name.trim()
       )
-      return {
-        ...r,
-        isDuplicate: !!existing,
-        existingId: existing?.id ?? null,
-        existingSP: existing?.support_programs ?? [],
-      }
+      return { ...r, isDuplicate: !!existing, existingId: existing?.id ?? null, existingSP: existing?.support_programs ?? [] }
     })
 
-    const newRows    = resolvedRows.filter(r => !r.isDuplicate)
-    const updateRows = resolvedRows.filter(r => r.isDuplicate)
+    const newRows    = resolved.filter(r => !r.isDuplicate)
+    const updateRows = resolved.filter(r => r.isDuplicate)
 
-    // 신규 항목 빌더
     const buildInsertRow = r => ({
       company_name: r.company_name, ceo: r.ceo || null,
       biz_no: r.biz_no || null, found_year: r.found_year || null,
       employees: r.employees ? Number(r.employees) : null,
       biz_type: r.biz_type || null, biz_item: r.biz_item || null,
-      sector: (r.biz_type || '') + (r.biz_item ? ' / ' + r.biz_item : '') || null,
+      sector: [r.biz_type, r.biz_item].filter(Boolean).join(' / ') || null,
       item: r.item || null, type: r.type || '테크',
       region: r.region || null, gender: r.gender || null,
       phone: r.phone || null, email: r.email || null,
       program: r.program || null,
-      support_programs: r.program ? [{ program: r.program, sub_program: r.sub_program,
+      support_programs: r.program ? [{
+        program: r.program, sub_program: r.sub_program,
         staff: r.staff, start_date: r.start_date, end_date: r.end_date,
-        amount: r.amount ? Number(r.amount) : null, status: r.status || '지원중' }] : [],
+        amount: r.amount ? Number(r.amount) : null, status: r.status || '지원중',
+      }] : [],
       staff: r.staff || null,
       start_date: r.start_date || today(), end_date: r.end_date || null,
       amount: r.amount ? Number(r.amount) : null, status: r.status || '지원중',
@@ -413,41 +419,35 @@ export default function Selected() {
       let insertedCount = 0
       let updatedCount  = 0
 
-      // ── 신규 insert ──
+      // ── 신규 INSERT ──
       if (newRows.length > 0) {
         const { data, error } = await supabase
           .from('selected_firms').insert(newRows.map(buildInsertRow)).select()
-        if (error) { console.error('신규 등록 오류:', error); throw error }
+        if (error) throw error
         setFirms(prev => [...(data || []), ...prev])
         insertedCount = (data || []).length
       }
 
-      // ── 중복 update ──
+      // ── 기존 UPDATE ──
       for (const r of updateRows) {
-        // support_programs: 기존 배열에 새 항목 추가 (program+sub_program 동일하면 스킵)
         const newSP = r.program ? {
           program: r.program, sub_program: r.sub_program,
           staff: r.staff, start_date: r.start_date, end_date: r.end_date,
           amount: r.amount ? Number(r.amount) : null, status: r.status || '지원중',
         } : null
-        const existingSP = Array.isArray(r.existingSP) ? r.existingSP : []
-        const alreadyHasSP = newSP && existingSP.some(sp =>
+        const baseSP = Array.isArray(r.existingSP) ? r.existingSP : []
+        // 지원사업명 + 세부프로그램 모두 같은 경우만 중복으로 보고 스킵
+        const alreadyExists = newSP && baseSP.some(sp =>
           sp.program === newSP.program && sp.sub_program === newSP.sub_program
         )
-        const mergedSP = newSP && !alreadyHasSP ? [...existingSP, newSP] : existingSP
-        const firstSP = mergedSP[0]
+        const mergedSP = newSP && !alreadyExists ? [...baseSP, newSP] : baseSP
+        const firstSP  = mergedSP[0]
 
-        const updatePayload = {
-          // 업데이트 항목 (최신 엑셀 데이터로 덮어씀)
-          ceo:      r.ceo      || null,
-          phone:    r.phone    || null,
-          email:    r.email    || null,
-          biz_type: r.biz_type || null,
-          biz_item: r.biz_item || null,
-          sector:   (r.biz_type || '') + (r.biz_item ? ' / ' + r.biz_item : '') || null,
-          item:     r.item     || null,
-          staff:    r.staff    || null,
-          // support_programs 병합
+        const payload = {
+          ceo: r.ceo || null, phone: r.phone || null, email: r.email || null,
+          biz_type: r.biz_type || null, biz_item: r.biz_item || null,
+          sector: [r.biz_type, r.biz_item].filter(Boolean).join(' / ') || null,
+          item: r.item || null, staff: r.staff || null,
           support_programs: mergedSP,
           program:    firstSP?.program    || null,
           start_date: firstSP?.start_date || null,
@@ -455,20 +455,20 @@ export default function Selected() {
           amount:     firstSP?.amount     ?? null,
           status:     mergedSP.every(sp => sp.status === '완료') ? '완료' : '지원중',
         }
-
         const { error } = await supabase
-          .from('selected_firms').update(updatePayload).eq('id', r.existingId)
-        if (error) { console.error('업데이트 오류:', error); throw error }
-        setFirms(prev => prev.map(f =>
-          f.id === r.existingId ? { ...f, ...updatePayload } : f
-        ))
+          .from('selected_firms').update(payload).eq('id', r.existingId)
+        if (error) throw error
+        setFirms(prev => prev.map(f => f.id === r.existingId ? { ...f, ...payload } : f))
         updatedCount++
       }
 
       setXlsxModal(false)
       setXlsxPreview([])
       alert(`신규 등록 ${insertedCount}개, 업데이트 ${updatedCount}개 완료`)
-    } catch (e) { alert('일괄 저장 실패: ' + e.message) }
+    } catch (err) {
+      alert('일괄 저장 실패: ' + err.message)
+      console.error(err)
+    }
   }
 
   const filteredFirms = firms.filter(f =>
@@ -508,11 +508,7 @@ export default function Selected() {
           ))}
         </div>
         <div className="flex gap-2">
-          <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleXlsxFile} />
-          <button onClick={downloadTemplate} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-            <Download size={14} /> 템플릿
-          </button>
-          <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+          <button onClick={() => setXlsxUploadModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
             <Upload size={14} /> 일괄 등록 (Excel)
           </button>
           <button onClick={openAddFirm} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white rounded-lg" style={{ background: '#2E75B6' }}>
@@ -736,28 +732,64 @@ export default function Selected() {
         </div>
       </Modal>
 
-      {/* ── 엑셀 일괄 등록 미리보기 모달 ── */}
+      {/* ── 1단계: 엑셀 파일 선택 모달 ── */}
+      <Modal isOpen={xlsxUploadModal} onClose={() => setXlsxUploadModal(false)} title="엑셀 일괄 등록"
+        footer={<button onClick={() => setXlsxUploadModal(false)} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">닫기</button>}
+      >
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700 space-y-1">
+            <div className="font-semibold">사용 방법</div>
+            <div>① 아래 템플릿을 다운로드해 데이터를 입력합니다.</div>
+            <div>② 작성한 파일을 선택하면 미리보기가 표시됩니다.</div>
+            <div>③ 기업명이 동일한 기업은 <span className="font-semibold text-orange-600">업데이트</span>, 신규 기업은 <span className="font-semibold text-green-600">신규</span>로 표시됩니다.</div>
+          </div>
+          <button onClick={downloadTemplate} className="flex items-center gap-2 w-full justify-center px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+            <Download size={15} /> 템플릿 다운로드 (.xlsx)
+          </button>
+          <div>
+            <label className={`flex flex-col items-center justify-center gap-2 w-full py-8 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${xlsxParsing ? 'border-blue-300 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'}`}>
+              <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleXlsxFile} disabled={xlsxParsing} />
+              {xlsxParsing ? (
+                <>
+                  <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm text-blue-600 font-medium">파일 분석 중...</span>
+                </>
+              ) : (
+                <>
+                  <Upload size={24} className="text-gray-400" />
+                  <span className="text-sm text-gray-600 font-medium">클릭하여 엑셀 파일 선택</span>
+                  <span className="text-xs text-gray-400">.xlsx, .xls 형식 지원</span>
+                </>
+              )}
+            </label>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── 2단계: 미리보기 모달 ── */}
       <Modal isOpen={xlsxModal} onClose={() => { setXlsxModal(false); setXlsxPreview([]) }}
         title={`엑셀 일괄 등록 미리보기 — 신규 ${xlsxPreview.filter(r=>!r.isDuplicate).length}개 / 업데이트 ${xlsxPreview.filter(r=>r.isDuplicate).length}개`} wide
         footer={
           <>
             <button onClick={() => { setXlsxModal(false); setXlsxPreview([]) }} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
-            <button onClick={saveBulkXlsx} className="px-4 py-1.5 text-sm text-white rounded-lg" style={{ background: '#2E75B6' }}>일괄 저장</button>
+            <button onClick={saveBulkXlsx} className="px-4 py-1.5 text-sm text-white rounded-lg" style={{ background: '#2E75B6' }}>
+              저장 (신규 {xlsxPreview.filter(r=>!r.isDuplicate).length}개, 업데이트 {xlsxPreview.filter(r=>r.isDuplicate).length}개)
+            </button>
           </>
         }
       >
-        <div className="overflow-x-auto max-h-96">
+        <div className="overflow-x-auto max-h-[60vh]">
           <table className="w-full text-xs">
-            <thead>
+            <thead className="sticky top-0">
               <tr className="border-b border-gray-200" style={{ background: '#2E75B6' }}>
-                {['구분','기업명','대표자','사업자번호','설립연도','임직원','업태','업종','아이템','유형','지역','성별','연락처','이메일','지원사업명','세부프로그램','시작일','종료일','지원금(만)','상태','담당자'].map(h => (
+                {['구분','기업명','대표자','지원사업명','세부프로그램','시작일','종료일','지원금(만)','상태','담당자','사업자번호','유형','지역'].map(h => (
                   <th key={h} className="text-left px-2 py-2 font-medium whitespace-nowrap" style={{ color: '#fff' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {xlsxPreview.map((r, i) => (
-                <tr key={i} className="border-b border-gray-100 hover:bg-blue-50">
+                <tr key={i} className={`border-b border-gray-100 hover:bg-blue-50 ${r.isDuplicate ? 'bg-orange-50' : ''}`}>
                   <td className="px-2 py-1.5 whitespace-nowrap">
                     {r.isDuplicate
                       ? <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-xs font-medium">업데이트</span>
@@ -766,17 +798,6 @@ export default function Selected() {
                   </td>
                   <td className="px-2 py-1.5 font-semibold text-blue-700 whitespace-nowrap">{r.company_name}</td>
                   <td className="px-2 py-1.5 whitespace-nowrap">{r.ceo}</td>
-                  <td className="px-2 py-1.5 text-gray-500">{r.biz_no}</td>
-                  <td className="px-2 py-1.5 text-gray-500">{r.found_year}</td>
-                  <td className="px-2 py-1.5 text-gray-500">{r.employees}</td>
-                  <td className="px-2 py-1.5 text-gray-500">{r.biz_type}</td>
-                  <td className="px-2 py-1.5 text-gray-500">{r.biz_item}</td>
-                  <td className="px-2 py-1.5 max-w-[120px] truncate">{r.item}</td>
-                  <td className="px-2 py-1.5">{r.type}</td>
-                  <td className="px-2 py-1.5 whitespace-nowrap">{r.region}</td>
-                  <td className="px-2 py-1.5">{r.gender}</td>
-                  <td className="px-2 py-1.5 whitespace-nowrap">{r.phone}</td>
-                  <td className="px-2 py-1.5 text-gray-500">{r.email}</td>
                   <td className="px-2 py-1.5 text-blue-600 whitespace-nowrap">{r.program}</td>
                   <td className="px-2 py-1.5 text-gray-500">{r.sub_program}</td>
                   <td className="px-2 py-1.5 whitespace-nowrap">{r.start_date}</td>
@@ -784,6 +805,9 @@ export default function Selected() {
                   <td className="px-2 py-1.5 font-bold text-green-700">{r.amount}</td>
                   <td className="px-2 py-1.5"><span className="bg-blue-100 text-blue-700 px-1 py-0.5 rounded">{r.status}</span></td>
                   <td className="px-2 py-1.5 whitespace-nowrap">{r.staff}</td>
+                  <td className="px-2 py-1.5 text-gray-400">{r.biz_no}</td>
+                  <td className="px-2 py-1.5 text-gray-500">{r.type}</td>
+                  <td className="px-2 py-1.5 whitespace-nowrap text-gray-500">{r.region}</td>
                 </tr>
               ))}
             </tbody>
