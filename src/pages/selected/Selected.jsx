@@ -679,7 +679,11 @@ export default function Selected() {
 
   const inProg = firms.filter(f => f.status === '지원중').length
   const done = firms.filter(f => f.status === '완료').length
-  const totalAmt = firms.reduce((a, f) => a + (Number(f.amount) || 0), 0)
+  const totalAmt = firms.reduce((a, f) => {
+    const spArr = Array.isArray(f.support_programs) && f.support_programs.length > 0 ? f.support_programs : []
+    const spSum = spArr.reduce((s, sp) => s + (Number(sp.amount) || 0), 0)
+    return a + (spSum || Number(f.amount) || 0)
+  }, 0)
   const postCount = firms.filter(f => f.post_mgmt === '후속관리중').length
   const programs = [...new Set(firms.map(f => f.program).filter(Boolean))]
   const staffOptions = profiles.length > 0 ? profiles.map(p => p.name || p.email) : settings.staff
@@ -1447,42 +1451,80 @@ function FirmListTab({ firms, notes, onEdit, onDelete, onDetail }) {
           ) : firms.map(f => {
             const lastNote = notes.filter(n => n.firm_id === f.id).sort((a, b) => b.date.localeCompare(a.date))[0]
             const spList = Array.isArray(f.support_programs) && f.support_programs.length > 0
-              ? f.support_programs : f.program ? [{ program: f.program, sub_program: f.sub_program }] : []
-            return (
-              <tr key={f.id} className="border-b border-gray-50 hover:bg-gray-50">
-                <td className="px-3 py-2.5">
-                  <button onClick={() => onDetail(f)} className="font-bold text-blue-600 underline text-xs">{f.company_name}</button>
-                </td>
-                <td className="px-3 py-2.5 text-xs">{f.ceo}</td>
-                <td className="px-3 py-2.5 text-xs text-gray-500 max-w-[100px]">
-                  <div className="truncate">{f.sector}</div>
-                  {f.item && <div className="text-gray-400 truncate">{f.item}</div>}
-                </td>
-                <td className="px-3 py-2.5"><VerdictBadge verdict={f.type} /></td>
-                <td className="px-3 py-2.5 text-xs font-medium max-w-[120px]">
-                  {spList.map((sp, i) => (
-                    <div key={i} className="truncate">{sp.program}{sp.sub_program && <span className="text-gray-400"> · {sp.sub_program}</span>}</div>
-                  ))}
-                </td>
-                <td className="px-3 py-2.5 text-xs text-gray-500">{f.start_date}<br />{f.end_date || <span className="text-orange-500">진행중</span>}</td>
-                <td className="px-3 py-2.5 text-xs font-bold text-green-700">{f.amount ? Number(f.amount).toLocaleString() : '-'}</td>
-                <td className="px-3 py-2.5 text-xs">{f.staff}</td>
-                <td className="px-3 py-2.5"><StatusBadge status={f.status} /></td>
-                <td className="px-3 py-2.5">
-                  {f.post_mgmt ? (
-                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${f.post_mgmt === '후속관리중' ? 'bg-orange-100 text-orange-700' : f.post_mgmt === '성장추적중' ? 'bg-teal-100 text-teal-700' : 'bg-green-100 text-green-700'}`}>{f.post_mgmt}</span>
-                  ) : <span className="text-xs text-gray-300">-</span>}
-                  {lastNote && <div className="text-xs text-gray-400 mt-0.5">{lastNote.date}</div>}
-                </td>
-                <td className="px-3 py-2.5">
-                  <div className="flex gap-1">
-                    <button onClick={() => onDetail(f)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-600"><Eye size={12} /></button>
-                    <button onClick={() => onEdit(f)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-600"><Pencil size={12} /></button>
-                    <button onClick={() => onDelete(f.id)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-red-600"><Trash2 size={12} /></button>
-                  </div>
-                </td>
-              </tr>
-            )
+              ? f.support_programs
+              : f.program
+                ? [{ program: f.program, sub_program: f.sub_program, start_date: f.start_date, end_date: f.end_date, amount: f.amount, staff: f.staff, status: f.status }]
+                : [{}]
+
+            return spList.map((sp, spIdx) => {
+              const isFirst = spIdx === 0
+              const rowCount = spList.length
+              return (
+                <tr key={`${f.id}-${spIdx}`} className={`border-b border-gray-50 hover:bg-gray-50 ${!isFirst ? 'bg-gray-50/30' : ''}`}>
+                  {/* 기업명 — 첫 행만 표시, rowspan 시뮬레이션 */}
+                  {isFirst ? (
+                    <td className="px-3 py-2.5" rowSpan={rowCount} style={{ verticalAlign: 'top', borderRight: rowCount > 1 ? '1px solid #f3f4f6' : undefined }}>
+                      <button onClick={() => onDetail(f)} className="font-bold text-blue-600 underline text-xs">{f.company_name}</button>
+                    </td>
+                  ) : null}
+                  {isFirst ? (
+                    <td className="px-3 py-2.5 text-xs" rowSpan={rowCount} style={{ verticalAlign: 'top', borderRight: rowCount > 1 ? '1px solid #f3f4f6' : undefined }}>{f.ceo}</td>
+                  ) : null}
+                  {isFirst ? (
+                    <td className="px-3 py-2.5 text-xs text-gray-500 max-w-[100px]" rowSpan={rowCount} style={{ verticalAlign: 'top', borderRight: rowCount > 1 ? '1px solid #f3f4f6' : undefined }}>
+                      <div className="truncate">{f.sector}</div>
+                      {f.item && <div className="text-gray-400 truncate">{f.item}</div>}
+                    </td>
+                  ) : null}
+                  {isFirst ? (
+                    <td className="px-3 py-2.5" rowSpan={rowCount} style={{ verticalAlign: 'top', borderRight: rowCount > 1 ? '1px solid #f3f4f6' : undefined }}>
+                      <VerdictBadge verdict={f.type} />
+                    </td>
+                  ) : null}
+
+                  {/* 지원사업별 컬럼 */}
+                  <td className="px-3 py-2.5 text-xs font-medium max-w-[130px]">
+                    {sp.program
+                      ? <><div className="truncate text-gray-800">{sp.program}</div>
+                          {sp.sub_program && <div className="text-gray-400 truncate">{sp.sub_program}</div>}</>
+                      : <span className="text-gray-300">-</span>}
+                  </td>
+                  <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">
+                    {sp.start_date || f.start_date
+                      ? <><div>{sp.start_date || f.start_date}</div>
+                          <div>{sp.end_date || f.end_date || <span className="text-orange-500">진행중</span>}</div></>
+                      : <span className="text-gray-300">-</span>}
+                  </td>
+                  <td className="px-3 py-2.5 text-xs font-bold text-green-700">
+                    {sp.amount ? Number(sp.amount).toLocaleString() : '-'}
+                  </td>
+                  <td className="px-3 py-2.5 text-xs">{sp.staff || f.staff || '-'}</td>
+                  <td className="px-3 py-2.5">
+                    <StatusBadge status={sp.status || f.status} />
+                  </td>
+
+                  {/* 사후관리 — 첫 행만 */}
+                  {isFirst ? (
+                    <td className="px-3 py-2.5" rowSpan={rowCount} style={{ verticalAlign: 'top', borderLeft: rowCount > 1 ? '1px solid #f3f4f6' : undefined }}>
+                      {f.post_mgmt ? (
+                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${f.post_mgmt === '후속관리중' ? 'bg-orange-100 text-orange-700' : f.post_mgmt === '성장추적중' ? 'bg-teal-100 text-teal-700' : 'bg-green-100 text-green-700'}`}>{f.post_mgmt}</span>
+                      ) : <span className="text-xs text-gray-300">-</span>}
+                      {lastNote && <div className="text-xs text-gray-400 mt-0.5">{lastNote.date}</div>}
+                    </td>
+                  ) : null}
+                  {/* 관리 — 첫 행만 */}
+                  {isFirst ? (
+                    <td className="px-3 py-2.5" rowSpan={rowCount} style={{ verticalAlign: 'top', borderLeft: rowCount > 1 ? '1px solid #f3f4f6' : undefined }}>
+                      <div className="flex gap-1">
+                        <button onClick={() => onDetail(f)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-600"><Eye size={12} /></button>
+                        <button onClick={() => onEdit(f)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-600"><Pencil size={12} /></button>
+                        <button onClick={() => onDelete(f.id)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-red-600"><Trash2 size={12} /></button>
+                      </div>
+                    </td>
+                  ) : null}
+                </tr>
+              )
+            })
           })}
         </tbody>
       </table>
