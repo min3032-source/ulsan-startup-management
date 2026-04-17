@@ -1,354 +1,580 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { EXPERT_FIELDS, MENTORING_PROGRAMS, DEFAULT_SETTINGS, getExpertFieldBadgeClass, today } from '../../lib/constants'
-import { StatusBadge } from '../../components/common/Badge'
-import Modal from '../../components/common/Modal'
+import { Plus, X, Search, ChevronDown } from 'lucide-react'
 import StatCard from '../../components/common/StatCard'
-import Avatar from '../../components/common/Avatar'
-import { Plus, Search, Pencil, Trash2 } from 'lucide-react'
+import PageHeader from '../../components/common/PageHeader'
 
-const emptyForm = () => ({
-  expert_id: '', target_type: 'founder', target_id: '', target_name: '',
-  program: MENTORING_PROGRAMS[0], staff: '', date: today(), time: '',
-  duration: '1', method: '방문', status: '예정', cost: '0',
-  content: '', outcome: '', next_date: '', memo: '',
+const PROGRAM_STATUSES = ['매칭대기', '진행중', '완료', '중단']
+const SESSION_STATUSES = ['예정', '완료', '취소']
+
+const STATUS_COLOR = {
+  '매칭대기': 'bg-amber-100 text-amber-700',
+  '진행중':   'bg-blue-100 text-blue-700',
+  '완료':     'bg-green-100 text-green-700',
+  '중단':     'bg-red-100 text-red-500',
+  '예정':     'bg-gray-100 text-gray-600',
+  '취소':     'bg-red-100 text-red-500',
+}
+
+const emptyProgram = () => ({
+  title: '', mentor_id: '', mentee_name: '', mentee_phone: '', mentee_email: '',
+  total_sessions: 5, goal: '', start_date: '', end_date: '', assignee: '', status: '매칭대기',
+})
+
+const emptySession = (programId, nextNum) => ({
+  program_id: programId, session_number: nextNum, session_date: '',
+  content: '', homework: '', next_goal: '', status: '예정',
 })
 
 export default function Mentoring() {
   const { hasRole } = useAuth()
-  const canWrite = hasRole("manager")
-  const canDelete = hasRole("admin")
+  const canWrite = hasRole('manager')
 
-  const [mentorings, setMentorings] = useState([])
-  const [experts, setExperts] = useState([])
-  const [founders, setFounders] = useState([])
-  const [selectedFirms, setSelectedFirms] = useState([])
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS)
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [filterExpert, setFilterExpert] = useState('')
+  const [tab, setTab]               = useState('programs')
+  const [programs, setPrograms]     = useState([])
+  const [sessions, setSessions]     = useState([])
+  const [experts, setExperts]       = useState([])
+  const [founders, setFounders]     = useState([])
+  const [profiles, setProfiles]     = useState([])
+  const [loading, setLoading]       = useState(true)
+  const [search, setSearch]         = useState('')
   const [filterStatus, setFilterStatus] = useState('')
-  const [filterField, setFilterField] = useState('')
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editingId, setEditingId] = useState(null)
-  const [form, setForm] = useState(emptyForm())
+  const [selectedProgram, setSelectedProgram] = useState(null)
+
+  // 프로그램 모달
+  const [programModal, setProgramModal] = useState(false)
+  const [editingProg, setEditingProg]   = useState(null)
+  const [progForm, setProgForm]         = useState(emptyProgram())
+
+  // 회차 모달
+  const [sessionModal, setSessionModal] = useState(false)
+  const [editingSess, setEditingSess]   = useState(null)
+  const [sessForm, setSessForm]         = useState(emptySession(null, 1))
+
+  const [saving, setSaving] = useState(false)
+  const [toast, setToast]   = useState('')
 
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
     setLoading(true)
-    try {
-      const [{ data: m }, { data: e }, { data: f }, { data: sf }, { data: s }] = await Promise.all([
-        supabase.from('mentorings').select('*').order('date', { ascending: false }),
-        supabase.from('experts').select('*').order('name'),
-        supabase.from('founders').select('id, name, biz'),
-        supabase.from('selected_firms').select('id, company_name'),
-        supabase.from('team_settings').select('*').limit(1).single(),
-      ])
-      setMentorings(m || [])
-      setExperts(e || [])
-      setFounders(f || [])
-      setSelectedFirms(sf || [])
-      if (s) setSettings({ ...DEFAULT_SETTINGS, ...s })
-    } catch (e) { console.error(e) }
-    finally { setLoading(false) }
+    const [{ data: pr }, { data: e }, { data: f }, { data: p }] = await Promise.all([
+      supabase.from('mentoring_programs').select('*').order('created_at', { ascending: false }),
+      supabase.from('experts').select('id, name, field').order('name'),
+      supabase.from('founders').select('id, name, phone, email').order('name'),
+      supabase.from('profiles').select('id, name').eq('is_active', true),
+    ])
+    setPrograms(pr || [])
+    setExperts(e || [])
+    setFounders(f || [])
+    setProfiles(p || [])
+    setLoading(false)
+  }
+
+  async function loadSessions(programId) {
+    const { data } = await supabase
+      .from('mentoring_sessions')
+      .select('*')
+      .eq('program_id', programId)
+      .order('session_number')
+    setSessions(data || [])
+  }
+
+  function showToast(msg) { setToast(msg); setTimeout(() => setToast(''), 3000) }
+  function setP(k, v) { setProgForm(p => ({ ...p, [k]: v })) }
+  function setS(k, v) { setSessForm(p => ({ ...p, [k]: v })) }
+
+  // ── 프로그램 CRUD ──
+  function openAddProgram() {
+    setEditingProg(null)
+    setProgForm(emptyProgram())
+    setProgramModal(true)
+  }
+
+  function openEditProgram(prog) {
+    setEditingProg(prog)
+    setProgForm({
+      title: prog.title || '', mentor_id: prog.mentor_id || '',
+      mentee_name: prog.mentee_name || '', mentee_phone: prog.mentee_phone || '',
+      mentee_email: prog.mentee_email || '', total_sessions: prog.total_sessions || 5,
+      goal: prog.goal || '', start_date: prog.start_date || '',
+      end_date: prog.end_date || '', assignee: prog.assignee || '',
+      status: prog.status || '매칭대기',
+    })
+    setProgramModal(true)
+  }
+
+  async function saveProgram() {
+    if (!progForm.title.trim()) { alert('멘토링명을 입력해주세요'); return }
+    if (!progForm.mentor_id) { alert('멘토를 선택해주세요'); return }
+    setSaving(true)
+    const payload = {
+      title: progForm.title.trim(),
+      mentor_id: progForm.mentor_id || null,
+      mentee_name: progForm.mentee_name || null,
+      mentee_phone: progForm.mentee_phone || null,
+      mentee_email: progForm.mentee_email || null,
+      total_sessions: Number(progForm.total_sessions) || 5,
+      completed_sessions: editingProg?.completed_sessions || 0,
+      goal: progForm.goal || null,
+      start_date: progForm.start_date || null,
+      end_date: progForm.end_date || null,
+      assignee: progForm.assignee || null,
+      status: progForm.status,
+    }
+    let error
+    if (editingProg) {
+      ({ error } = await supabase.from('mentoring_programs').update(payload).eq('id', editingProg.id))
+    } else {
+      ({ error } = await supabase.from('mentoring_programs').insert(payload))
+    }
+    setSaving(false)
+    if (error) { alert('저장 실패: ' + error.message); return }
+    setProgramModal(false)
+    showToast(editingProg ? '수정되었습니다.' : '멘토링이 등록되었습니다.')
+    loadData()
+  }
+
+  async function deleteProgram(id) {
+    if (!confirm('멘토링 프로그램을 삭제하시겠습니까?')) return
+    const { error } = await supabase.from('mentoring_programs').delete().eq('id', id)
+    if (error) { alert('삭제 실패: ' + error.message); return }
+    if (selectedProgram?.id === id) setSelectedProgram(null)
+    showToast('삭제되었습니다.')
+    loadData()
+  }
+
+  async function updateProgStatus(id, status) {
+    const { error } = await supabase.from('mentoring_programs').update({ status }).eq('id', id)
+    if (error) { alert('상태 변경 실패: ' + error.message); return }
+    setPrograms(prev => prev.map(p => p.id === id ? { ...p, status } : p))
+  }
+
+  // 멘티 자동채우기
+  function selectFounderForProg(id) {
+    const f = founders.find(f => f.id === id)
+    if (f) setProgForm(p => ({ ...p, mentee_name: f.name, mentee_phone: f.phone || '', mentee_email: f.email || '' }))
+  }
+
+  // ── 회차 CRUD ──
+  function openAddSession() {
+    if (!selectedProgram) return
+    const nextNum = sessions.length + 1
+    setEditingSess(null)
+    setSessForm(emptySession(selectedProgram.id, nextNum))
+    setSessionModal(true)
+  }
+
+  function openEditSession(sess) {
+    setEditingSess(sess)
+    setSessForm({
+      program_id: sess.program_id, session_number: sess.session_number,
+      session_date: sess.session_date || '', content: sess.content || '',
+      homework: sess.homework || '', next_goal: sess.next_goal || '',
+      status: sess.status || '예정',
+    })
+    setSessionModal(true)
+  }
+
+  async function saveSession() {
+    setSaving(true)
+    const payload = {
+      program_id: sessForm.program_id,
+      session_number: sessForm.session_number,
+      session_date: sessForm.session_date || null,
+      content: sessForm.content || null,
+      homework: sessForm.homework || null,
+      next_goal: sessForm.next_goal || null,
+      status: sessForm.status,
+    }
+    let error
+    if (editingSess) {
+      ({ error } = await supabase.from('mentoring_sessions').update(payload).eq('id', editingSess.id))
+    } else {
+      ({ error } = await supabase.from('mentoring_sessions').insert(payload))
+    }
+    if (!error) {
+      // 완료 회차 수 업데이트
+      const { data: allSess } = await supabase.from('mentoring_sessions')
+        .select('status').eq('program_id', sessForm.program_id)
+      const completedCount = (allSess || []).filter(s => s.status === '완료').length
+      await supabase.from('mentoring_programs')
+        .update({ completed_sessions: completedCount })
+        .eq('id', sessForm.program_id)
+    }
+    setSaving(false)
+    if (error) { alert('저장 실패: ' + error.message); return }
+    setSessionModal(false)
+    showToast(editingSess ? '회차가 수정되었습니다.' : '회차가 등록되었습니다.')
+    loadSessions(sessForm.program_id)
+    loadData()
+  }
+
+  async function deleteSession(sess) {
+    if (!confirm('회차 기록을 삭제하시겠습니까?')) return
+    const { error } = await supabase.from('mentoring_sessions').delete().eq('id', sess.id)
+    if (error) { alert('삭제 실패: ' + error.message); return }
+    showToast('삭제되었습니다.')
+    loadSessions(sess.program_id)
+  }
+
+  function selectProgram(prog) {
+    setSelectedProgram(prog)
+    setTab('sessions')
+    loadSessions(prog.id)
   }
 
   const expertMap = Object.fromEntries(experts.map(e => [e.id, e]))
 
-  function setField(k, v) { setForm(p => ({ ...p, [k]: v })) }
-
-  function openAdd(preExpertId = '') {
-    setEditingId(null)
-    const f = emptyForm()
-    if (preExpertId) f.expert_id = preExpertId
-    setForm(f)
-    setModalOpen(true)
-  }
-
-  function openEdit(m) {
-    setEditingId(m.id)
-    setForm({
-      expert_id: m.expert_id || '', target_type: m.target_type || 'founder',
-      target_id: m.target_id || '', target_name: m.target_name || '',
-      program: m.program || MENTORING_PROGRAMS[0],
-      staff: m.staff || '', date: m.date || today(), time: m.time || '',
-      duration: m.duration || '1', method: m.method || '방문',
-      status: m.status || '예정', cost: m.cost || '0',
-      content: m.content || '', outcome: m.outcome || '',
-      next_date: m.next_date || '', memo: m.memo || '',
-    })
-    setModalOpen(true)
-  }
-
-  function handleTargetChange(val) {
-    if (!val) { setField('target_id', ''); setField('target_name', ''); return }
-    const [type, id, name] = val.split('|')
-    setForm(p => ({ ...p, target_type: type, target_id: id, target_name: name }))
-  }
-
-  async function handleSave() {
-    if (!form.expert_id) { alert('전문가를 선택해주세요'); return }
-    if (!form.target_id) { alert('대상을 선택해주세요'); return }
-    const payload = { ...form }
-    try {
-      if (editingId) {
-        const { error } = await supabase.from('mentorings').update(payload).eq('id', editingId)
-        if (error) throw error
-        setMentorings(prev => prev.map(m => m.id === editingId ? { ...m, ...payload } : m))
-      } else {
-        const { data, error } = await supabase.from('mentorings').insert([payload]).select().single()
-        if (error) throw error
-        setMentorings(prev => [data, ...prev])
-      }
-      setModalOpen(false)
-    } catch (e) { alert('저장 실패: ' + e.message) }
-  }
-
-  async function handleDelete(id) {
-    if (!confirm('삭제하시겠습니까?')) return
-    const { error } = await supabase.from('mentorings').delete().eq('id', id)
-    if (error) { alert('삭제 실패: ' + error.message); return }
-    setMentorings(prev => prev.filter(m => m.id !== id))
-  }
-
-  const filtered = mentorings.filter(m => {
-    const ex = expertMap[m.expert_id]
-    return (
-      (!search || m.target_name?.includes(search) || ex?.name?.includes(search)) &&
-      (!filterExpert || m.expert_id === filterExpert) &&
-      (!filterStatus || m.status === filterStatus) &&
-      (!filterField || ex?.field === filterField)
-    )
+  const filteredPrograms = programs.filter(p => {
+    const matchSearch = !search || p.title?.includes(search) || p.mentee_name?.includes(search)
+      || expertMap[p.mentor_id]?.name?.includes(search)
+    const matchStatus = !filterStatus || p.status === filterStatus
+    return matchSearch && matchStatus
   })
 
-  const doneCount = mentorings.filter(m => m.status === '완료').length
-  const schedCount = mentorings.filter(m => m.status === '예정').length
-  const totalCost = mentorings.reduce((a, m) => a + (Number(m.cost) || 0), 0)
-
-  // Field stats
-  const fieldStats = EXPERT_FIELDS.map(f => ({
-    field: f,
-    count: mentorings.filter(m => expertMap[m.expert_id]?.field === f).length
-  })).filter(x => x.count > 0)
-
-  // Expert stats
-  const expertStats = experts
-    .map(e => ({ expert: e, count: mentorings.filter(m => m.expert_id === e.id).length }))
-    .filter(x => x.count > 0)
-    .sort((a, b) => b.count - a.count)
-
-  const currentTargetVal = form.target_id
-    ? `${form.target_type}|${form.target_id}|${form.target_name}`
-    : ''
+  const stats = {
+    total:    programs.length,
+    진행중:   programs.filter(p => p.status === '진행중').length,
+    완료:     programs.filter(p => p.status === '완료').length,
+    매칭대기: programs.filter(p => p.status === '매칭대기').length,
+  }
 
   return (
     <div className="p-6 space-y-5">
-      <h1 className="text-xl font-bold text-gray-800">전문가 상담·멘토링</h1>
+      {toast && (
+        <div className="fixed top-5 right-5 z-50 bg-green-600 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg">{toast}</div>
+      )}
+
+      <PageHeader title="멘토링 관리" subtitle="멘토-멘티 1:1 다회차 심층 코칭 프로그램" />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="전체 상담·멘토링" value={`${mentorings.length}건`} color="blue" />
-        <StatCard label="완료" value={`${doneCount}건`} color="green" />
-        <StatCard label="예정" value={`${schedCount}건`} color="orange" />
-        <StatCard label="총 지원 비용" value={totalCost > 0 ? `${totalCost.toLocaleString()}원` : '전액 무료'} color="teal" />
+        <StatCard label="전체" value={`${stats.total}건`} color="blue" />
+        <StatCard label="진행중" value={`${stats.진행중}건`} color="teal" />
+        <StatCard label="완료" value={`${stats.완료}건`} color="green" />
+        <StatCard label="매칭대기" value={`${stats.매칭대기}건`} color="orange" />
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
-          <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              className="pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 w-44"
-              placeholder="기업·창업자 검색"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+      {/* 탭 */}
+      <div className="flex gap-1 border-b border-gray-200">
+        {[
+          { id: 'programs', label: '멘토링 현황' },
+          { id: 'sessions', label: selectedProgram ? `회차 관리 — ${selectedProgram.title}` : '회차 관리' },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              tab === t.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── 탭 1: 멘토링 현황 ── */}
+      {tab === 'programs' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2 items-center justify-between">
+            <div className="flex gap-2 flex-wrap">
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  className="pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 w-44"
+                  placeholder="멘토링명·멘토·멘티 검색"
+                  value={search} onChange={e => setSearch(e.target.value)}
+                />
+              </div>
+              <select className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5"
+                value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                <option value="">전체 상태</option>
+                {PROGRAM_STATUSES.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            {canWrite && (
+              <button onClick={openAddProgram}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm text-white rounded-lg font-medium"
+                style={{ background: '#2E75B6' }}>
+                <Plus size={15} /> 멘토링 등록
+              </button>
+            )}
           </div>
-          <select className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5" value={filterExpert} onChange={e => setFilterExpert(e.target.value)}>
-            <option value="">전체 전문가</option>
-            {experts.map(e => <option key={e.id} value={e.id}>{e.name} ({e.field})</option>)}
-          </select>
-          <select className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-            <option value="">전체 상태</option>
-            <option>예정</option><option>완료</option><option>취소</option>
-          </select>
-          <select className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5" value={filterField} onChange={e => setFilterField(e.target.value)}>
-            <option value="">전체 분야</option>
-            {EXPERT_FIELDS.map(f => <option key={f}>{f}</option>)}
-          </select>
-        </div>
-        <button onClick={() => openAdd()} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white rounded-lg" style={{ background: '#2E75B6' }}>
-          <Plus size={15} /> 상담·멘토링 등록
-        </button>
-      </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-100">
-              {['대상', '전문가', '분야', '프로그램', '일시', '시간', '방식', '비용', '상태', '성과', '담당', '관리'].map(h => (
-                <th key={h} className="text-left px-3 py-2.5 text-xs font-medium text-gray-500">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={12} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan={12} className="text-center py-10 text-gray-400 text-sm">등록된 상담·멘토링이 없습니다</td></tr>
-            ) : filtered.map(m => {
-              const ex = expertMap[m.expert_id]
-              return (
-                <tr key={m.id} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="px-3 py-2.5">
-                    <div className="font-medium text-xs text-gray-800">{m.target_name}</div>
-                    <div className="text-xs text-gray-400">{m.target_type === 'founder' ? '창업자' : '선정기업'}</div>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-center gap-1.5">
-                      <Avatar name={ex?.name} />
-                      <span className="text-xs">{ex?.name || '-'}</span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    {ex?.field && <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${getExpertFieldBadgeClass(ex.field)}`}>{ex.field}</span>}
-                  </td>
-                  <td className="px-3 py-2.5 text-xs text-gray-600">{m.program}</td>
-                  <td className="px-3 py-2.5 text-xs text-gray-500">{m.date} {m.time}</td>
-                  <td className="px-3 py-2.5 text-xs text-center">{m.duration}시간</td>
-                  <td className="px-3 py-2.5 text-xs text-gray-500">{m.method}</td>
-                  <td className="px-3 py-2.5 text-xs">
-                    <span className={Number(m.cost) > 0 ? 'text-orange-600 font-medium' : 'text-green-600'}>
-                      {Number(m.cost) > 0 ? `${Number(m.cost).toLocaleString()}원` : '무료'}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2.5"><StatusBadge status={m.status} /></td>
-                  <td className="px-3 py-2.5 text-xs text-gray-600 max-w-[100px] truncate">{m.outcome || '-'}</td>
-                  <td className="px-3 py-2.5 text-xs text-gray-500">{m.staff}</td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex gap-1">
-                      <button onClick={() => openEdit(m)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-600"><Pencil size={13} /></button>
-                      <button onClick={() => handleDelete(m.id)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-red-600"><Trash2 size={13} /></button>
-                    </div>
-                  </td>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  {['멘토링명', '멘토', '멘티', '목표', '진행 횟수', '시작일', '담당자', '상태', '관리'].map(h => (
+                    <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
+                  ))}
                 </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={9} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
+                ) : filteredPrograms.length === 0 ? (
+                  <tr><td colSpan={9} className="text-center py-10 text-gray-400">등록된 멘토링이 없습니다</td></tr>
+                ) : filteredPrograms.map(p => {
+                  const mentor = expertMap[p.mentor_id]
+                  const pct = p.total_sessions ? Math.round(((p.completed_sessions || 0) / p.total_sessions) * 100) : 0
+                  return (
+                    <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="px-4 py-2.5">
+                        <button onClick={() => selectProgram(p)}
+                          className="text-xs font-medium text-blue-600 hover:underline text-left">
+                          {p.title}
+                        </button>
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-gray-600">{mentor?.name || '-'}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-600">{p.mentee_name || '-'}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500 max-w-[120px] truncate">{p.goal || '-'}</td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs text-gray-700 font-medium">
+                            {p.completed_sessions || 0}/{p.total_sessions}회
+                          </span>
+                          <div className="w-20 bg-gray-200 rounded-full h-1.5">
+                            <div className="bg-blue-500 h-1.5 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500">{p.start_date || '-'}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500">{p.assignee || '-'}</td>
+                      <td className="px-4 py-2.5">
+                        {canWrite ? (
+                          <select value={p.status} onChange={e => updateProgStatus(p.id, e.target.value)}
+                            className={`text-xs px-2 py-1 rounded border font-medium ${STATUS_COLOR[p.status]}`}>
+                            {PROGRAM_STATUSES.map(s => <option key={s}>{s}</option>)}
+                          </select>
+                        ) : (
+                          <span className={`px-2 py-0.5 text-xs rounded font-medium ${STATUS_COLOR[p.status]}`}>{p.status}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {canWrite && (
+                          <div className="flex gap-1.5">
+                            <button onClick={() => openEditProgram(p)} className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">수정</button>
+                            <button onClick={() => deleteProgram(p.id)} className="text-xs px-2 py-1 border border-red-200 text-red-500 rounded hover:bg-red-50">삭제</button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-          <div className="font-semibold text-gray-700 text-sm mb-3">분야별 상담 현황</div>
-          {fieldStats.length === 0 ? <div className="text-center text-gray-400 text-xs py-4">데이터 없음</div> :
-            fieldStats.map(({ field, count }) => (
-              <div key={field} className="flex items-center gap-2 mb-2">
-                <div className="text-xs text-gray-600 min-w-[90px]">{field}</div>
-                <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full bg-blue-500" style={{ width: `${Math.round(count / mentorings.length * 100)}%` }} />
-                </div>
-                <div className="text-xs font-bold text-blue-700">{count}</div>
+      {/* ── 탭 2: 회차 관리 ── */}
+      {tab === 'sessions' && (
+        <div className="space-y-4">
+          {!selectedProgram ? (
+            <div className="text-center py-16 text-gray-400">
+              <p className="text-sm">멘토링 현황 탭에서 프로그램명을 클릭하면 회차를 관리할 수 있습니다.</p>
+            </div>
+          ) : (
+            <>
+              {/* 프로그램 요약 */}
+              <div className="bg-blue-50 border border-blue-100 rounded-xl px-5 py-3 flex flex-wrap gap-4 text-sm">
+                <span className="font-semibold text-blue-800">{selectedProgram.title}</span>
+                <span className="text-blue-600">멘토: {expertMap[selectedProgram.mentor_id]?.name || '-'}</span>
+                <span className="text-blue-600">멘티: {selectedProgram.mentee_name || '-'}</span>
+                <span className="text-blue-600">
+                  진행: {selectedProgram.completed_sessions || 0}/{selectedProgram.total_sessions}회
+                </span>
               </div>
-            ))}
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-          <div className="font-semibold text-gray-700 text-sm mb-3">전문가별 상담 건수</div>
-          {expertStats.length === 0 ? <div className="text-center text-gray-400 text-xs py-4">데이터 없음</div> :
-            expertStats.map(({ expert: e, count }) => (
-              <div key={e.id} className="flex items-center gap-2 mb-2.5">
-                <Avatar name={e.name} />
-                <div className="flex-1">
-                  <div className="flex justify-between">
-                    <span className="text-xs font-medium text-gray-700">{e.name}</span>
-                    <span className="text-xs font-bold text-blue-700">{count}건</span>
-                  </div>
-                  <div className="text-xs text-gray-400">{e.field}</div>
-                </div>
-              </div>
-            ))}
-        </div>
-      </div>
 
-      {/* Modal */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? '상담·멘토링 수정' : '상담·멘토링 등록'} wide
-        footer={
-          <>
-            <button onClick={() => setModalOpen(false)} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
-            <button onClick={handleSave} className="px-4 py-1.5 text-sm text-white rounded-lg" style={{ background: '#2E75B6' }}>저장</button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 space-y-3">
-            <div className="text-xs font-semibold text-blue-800">매칭 정보</div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">전문가 *</label>
-                <select className="form-input" value={form.expert_id} onChange={e => setField('expert_id', e.target.value)}>
-                  <option value="">선택</option>
-                  {experts.map(e => <option key={e.id} value={e.id}>{e.name} — {e.field}</option>)}
-                </select>
+              <div className="flex justify-end">
+                {canWrite && (
+                  <button onClick={openAddSession}
+                    className="flex items-center gap-1.5 px-4 py-2 text-sm text-white rounded-lg font-medium"
+                    style={{ background: '#2E75B6' }}>
+                    <Plus size={15} /> 회차 기록
+                  </button>
+                )}
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">대상 *</label>
-                <select className="form-input" value={currentTargetVal} onChange={e => handleTargetChange(e.target.value)}>
-                  <option value="">선택</option>
-                  <optgroup label="── 창업자 ──">
-                    {founders.map(f => <option key={f.id} value={`founder|${f.id}|${f.name}`}>창업자 · {f.name} ({f.biz || ''})</option>)}
-                  </optgroup>
-                  <optgroup label="── 선정기업 ──">
-                    {selectedFirms.map(f => <option key={f.id} value={`selected|${f.id}|${f.company_name}`}>선정기업 · {f.company_name}</option>)}
-                  </optgroup>
+
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100">
+                      {['회차', '날짜', '내용', '과제', '다음 목표', '상태', '관리'].map(h => (
+                        <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sessions.length === 0 ? (
+                      <tr><td colSpan={7} className="text-center py-10 text-gray-400">회차 기록이 없습니다</td></tr>
+                    ) : sessions.map(s => (
+                      <tr key={s.id} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="px-4 py-2.5 text-xs font-semibold text-gray-700">{s.session_number}회차</td>
+                        <td className="px-4 py-2.5 text-xs text-gray-500">{s.session_date || '-'}</td>
+                        <td className="px-4 py-2.5 text-xs text-gray-600 max-w-[150px] truncate">{s.content || '-'}</td>
+                        <td className="px-4 py-2.5 text-xs text-gray-500 max-w-[120px] truncate">{s.homework || '-'}</td>
+                        <td className="px-4 py-2.5 text-xs text-gray-500 max-w-[120px] truncate">{s.next_goal || '-'}</td>
+                        <td className="px-4 py-2.5">
+                          <span className={`px-2 py-0.5 text-xs rounded font-medium ${STATUS_COLOR[s.status]}`}>{s.status}</span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {canWrite && (
+                            <div className="flex gap-1.5">
+                              <button onClick={() => openEditSession(s)} className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">수정</button>
+                              <button onClick={() => deleteSession(s)} className="text-xs px-2 py-1 border border-red-200 text-red-500 rounded hover:bg-red-50">삭제</button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── 프로그램 등록/수정 모달 ── */}
+      {programModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-800">{editingProg ? '멘토링 수정' : '멘토링 등록'}</h2>
+              <button onClick={() => setProgramModal(false)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="px-6 py-4 space-y-3">
+              <Field label="멘토링명 *">
+                <input className="input-base" value={progForm.title}
+                  onChange={e => setP('title', e.target.value)} placeholder="멘토링 프로그램명" />
+              </Field>
+              <Field label="멘토 (전문가 DB) *">
+                <select className="input-base" value={progForm.mentor_id} onChange={e => setP('mentor_id', e.target.value)}>
+                  <option value="">멘토 선택</option>
+                  {experts.map(e => <option key={e.id} value={e.id}>{e.name} ({e.field})</option>)}
                 </select>
+              </Field>
+              <Field label="멘티 선택 (founders에서)">
+                <select className="input-base" onChange={e => selectFounderForProg(e.target.value)} defaultValue="">
+                  <option value="">직접 입력 또는 선택</option>
+                  {founders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                </select>
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="멘티 이름">
+                  <input className="input-base" value={progForm.mentee_name}
+                    onChange={e => setP('mentee_name', e.target.value)} placeholder="홍길동" />
+                </Field>
+                <Field label="멘티 연락처">
+                  <input className="input-base" value={progForm.mentee_phone}
+                    onChange={e => setP('mentee_phone', e.target.value)} placeholder="010-1234-5678" />
+                </Field>
+              </div>
+              <Field label="멘티 이메일">
+                <input type="email" className="input-base" value={progForm.mentee_email}
+                  onChange={e => setP('mentee_email', e.target.value)} placeholder="example@email.com" />
+              </Field>
+              <Field label="멘토링 목표">
+                <textarea className="input-base h-20 resize-none" value={progForm.goal}
+                  onChange={e => setP('goal', e.target.value)} placeholder="BM 구축, 투자 유치 전략 등" />
+              </Field>
+              <Field label="총 횟수">
+                <input type="number" min="1" className="input-base" value={progForm.total_sessions}
+                  onChange={e => setP('total_sessions', e.target.value)} />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="시작일">
+                  <input type="date" className="input-base" value={progForm.start_date}
+                    onChange={e => setP('start_date', e.target.value)} />
+                </Field>
+                <Field label="종료 예정일">
+                  <input type="date" className="input-base" value={progForm.end_date}
+                    onChange={e => setP('end_date', e.target.value)} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="담당자">
+                  <select className="input-base" value={progForm.assignee} onChange={e => setP('assignee', e.target.value)}>
+                    <option value="">선택</option>
+                    {profiles.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                  </select>
+                </Field>
+                <Field label="상태">
+                  <select className="input-base" value={progForm.status} onChange={e => setP('status', e.target.value)}>
+                    {PROGRAM_STATUSES.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </Field>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">프로그램 유형</label>
-                <select className="form-input" value={form.program} onChange={e => setField('program', e.target.value)}>
-                  {MENTORING_PROGRAMS.map(p => <option key={p}>{p}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">담당 직원</label>
-                <select className="form-input" value={form.staff} onChange={e => setField('staff', e.target.value)}>
-                  <option value="">선택</option>
-                  {settings.staff.map(s => <option key={s}>{s}</option>)}
-                </select>
-              </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setProgramModal(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
+              <button onClick={saveProgram} disabled={saving}
+                className="px-4 py-2 text-sm text-white rounded-lg disabled:opacity-40"
+                style={{ background: '#2E75B6' }}>
+                {saving ? '저장 중...' : '저장'}
+              </button>
             </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div><label className="block text-xs font-medium text-gray-600 mb-1">날짜 *</label><input type="date" className="form-input" value={form.date} onChange={e => setField('date', e.target.value)} /></div>
-            <div><label className="block text-xs font-medium text-gray-600 mb-1">시작 시간</label><input type="time" className="form-input" value={form.time} onChange={e => setField('time', e.target.value)} /></div>
-            <div><label className="block text-xs font-medium text-gray-600 mb-1">소요 시간(시간)</label><input type="number" step="0.5" className="form-input" value={form.duration} onChange={e => setField('duration', e.target.value)} /></div>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">방식</label>
-              <select className="form-input" value={form.method} onChange={e => setField('method', e.target.value)}>
-                {settings.methods.map(m => <option key={m}>{m}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">상태</label>
-              <select className="form-input" value={form.status} onChange={e => setField('status', e.target.value)}>
-                <option>예정</option><option>완료</option><option>취소</option>
-              </select>
-            </div>
-            <div><label className="block text-xs font-medium text-gray-600 mb-1">비용(원, 0=무료)</label><input type="number" className="form-input" value={form.cost} onChange={e => setField('cost', e.target.value)} /></div>
-          </div>
-          <div><label className="block text-xs font-medium text-gray-600 mb-1">상담 내용</label><textarea className="form-input" value={form.content} onChange={e => setField('content', e.target.value)} /></div>
-          <div><label className="block text-xs font-medium text-gray-600 mb-1">성과·결과</label><textarea className="form-input" value={form.outcome} onChange={e => setField('outcome', e.target.value)} /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="block text-xs font-medium text-gray-600 mb-1">다음 상담 예정일</label><input type="date" className="form-input" value={form.next_date} onChange={e => setField('next_date', e.target.value)} /></div>
-            <div><label className="block text-xs font-medium text-gray-600 mb-1">메모</label><input className="form-input" value={form.memo} onChange={e => setField('memo', e.target.value)} /></div>
           </div>
         </div>
-      </Modal>
+      )}
+
+      {/* ── 회차 등록/수정 모달 ── */}
+      {sessionModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-800">{editingSess ? '회차 수정' : `${sessForm.session_number}회차 기록`}</h2>
+              <button onClick={() => setSessionModal(false)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="px-6 py-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="회차 번호">
+                  <input type="number" min="1" className="input-base" value={sessForm.session_number}
+                    onChange={e => setS('session_number', Number(e.target.value))} />
+                </Field>
+                <Field label="날짜">
+                  <input type="date" className="input-base" value={sessForm.session_date}
+                    onChange={e => setS('session_date', e.target.value)} />
+                </Field>
+              </div>
+              <Field label="회차 내용">
+                <textarea className="input-base h-24 resize-none" value={sessForm.content}
+                  onChange={e => setS('content', e.target.value)} placeholder="이번 회차에서 다룬 내용" />
+              </Field>
+              <Field label="과제">
+                <textarea className="input-base h-16 resize-none" value={sessForm.homework}
+                  onChange={e => setS('homework', e.target.value)} placeholder="멘티에게 부여된 과제" />
+              </Field>
+              <Field label="다음 목표">
+                <input className="input-base" value={sessForm.next_goal}
+                  onChange={e => setS('next_goal', e.target.value)} placeholder="다음 회차 목표" />
+              </Field>
+              <Field label="상태">
+                <select className="input-base" value={sessForm.status} onChange={e => setS('status', e.target.value)}>
+                  {SESSION_STATUSES.map(s => <option key={s}>{s}</option>)}
+                </select>
+              </Field>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setSessionModal(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
+              <button onClick={saveSession} disabled={saving}
+                className="px-4 py-2 text-sm text-white rounded-lg disabled:opacity-40"
+                style={{ background: '#2E75B6' }}>
+                {saving ? '저장 중...' : '저장'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Field({ label, children }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+      {children}
     </div>
   )
 }
