@@ -124,6 +124,13 @@ export function getAvatarColor(name) {
   return colors[name.charCodeAt(0) % colors.length]
 }
 
+// 금액 포매터 — 원 단위, 천단위 콤마, 1억 이상은 억원 축약
+export function fmtAmt(v) {
+  const n = Number(v) || 0
+  if (n >= 100000000) return (n / 100000000).toFixed(1) + '억원'
+  return n.toLocaleString() + '원'
+}
+
 export function today() {
   return new Date().toISOString().slice(0, 10)
 }

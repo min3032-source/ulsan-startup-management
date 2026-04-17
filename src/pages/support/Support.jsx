@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { DEFAULT_SETTINGS, SUPPORT_STAGES, supportDuration, today } from '../../lib/constants'
+import { DEFAULT_SETTINGS, SUPPORT_STAGES, supportDuration, today, fmtAmt } from '../../lib/constants'
 import { VerdictBadge, StatusBadge } from '../../components/common/Badge'
 import Modal from '../../components/common/Modal'
 import StatCard from '../../components/common/StatCard'
@@ -178,7 +178,7 @@ export default function Support() {
         <StatCard label="전체 연계" value={`${supports.length}건`} color="blue" />
         <StatCard label="선정 완료" value={`${supports.filter(s => s.result === '선정').length}건`} color="green" />
         <StatCard label="진행중" value={`${supports.filter(s => !s.end_date).length}건`} color="orange" />
-        <StatCard label="총 지원금액" value={`${totalAmt >= 10000 ? (totalAmt / 10000).toFixed(1) + '억' : totalAmt.toLocaleString() + '만'}`} color="teal" />
+        <StatCard label="총 지원금액" value={fmtAmt(totalAmt)} color="teal" />
       </div>
 
       <div className="flex items-center justify-between">
@@ -264,7 +264,7 @@ export default function Support() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">지원 금액 (만원)</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">지원 금액 (원)</label>
               <input type="number" className="form-input" value={firmForm.amount} onChange={e => setFirmForm(p => ({ ...p, amount: e.target.value }))} placeholder="예: 5000" />
             </div>
             <div>
@@ -344,7 +344,7 @@ export default function Support() {
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">지원 금액 (만원)</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">지원 금액 (원)</label>
             <input type="number" className="form-input" value={form.amount} onChange={e => setField('amount', e.target.value)} placeholder="예: 1000" />
           </div>
           <div>
@@ -466,7 +466,7 @@ function ByProgramTab({ programs, selectedFirms, expandedProgram, setExpandedPro
                 {isOpen ? <ChevronDown size={16} className="text-gray-400" /> : <ChevronRightIcon size={16} className="text-gray-400" />}
                 <span className="font-semibold text-gray-800 text-sm">{prog}</span>
                 <span className="text-xs text-gray-400">선정기업 {firms.length}개사</span>
-                {totalAmt > 0 && <span className="text-xs font-bold text-green-700">총 {totalAmt.toLocaleString()}만원</span>}
+                {totalAmt > 0 && <span className="text-xs font-bold text-green-700">총 {totalAmt.toLocaleString()}원</span>}
               </div>
               <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                 <button onClick={downloadTemplate} className="flex items-center gap-1 text-xs px-2 py-1 border border-gray-300 rounded-lg text-gray-500 hover:bg-gray-50">
@@ -498,7 +498,7 @@ function ByProgramTab({ programs, selectedFirms, expandedProgram, setExpandedPro
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-100">
-                          {['기업명', '대표자', '세부 프로그램', '시작일', '종료일', '지원금(만원)', '상태', '담당자', '관리'].map(h => (
+                          {['기업명', '대표자', '세부 프로그램', '시작일', '종료일', '지원금(원)', '상태', '담당자', '관리'].map(h => (
                             <th key={h} className="text-left px-4 py-2 text-xs font-medium text-gray-500">{h}</th>
                           ))}
                         </tr>
@@ -555,7 +555,7 @@ function ByFounderTab({ founders, byFounder, founderMap, onAdd, onEdit, onDelete
                 <span className="text-xs text-gray-400">{f.biz}</span>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-xs font-bold text-green-700">총 {total.toLocaleString()}만원</span>
+                <span className="text-xs font-bold text-green-700">총 {total.toLocaleString()}원</span>
                 <span className="text-xs text-gray-400">{fSups.length}건</span>
                 <button onClick={() => onAdd(f.id)} className="text-xs px-2 py-1 text-white rounded" style={{ background: '#2E75B6' }}>+ 추가</button>
               </div>
@@ -564,7 +564,7 @@ function ByFounderTab({ founders, byFounder, founderMap, onAdd, onEdit, onDelete
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100">
-                    {['지원사업명', '세부프로그램', '시작일', '종료일', '기간', '단계', '결과', '금액(만원)', '담당자', '관리'].map(h => (
+                    {['지원사업명', '세부프로그램', '시작일', '종료일', '기간', '단계', '결과', '금액(원)', '담당자', '관리'].map(h => (
                       <th key={h} className="text-left px-3 py-2 text-xs font-medium text-gray-500">{h}</th>
                     ))}
                   </tr>
@@ -607,7 +607,7 @@ function AllTab({ supports, founderMap, onEdit, onDelete }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-gray-50 border-b border-gray-100">
-            {['창업자', '지원사업명', '시작일', '종료일', '단계', '금액(만원)', '담당자', '관리'].map(h => (
+            {['창업자', '지원사업명', '시작일', '종료일', '단계', '금액(원)', '담당자', '관리'].map(h => (
               <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
             ))}
           </tr>
@@ -681,7 +681,7 @@ function TimelineTab({ founders, byFounder, founderMap }) {
                       </div>
                       <div className="flex items-center gap-2">
                         <StatusBadge status={s.stage} />
-                        {s.amount && <span className="text-xs font-bold text-green-700">{Number(s.amount).toLocaleString()}만원</span>}
+                        {s.amount && <span className="text-xs font-bold text-green-700">{Number(s.amount).toLocaleString()}원</span>}
                       </div>
                     </div>
                     {s.memo && <div className="text-xs text-gray-500 mt-1">{s.memo}</div>}

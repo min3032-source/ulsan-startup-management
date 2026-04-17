@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { DEFAULT_SETTINGS, COMPANY_STATUSES, today } from '../../lib/constants'
+import { DEFAULT_SETTINGS, COMPANY_STATUSES, today, fmtAmt } from '../../lib/constants'
 import { VerdictBadge, StatusBadge } from '../../components/common/Badge'
 import Modal from '../../components/common/Modal'
 import StatCard from '../../components/common/StatCard'
@@ -161,7 +161,7 @@ export default function Startup() {
                   <td className="px-4 py-2.5"><StatusBadge status={co.status} /></td>
                   <td className="px-4 py-2.5">
                     {latest
-                      ? <span className="text-xs font-semibold text-green-700">{Number(latest.revenue || 0).toLocaleString()}만 ({latest.year})</span>
+                      ? <span className="text-xs font-semibold text-green-700">{Number(latest.revenue || 0).toLocaleString()}원 ({latest.year})</span>
                       : <span className="text-xs text-red-400">미입력</span>}
                   </td>
                   <td className="px-4 py-2.5">

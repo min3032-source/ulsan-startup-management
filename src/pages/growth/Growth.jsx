@@ -6,7 +6,7 @@ import Modal from '../../components/common/Modal'
 import StatCard from '../../components/common/StatCard'
 import Avatar from '../../components/common/Avatar'
 import { Plus, Pencil, Trash2, Eye } from 'lucide-react'
-import { today } from '../../lib/constants'
+import { today, fmtAmt } from '../../lib/constants'
 
 const emptyForm = () => ({
   founder_id: '', year: String(new Date().getFullYear()),
@@ -175,9 +175,9 @@ export default function Growth() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="추적 기업 수" value={`${trackCount}개`} sub={`창업 완료 ${companies.length}개사`} color="blue" />
-        <StatCard label="총 매출 합산" value={`${totalRev >= 10000 ? (totalRev / 10000).toFixed(1) + '억' : totalRev.toLocaleString() + '만'}`} sub="최신 연도 기준" color="green" />
+        <StatCard label="총 매출 합산" value={fmtAmt(totalRev)} sub="최신 연도 기준" color="green" />
         <StatCard label="총 고용 창출" value={`${totalEmp}명`} color="teal" />
-        <StatCard label="총 투자 유치" value={`${totalInv >= 10000 ? (totalInv / 10000).toFixed(1) + '억' : totalInv.toLocaleString() + '만'}`} color="orange" />
+        <StatCard label="총 투자 유치" value={fmtAmt(totalInv)} color="orange" />
       </div>
 
       <div className="flex items-center justify-between">
@@ -191,7 +191,7 @@ export default function Growth() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              {['창업자', '유형', '기업명', '최근연도', '매출(만원)', '고용(명)', '투자(만원)', '성장 단계', '성장 흐름', '관리'].map(h => (
+              {['창업자', '유형', '기업명', '최근연도', '매출(원)', '고용(명)', '투자(원)', '성장 단계', '성장 흐름', '관리'].map(h => (
                 <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
               ))}
             </tr>
@@ -231,7 +231,7 @@ export default function Growth() {
                       <div className="flex items-end gap-0.5 h-5">
                         {fGrowths.slice(-4).map(g => {
                           const h = Math.max(3, Math.round(Number(g.revenue || 0) / maxRev * 18))
-                          return <div key={g.id} title={`${g.year}: ${Number(g.revenue || 0).toLocaleString()}만원`} style={{ width: '8px', height: `${h}px`, background: '#2E75B6', borderRadius: '1px', opacity: 0.75 }} />
+                          return <div key={g.id} title={`${g.year}: ${Number(g.revenue || 0).toLocaleString()}원`} style={{ width: '8px', height: `${h}px`, background: '#2E75B6', borderRadius: '1px', opacity: 0.75 }} />
                         })}
                       </div>
                     ) : <span className="text-gray-300 text-xs">-</span>}
@@ -339,7 +339,7 @@ export default function Growth() {
             <div className="text-xs font-semibold text-gray-600">성장 지표</div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">매출액 (만원)</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">매출액 (원)</label>
                 <input type="number" className="form-input" value={form.revenue} onChange={e => setField('revenue', e.target.value)} placeholder="0" />
               </div>
               <div>
@@ -347,13 +347,13 @@ export default function Growth() {
                 <input type="number" className="form-input" value={form.employees} onChange={e => setField('employees', e.target.value)} placeholder="0" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">투자유치 (만원)</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">투자유치 (원)</label>
                 <input type="number" className="form-input" value={form.investment} onChange={e => setField('investment', e.target.value)} placeholder="0" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">수출액 (만원)</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">수출액 (원)</label>
                 <input type="number" className="form-input" value={form.export_amount} onChange={e => setField('export_amount', e.target.value)} placeholder="0" />
               </div>
               <div>
@@ -426,7 +426,7 @@ function FounderGrowthDetail({ founder, company, growths, supports, onDelete }) 
               const h = Math.max(6, Math.round(Number(g.revenue || 0) / maxRev * 90))
               return (
                 <div key={g.id} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-xs font-semibold text-green-700">{Number(g.revenue || 0) >= 10000 ? (Number(g.revenue) / 10000).toFixed(1) + '억' : Number(g.revenue || 0).toLocaleString() + '만'}</span>
+                  <span className="text-xs font-semibold text-green-700">{fmtAmt(g.revenue)}</span>
                   <div style={{ width: '100%', maxWidth: '36px', height: `${h}px`, background: '#2E75B6', borderRadius: '2px 2px 0 0', opacity: 0.8 }} />
                   <span className="text-xs text-gray-500 font-semibold">{g.year}</span>
                 </div>
@@ -440,7 +440,7 @@ function FounderGrowthDetail({ founder, company, growths, supports, onDelete }) 
                   <div style={{ width: 8, height: 8, borderRadius: 2, background: colors[i % colors.length], flexShrink: 0 }} />
                   <span className="text-xs font-semibold text-gray-700 min-w-[110px]">{s.program}</span>
                   <span className="text-xs text-gray-500">{s.start_date} ~ {s.end_date || '진행중'}</span>
-                  {s.amount && <span className="text-xs font-bold text-green-700 ml-auto">{Number(s.amount).toLocaleString()}만원</span>}
+                  {s.amount && <span className="text-xs font-bold text-green-700 ml-auto">{Number(s.amount).toLocaleString()}원</span>}
                 </div>
               ))}
             </div>
@@ -455,10 +455,10 @@ function FounderGrowthDetail({ founder, company, growths, supports, onDelete }) 
             <thead>
               <tr className="bg-gray-50">
                 <th className="text-left px-3 py-2 text-xs font-medium text-gray-500">기간</th>
-                <th className="text-right px-3 py-2 text-xs font-medium text-gray-500">매출(만원)</th>
+                <th className="text-right px-3 py-2 text-xs font-medium text-gray-500">매출(원)</th>
                 <th className="text-center px-3 py-2 text-xs font-medium text-gray-500">고용(명)</th>
-                <th className="text-right px-3 py-2 text-xs font-medium text-gray-500">투자(만원)</th>
-                <th className="text-right px-3 py-2 text-xs font-medium text-gray-500">수출(만원)</th>
+                <th className="text-right px-3 py-2 text-xs font-medium text-gray-500">투자(원)</th>
+                <th className="text-right px-3 py-2 text-xs font-medium text-gray-500">수출(원)</th>
                 <th className="text-center px-3 py-2 text-xs font-medium text-gray-500">특허</th>
                 <th className="px-3 py-2 text-xs font-medium text-gray-500">지원사업</th>
                 <th className="px-3 py-2"></th>

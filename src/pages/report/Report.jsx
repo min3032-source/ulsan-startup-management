@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { fmtAmt } from '../../lib/constants'
 import StatCard from '../../components/common/StatCard'
 import Avatar from '../../components/common/Avatar'
 import {
@@ -227,9 +228,9 @@ export default function Report() {
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <StatCard label="지원사업 연계" value={`${data.supports}건`} color="blue" icon={Building2} />
-              <StatCard label="지원금 합계" value={`${data.totalAmount.toLocaleString()}만원`} color="green" icon={DollarSign} />
-              <StatCard label="총 매출 합계" value={`${data.totalRevenue.toLocaleString()}백만원`} sub={`${data.growthCount}개사`} color="teal" icon={TrendingUp} />
-              <StatCard label="총 고용인원" value={`${data.totalEmployees}명`} sub={`투자유치 ${data.totalInvestment.toLocaleString()}백만원`} color="amber" icon={Users} />
+              <StatCard label="지원금 합계" value={fmtAmt(data.totalAmount)} color="green" icon={DollarSign} />
+              <StatCard label="총 매출 합계" value={fmtAmt(data.totalRevenue)} sub={`${data.growthCount}개사`} color="teal" icon={TrendingUp} />
+              <StatCard label="총 고용인원" value={`${data.totalEmployees}명`} sub={`투자유치 ${fmtAmt(data.totalInvestment)}`} color="amber" icon={Users} />
             </div>
           </div>
 
@@ -243,7 +244,7 @@ export default function Report() {
                 <StatCard label="선정기업 합계" value={`${data.selectedFirms}개사`} color="blue" />
                 <StatCard label="지원중" value={`${data.sfYear.filter(f=>f.status==='지원중').length}개사`} color="orange" />
                 <StatCard label="지원 완료" value={`${data.sfDone}개사`} color="green" />
-                <StatCard label="선정기업 지원금" value={`${data.sfAmount >= 10000 ? (data.sfAmount/10000).toFixed(1)+'억' : data.sfAmount.toLocaleString()+'만'}`} color="teal" />
+                <StatCard label="선정기업 지원금" value={fmtAmt(data.sfAmount)} color="teal" />
               </div>
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 text-xs font-semibold text-gray-600">지원사업별 선정기업 목록</div>
@@ -253,7 +254,7 @@ export default function Report() {
                       <span className="text-xs font-semibold text-blue-800">{prog}</span>
                       <div className="flex gap-3 text-xs text-gray-500">
                         <span>{list.length}개사</span>
-                        <span className="font-bold text-green-700">{list.reduce((a,f)=>a+Number(f.amount||0),0).toLocaleString()}만원</span>
+                        <span className="font-bold text-green-700">{list.reduce((a,f)=>a+Number(f.amount||0),0).toLocaleString()}원</span>
                         <span className="text-green-600">완료 {list.filter(f=>f.status==='완료').length}개</span>
                       </div>
                     </div>
@@ -264,7 +265,7 @@ export default function Report() {
                           <span className="text-gray-500">{f.ceo}</span>
                           {f.item && <span className="text-gray-400 flex-1 truncate">{f.item}</span>}
                           <span className={`px-1.5 py-0.5 rounded font-medium ${f.status === '완료' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{f.status}</span>
-                          {f.amount && <span className="font-semibold text-green-700">{Number(f.amount).toLocaleString()}만</span>}
+                          {f.amount && <span className="font-semibold text-green-700">{Number(f.amount).toLocaleString()}원</span>}
                         </div>
                       ))}
                     </div>
@@ -345,7 +346,7 @@ function OnePageSummary({ data, reportTitle }) {
             <td style={{ padding: '8px 10px', fontWeight: 'bold', fontSize: 16, color: '#1E5631' }}>{data.founderCount}명</td>
             <td style={{ padding: '8px 10px', fontWeight: 'bold', fontSize: 16 }}>{data.consults}건</td>
             <td style={{ padding: '8px 10px', fontWeight: 'bold', fontSize: 16 }}>{data.selectedFirms}개사</td>
-            <td style={{ padding: '8px 10px', fontWeight: 'bold', fontSize: 16, color: '#1E5631' }}>{data.totalAmount.toLocaleString()}만원</td>
+            <td style={{ padding: '8px 10px', fontWeight: 'bold', fontSize: 16, color: '#1E5631' }}>{data.totalAmount.toLocaleString()}원</td>
             <td style={{ padding: '8px 10px', fontWeight: 'bold', fontSize: 16 }}>{data.mentorings}건</td>
           </tr>
         </tbody>

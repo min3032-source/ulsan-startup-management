@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { ULSAN_REGIONS, getVerdictBadgeClass } from '../../lib/constants'
+import { ULSAN_REGIONS, getVerdictBadgeClass, fmtAmt } from '../../lib/constants'
 import StatCard from '../../components/common/StatCard'
 import { VerdictBadge, StatusBadge } from '../../components/common/Badge'
 import {
@@ -134,7 +134,7 @@ export default function Stats() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="창업 상담" value={`${founders.length}명`} color="blue" />
         <StatCard label="지원사업 연계" value={`${supports.length + selectedFirms.length}건`} color="green" />
-        <StatCard label="총 지원금액" value={`${totalAmt >= 10000 ? (totalAmt / 10000).toFixed(1) + '억' : totalAmt.toLocaleString() + '만'}`} color="teal" />
+        <StatCard label="총 지원금액" value={fmtAmt(totalAmt)} color="teal" />
         <StatCard label="고용 창출" value={`${totalEmp}명`} sub="성장지표 기준" color="orange" />
       </div>
 
@@ -228,7 +228,7 @@ export default function Stats() {
           <StatCard label="지원 진행중" value={`${selectedFirms.filter(f => f.status === '지원중').length}개사`} color="orange" />
           <StatCard label="지원 완료" value={`${selectedFirms.filter(f => f.status === '완료').length}개사`} color="green" />
           <StatCard label="총 지원금액"
-            value={(() => { const t = selectedFirms.reduce((a, f) => a + (Number(f.amount) || 0), 0); return t >= 10000 ? (t/10000).toFixed(1)+'억' : t.toLocaleString()+'만' })()} color="teal" />
+            value={fmtAmt(selectedFirms.reduce((a, f) => a + (Number(f.amount) || 0), 0))} color="teal" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -316,13 +316,13 @@ export default function Stats() {
           />
           <StatCard
             label="총 매출액"
-            value={totalRevenue >= 10000 ? `${(totalRevenue / 10000).toFixed(1)}억` : `${totalRevenue.toLocaleString()}만`}
+            value={fmtAmt(totalRevenue)}
             sub="최신 연도 기준"
             color="teal"
           />
           <StatCard
             label="투자유치 총액"
-            value={totalInvestment >= 10000 ? `${(totalInvestment / 10000).toFixed(1)}억` : `${totalInvestment.toLocaleString()}만`}
+            value={fmtAmt(totalInvestment)}
             sub="전체 누적"
             color="orange"
           />
@@ -332,14 +332,14 @@ export default function Stats() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* 연도별 매출액 */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-              <div className="font-semibold text-gray-700 text-sm mb-4">연도별 총 매출액 (만원)</div>
+              <div className="font-semibold text-gray-700 text-sm mb-4">연도별 총 매출액 (원)</div>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={yearlyGrowthArr} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="year" tick={{ fontSize: 11 }} tickFormatter={y => `${y}년`} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={v => v >= 10000 ? `${(v/10000).toFixed(0)}억` : `${(v/1000).toFixed(0)}천`} />
-                  <Tooltip formatter={(v) => [`${v.toLocaleString()}만원`, '총 매출액']} labelFormatter={y => `${y}년`} />
-                  <Bar dataKey="revenue" name="총 매출액(만원)" fill="#2E75B6" radius={[3, 3, 0, 0]} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={v => v >= 100000000 ? `${(v/100000000).toFixed(0)}억` : v >= 10000 ? `${(v/10000).toFixed(0)}만` : v.toLocaleString()} />
+                  <Tooltip formatter={(v) => [`${v.toLocaleString()}원`, '총 매출액']} labelFormatter={y => `${y}년`} />
+                  <Bar dataKey="revenue" name="총 매출액(원)" fill="#2E75B6" radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -352,11 +352,11 @@ export default function Stats() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="year" tick={{ fontSize: 11 }} tickFormatter={y => `${y}년`} />
                   <YAxis yAxisId="left" tick={{ fontSize: 10 }} />
-                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} tickFormatter={v => v >= 10000 ? `${(v/10000).toFixed(0)}억` : `${(v/1000).toFixed(0)}천`} />
-                  <Tooltip formatter={(v, n) => n === '고용인원(명)' ? [`${v}명`, n] : [`${v.toLocaleString()}만원`, n]} labelFormatter={y => `${y}년`} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} tickFormatter={v => v >= 100000000 ? `${(v/100000000).toFixed(0)}억` : v >= 10000 ? `${(v/10000).toFixed(0)}만` : v.toLocaleString()} />
+                  <Tooltip formatter={(v, n) => n === '고용인원(명)' ? [`${v}명`, n] : [`${v.toLocaleString()}원`, n]} labelFormatter={y => `${y}년`} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Line yAxisId="left" type="monotone" dataKey="employees" name="고용인원(명)" stroke="#1E5631" strokeWidth={2} dot={{ r: 4 }} />
-                  <Line yAxisId="right" type="monotone" dataKey="investment" name="투자유치(만원)" stroke="#8B6914" strokeWidth={2} dot={{ r: 4 }} />
+                  <Line yAxisId="right" type="monotone" dataKey="investment" name="투자유치(원)" stroke="#8B6914" strokeWidth={2} dot={{ r: 4 }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -368,8 +368,8 @@ export default function Stats() {
               {yearlyGrowthArr.map(y => (
                 <div key={y.year} className="bg-gray-50 rounded-lg p-3">
                   <div className="text-xs text-gray-400 mb-1">{y.year}년</div>
-                  <div className="text-sm font-bold text-blue-700">{y.revenue.toLocaleString()}만원</div>
-                  <div className="text-xs text-gray-500 mt-0.5">고용 {y.employees}명 · 투자 {y.investment.toLocaleString()}만</div>
+                  <div className="text-sm font-bold text-blue-700">{y.revenue.toLocaleString()}원</div>
+                  <div className="text-xs text-gray-500 mt-0.5">고용 {y.employees}명 · 투자 {y.investment.toLocaleString()}원</div>
                 </div>
               ))}
             </div>
@@ -394,7 +394,7 @@ export default function Stats() {
                 <th className="text-right px-4 py-2.5 text-xs font-medium text-gray-500">참여</th>
                 <th className="text-right px-4 py-2.5 text-xs font-medium text-gray-500">선정</th>
                 <th className="text-right px-4 py-2.5 text-xs font-medium text-gray-500">선정률</th>
-                <th className="text-right px-4 py-2.5 text-xs font-medium text-gray-500">지원금합계(만원)</th>
+                <th className="text-right px-4 py-2.5 text-xs font-medium text-gray-500">지원금합계(원)</th>
               </tr>
             </thead>
             <tbody>
@@ -411,7 +411,7 @@ export default function Stats() {
                     {total > 0 ? `${Math.round(selected / total * 100)}%` : '-'}
                   </td>
                   <td className="px-4 py-2.5 text-right font-semibold text-green-700">
-                    {totalAmt > 0 ? totalAmt.toLocaleString() : '-'}
+                    {totalAmt > 0 ? totalAmt.toLocaleString() + '원' : '-'}
                   </td>
                 </tr>
               ))}

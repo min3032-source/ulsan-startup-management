@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { ULSAN_REGIONS, DEFAULT_SETTINGS, NOTE_TYPES, today } from '../../lib/constants'
+import { ULSAN_REGIONS, DEFAULT_SETTINGS, NOTE_TYPES, today, fmtAmt } from '../../lib/constants'
 import { VerdictBadge, StatusBadge } from '../../components/common/Badge'
 import Modal from '../../components/common/Modal'
 import StatCard from '../../components/common/StatCard'
@@ -290,7 +290,7 @@ export default function Selected() {
 
   // 성장지표 엑셀 템플릿 다운로드
   function downloadGmTemplate() {
-    const HEADERS = ['기업명*', '연도*', '기간유형(연도/반기/분기)*', '기간라벨*', '매출액(만원)', '고용인원', '투자유치(만원)', '수출액(만원)', '특허건수', '메모']
+    const HEADERS = ['기업명*', '연도*', '기간유형(연도/반기/분기)*', '기간라벨*', '매출액(원)', '고용인원', '투자유치(원)', '수출액(원)', '특허건수', '메모']
     const EXAMPLE = ['네오투', '2025', '연도', '2025년', '5000', '10', '3000', '500', '2', '전년 대비 성장']
     const ws = XLSX.utils.aoa_to_sheet([HEADERS, EXAMPLE])
     ws['!cols'] = HEADERS.map((h, i) => ({ wch: [14,8,18,16,12,8,12,10,8,20][i] }))
@@ -451,7 +451,7 @@ export default function Selected() {
       '연락처', '이메일',
       '지원사업명', '세부프로그램',
       '지원시작일(YYYY-MM-DD)', '지원종료일(YYYY-MM-DD)',
-      '지원금액(만원)', '지원상태(지원중/완료)', '담당자',
+      '지원금액(원)', '지원상태(지원중/완료)', '담당자',
     ]
     const EXAMPLE = [
       '네오투', '강동훈', '393-33-01777', '2020', '5',
@@ -655,7 +655,7 @@ export default function Selected() {
         <StatCard label="전체 선정기업" value={`${firms.length}개사`} color="blue" />
         <StatCard label="지원 진행중" value={`${inProg}개사`} color="orange" />
         <StatCard label="지원 완료" value={`${done}개사`} color="green" />
-        <StatCard label="총 지원금액" value={`${totalAmt >= 10000 ? (totalAmt / 10000).toFixed(1) + '억' : totalAmt.toLocaleString() + '만'}`} sub={`후속관리 ${postCount}개사`} color="teal" />
+        <StatCard label="총 지원금액" value={fmtAmt(totalAmt)} sub={`후속관리 ${postCount}개사`} color="teal" />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -827,7 +827,7 @@ export default function Selected() {
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">지원금액(만원)</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">지원금액(원)</label>
                       <input type="number" className="form-input" value={sp.amount} onChange={e => setSP(idx, 'amount', e.target.value)} />
                     </div>
                     <div>
@@ -1026,7 +1026,7 @@ export default function Selected() {
           <table className="w-full text-xs">
             <thead className="sticky top-0">
               <tr style={{ background: '#1E5631' }}>
-                {['구분','기업명','연도','기간유형','기간라벨','매출액(만)','고용인원','투자유치(만)','수출액(만)','특허','메모'].map(h => (
+                {['구분','기업명','연도','기간유형','기간라벨','매출액(원)','고용인원','투자유치(원)','수출액(원)','특허','메모'].map(h => (
                   <th key={h} className="text-left px-2 py-2 font-medium whitespace-nowrap text-white">{h}</th>
                 ))}
               </tr>
@@ -1102,7 +1102,7 @@ export default function Selected() {
                     <div className="grid grid-cols-4 gap-1 text-xs text-gray-500">
                       {sp.start_date && <span>시작: {sp.start_date}</span>}
                       {sp.end_date && <span>종료: {sp.end_date}</span>}
-                      {sp.amount && <span className="font-semibold text-green-700">{Number(sp.amount).toLocaleString()}만원</span>}
+                      {sp.amount && <span className="font-semibold text-green-700">{Number(sp.amount).toLocaleString()}원</span>}
                       {sp.staff && <span>담당: {sp.staff}</span>}
                     </div>
                   </div>
@@ -1245,7 +1245,7 @@ export default function Selected() {
                       <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} />
                       <Tooltip formatter={(v, n) => [v?.toLocaleString(), n]} />
                       <Legend wrapperStyle={{ fontSize: 11 }} />
-                      <Line yAxisId="left" type="monotone" dataKey="revenue" name="매출액(만원)" stroke="#2E75B6" strokeWidth={2} dot={{ r: 3 }} />
+                      <Line yAxisId="left" type="monotone" dataKey="revenue" name="매출액(원)" stroke="#2E75B6" strokeWidth={2} dot={{ r: 3 }} />
                       <Line yAxisId="right" type="monotone" dataKey="employees" name="고용인원(명)" stroke="#1E5631" strokeWidth={2} dot={{ r: 3 }} />
                     </LineChart>
                   </ResponsiveContainer>
@@ -1262,7 +1262,7 @@ export default function Selected() {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
-                        {['기간','매출액(만)','고용인원','투자유치(만)','수출액(만)','특허','메모',''].map(h => (
+                        {['기간','매출액(원)','고용인원','투자유치(원)','수출액(원)','특허','메모',''].map(h => (
                           <th key={h} className="px-2 py-2 text-left text-gray-500 font-medium whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
@@ -1351,12 +1351,12 @@ function GrowthMetricForm({ form, onChange, onSave, onCancel, getPeriodLabel }) 
         <div className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">기간 라벨: <span className="font-medium">{getPeriodLabel(form.year, form.period_type, half, quarter)}</span></div>
       )}
       <div className="grid grid-cols-3 gap-2">
-        <div><label className="block text-xs text-gray-600 mb-1">매출액(만원)</label><input type="number" className="form-input" value={form.revenue} onChange={e => onChange({...form, revenue: e.target.value})} /></div>
+        <div><label className="block text-xs text-gray-600 mb-1">매출액(원)</label><input type="number" className="form-input" value={form.revenue} onChange={e => onChange({...form, revenue: e.target.value})} /></div>
         <div><label className="block text-xs text-gray-600 mb-1">고용인원</label><input type="number" className="form-input" value={form.employees} onChange={e => onChange({...form, employees: e.target.value})} /></div>
-        <div><label className="block text-xs text-gray-600 mb-1">투자유치(만원)</label><input type="number" className="form-input" value={form.investment} onChange={e => onChange({...form, investment: e.target.value})} /></div>
+        <div><label className="block text-xs text-gray-600 mb-1">투자유치(원)</label><input type="number" className="form-input" value={form.investment} onChange={e => onChange({...form, investment: e.target.value})} /></div>
       </div>
       <div className="grid grid-cols-3 gap-2">
-        <div><label className="block text-xs text-gray-600 mb-1">수출액(만원)</label><input type="number" className="form-input" value={form.export_amount} onChange={e => onChange({...form, export_amount: e.target.value})} /></div>
+        <div><label className="block text-xs text-gray-600 mb-1">수출액(원)</label><input type="number" className="form-input" value={form.export_amount} onChange={e => onChange({...form, export_amount: e.target.value})} /></div>
         <div><label className="block text-xs text-gray-600 mb-1">특허건수</label><input type="number" className="form-input" value={form.patent_count} onChange={e => onChange({...form, patent_count: e.target.value})} /></div>
         <div><label className="block text-xs text-gray-600 mb-1">메모</label><input className="form-input" value={form.memo} onChange={e => onChange({...form, memo: e.target.value})} /></div>
       </div>
@@ -1374,7 +1374,7 @@ function FirmListTab({ firms, notes, onEdit, onDelete, onDetail }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-gray-50 border-b border-gray-100">
-            {['기업명', '대표자', '업종/아이템', '유형', '지원사업', '지원기간', '지원금(만원)', '담당', '상태', '사후관리', '관리'].map(h => (
+            {['기업명', '대표자', '업종/아이템', '유형', '지원사업', '지원기간', '지원금(원)', '담당', '상태', '사후관리', '관리'].map(h => (
               <th key={h} className="text-left px-3 py-2.5 text-xs font-medium text-gray-500">{h}</th>
             ))}
           </tr>
@@ -1440,7 +1440,7 @@ function ProgramTab({ firms }) {
           <div key={prog} className="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
               <div><span className="font-semibold text-gray-800">{prog}</span><span className="text-xs text-gray-400 ml-2">총 {list.length}개사</span></div>
-              <div className="flex gap-4"><span className="text-xs text-orange-600">진행중 {inProg}개사</span><span className="text-sm font-bold text-green-700">{total.toLocaleString()}만원</span></div>
+              <div className="flex gap-4"><span className="text-xs text-orange-600">진행중 {inProg}개사</span><span className="text-sm font-bold text-green-700">{total.toLocaleString()}원</span></div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -1457,7 +1457,7 @@ function ProgramTab({ firms }) {
                       <td className="px-4 py-2 text-xs text-gray-500 max-w-[100px] truncate">{f.item || '-'}</td>
                       <td className="px-4 py-2"><VerdictBadge verdict={f.type} /></td>
                       <td className="px-4 py-2 text-xs text-gray-500">{f.start_date} ~ {f.end_date || '진행중'}</td>
-                      <td className="px-4 py-2 text-xs font-bold text-green-700">{f.amount ? Number(f.amount).toLocaleString() + ' 만' : '-'}</td>
+                      <td className="px-4 py-2 text-xs font-bold text-green-700">{f.amount ? Number(f.amount).toLocaleString() + '원' : '-'}</td>
                       <td className="px-4 py-2 text-xs">{f.staff}</td>
                       <td className="px-4 py-2"><StatusBadge status={f.status} /></td>
                     </tr>

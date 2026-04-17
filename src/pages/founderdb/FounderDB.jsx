@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { VerdictBadge, StatusBadge, Badge } from '../../components/common/Badge'
+import { fmtAmt } from '../../lib/constants'
 import Modal from '../../components/common/Modal'
 import Avatar from '../../components/common/Avatar'
 import { Search, Eye } from 'lucide-react'
@@ -132,7 +133,7 @@ export default function FounderDB() {
                   </td>
                   <td className="px-4 py-2.5">
                     {latest
-                      ? <span className="text-xs font-semibold text-green-700">{Number(latest.revenue || 0).toLocaleString()}만 ({latest.year})</span>
+                      ? <span className="text-xs font-semibold text-green-700">{Number(latest.revenue || 0).toLocaleString()}원 ({latest.year})</span>
                       : <span className="text-xs text-gray-300">-</span>}
                   </td>
                   <td className="px-4 py-2.5">
@@ -228,9 +229,9 @@ function FounderDetail({ founder, consults, supports, company, growths, mentorin
               <thead>
                 <tr className="bg-gray-50">
                   <th className="text-left px-2 py-1.5 font-medium text-gray-500">연도</th>
-                  <th className="text-right px-2 py-1.5 font-medium text-gray-500">매출(만원)</th>
+                  <th className="text-right px-2 py-1.5 font-medium text-gray-500">매출(원)</th>
                   <th className="text-right px-2 py-1.5 font-medium text-gray-500">고용(명)</th>
-                  <th className="text-right px-2 py-1.5 font-medium text-gray-500">투자(만원)</th>
+                  <th className="text-right px-2 py-1.5 font-medium text-gray-500">투자(원)</th>
                 </tr>
               </thead>
               <tbody>
