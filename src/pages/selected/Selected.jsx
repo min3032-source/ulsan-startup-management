@@ -567,37 +567,33 @@ export default function Selected() {
     if (xlsxPreview.length === 0) return
 
     // ── STEP 1: 저장 직전 DB 전체 기업 목록 새로 조회 ──
-    console.log('[일괄저장] DB 조회 시작...')
-    const { data: latestFirms, error: fetchErr } = await supabase
+    const { data: dbFirms, error: fetchErr } = await supabase
       .from('selected_firms').select('id, company_name, ceo, support_programs')
     if (fetchErr) { alert('기업 목록 조회 실패: ' + fetchErr.message); return }
-    console.log(`[일괄저장] DB 기업 수: ${(latestFirms || []).length}개`)
-    console.log('[일괄저장] DB 기업 목록:', (latestFirms || []).map(f => `${f.company_name}|${f.ceo}`))
+    console.log('DB기업수:', dbFirms.length)
 
-    // ── STEP 2: 각 행마다 중복 체크 ──
+    // ── STEP 2: 각 행마다 기업명 + 대표자 둘 다 일치해야 중복 ──
     const resolved = xlsxPreview.map(r => {
       const nameA = (r.company_name || '').trim()
       const ceoA  = (r.ceo || '').trim()
 
-      const existing = (latestFirms || []).find(f => {
-        const nameB = (f.company_name || '').trim()
-        const ceoB  = (f.ceo || '').trim()
-        const match = nameA === nameB && ceoA === ceoB
-        console.log(`[중복체크] 엑셀:"${nameA}|${ceoA}" vs DB:"${nameB}|${ceoB}" → ${match ? '일치' : '불일치'}`)
-        return match
-      })
+      const existing = (dbFirms || []).find(f =>
+        (f.company_name || '').trim() === nameA &&
+        (f.ceo || '').trim() === ceoA
+      )
+      const match = !!existing
+
+      console.log('엑셀행:', nameA, ceoA, '→', match ? '업데이트' : '신규')
 
       const baseSP = existing?.support_programs ?? []
-      const isSpAdded = !!existing && !!r.program &&
+      const isSpAdded = match && !!r.program &&
         !baseSP.some(sp => sp.program === r.program && sp.sub_program === r.sub_program)
 
-      console.log(`[중복체크 결과] "${nameA}|${ceoA}" → ${existing ? `기존 ID=${existing.id} (지원사업추가=${isSpAdded})` : '신규'}`)
-      return { ...r, isDuplicate: !!existing, isSpAdded, existingId: existing?.id ?? null, existingSP: baseSP }
+      return { ...r, isDuplicate: match, isSpAdded, existingId: existing?.id ?? null, existingSP: baseSP }
     })
 
     const newRows    = resolved.filter(r => !r.isDuplicate)
     const updateRows = resolved.filter(r => r.isDuplicate)
-    console.log(`[일괄저장] 신규: ${newRows.length}건, 업데이트: ${updateRows.length}건`)
 
     const buildInsertRow = r => ({
       company_name: r.company_name, ceo: r.ceo || null,
