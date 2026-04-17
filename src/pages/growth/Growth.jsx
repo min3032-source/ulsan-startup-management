@@ -10,8 +10,17 @@ import { today } from '../../lib/constants'
 
 const emptyForm = () => ({
   founder_id: '', year: String(new Date().getFullYear()),
-  revenue: '', employees: '', investment: '', memo: '',
+  period_type: '연도', period_label: String(new Date().getFullYear()) + '년',
+  revenue: '', employees: '', investment: '',
+  export_amount: '', patent_count: '', memo: '',
 })
+
+function getAutoLabel(year, type, half, quarter) {
+  if (type === '연도') return `${year}년`
+  if (type === '반기') return `${year}년 ${half}`
+  if (type === '분기') return `${year}년 ${quarter}`
+  return ''
+}
 
 function growthStage(g) {
   if (!g) return null
@@ -37,6 +46,8 @@ export default function Growth() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState(emptyForm())
+  const [half, setHalf] = useState('상반기')
+  const [quarter, setQuarter] = useState('1분기')
   const [detailFounder, setDetailFounder] = useState(null)
   const [detailOpen, setDetailOpen] = useState(false)
 
@@ -59,26 +70,63 @@ export default function Growth() {
     finally { setLoading(false) }
   }
 
-  function setField(k, v) { setForm(p => ({ ...p, [k]: v })) }
+  function setField(k, v) {
+    setForm(p => {
+      const next = { ...p, [k]: v }
+      if (k === 'year' || k === 'period_type') {
+        next.period_label = getAutoLabel(next.year, next.period_type, half, quarter)
+      }
+      return next
+    })
+  }
+
+  function setPeriodSub(newHalf, newQuarter) {
+    const h = newHalf ?? half
+    const q = newQuarter ?? quarter
+    if (newHalf) setHalf(newHalf)
+    if (newQuarter) setQuarter(newQuarter)
+    setForm(p => ({ ...p, period_label: getAutoLabel(p.year, p.period_type, h, q) }))
+  }
 
   function openAdd(preFounderId = '') {
     setEditingId(null)
     const f = emptyForm()
     if (preFounderId) f.founder_id = preFounderId
+    setHalf('상반기')
+    setQuarter('1분기')
     setForm(f)
     setModalOpen(true)
   }
 
   function openEdit(g) {
     setEditingId(g.id)
-    setForm({ founder_id: g.founder_id || '', year: g.year || '', revenue: g.revenue || '', employees: g.employees || '', investment: g.investment || '', memo: g.memo || '' })
+    setHalf('상반기')
+    setQuarter('1분기')
+    setForm({
+      founder_id: g.founder_id || '',
+      year: g.year || '',
+      period_type: g.period_type || '연도',
+      period_label: g.period_label || `${g.year}년`,
+      revenue: g.revenue || '',
+      employees: g.employees || '',
+      investment: g.investment || '',
+      export_amount: g.export_amount || '',
+      patent_count: g.patent_count || '',
+      memo: g.memo || '',
+    })
     setModalOpen(true)
   }
 
   async function handleSave() {
     if (!form.founder_id) { alert('창업자를 선택해주세요'); return }
     if (!form.year) { alert('연도를 입력해주세요'); return }
-    const payload = { ...form }
+    const label = form.period_label || getAutoLabel(form.year, form.period_type, half, quarter)
+    const payload = {
+      ...form,
+      period_label: label,
+      export_amount: form.export_amount ? Number(form.export_amount) : null,
+      patent_count: form.patent_count ? Number(form.patent_count) : null,
+    }
     try {
       if (editingId) {
         const { error } = await supabase.from('growths').update(payload).eq('id', editingId)
@@ -213,6 +261,7 @@ export default function Growth() {
         }
       >
         <div className="space-y-3">
+          {/* 창업자 */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">창업자 *</label>
             <select className="form-input" value={form.founder_id} onChange={e => setField('founder_id', e.target.value)}>
@@ -221,19 +270,103 @@ export default function Growth() {
             </select>
             <p className="text-xs text-gray-400 mt-1">창업 등록된 창업자 또는 이미 지표가 있는 창업자 목록입니다</p>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">연도 *</label>
-            <input className="form-input" value={form.year} onChange={e => setField('year', e.target.value)} placeholder="2026" />
-          </div>
-          <div className="bg-gray-50 rounded-xl p-3 space-y-2">
-            <div className="text-xs font-semibold text-gray-600">성장 지표 입력</div>
-            <div className="grid grid-cols-3 gap-3">
-              <div><label className="block text-xs font-medium text-gray-600 mb-1">매출 (만원)</label><input type="number" className="form-input" value={form.revenue} onChange={e => setField('revenue', e.target.value)} placeholder="0" /></div>
-              <div><label className="block text-xs font-medium text-gray-600 mb-1">고용 인원 (명)</label><input type="number" className="form-input" value={form.employees} onChange={e => setField('employees', e.target.value)} placeholder="0" /></div>
-              <div><label className="block text-xs font-medium text-gray-600 mb-1">투자 유치 (만원)</label><input type="number" className="form-input" value={form.investment} onChange={e => setField('investment', e.target.value)} placeholder="0" /></div>
+
+          {/* 기간 설정 */}
+          <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 space-y-2">
+            <div className="text-xs font-semibold text-blue-700">기간 설정</div>
+
+            {/* 연도 */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">연도 *</label>
+              <input
+                className="form-input w-32"
+                value={form.year}
+                onChange={e => setField('year', e.target.value)}
+                placeholder="2026"
+              />
+            </div>
+
+            {/* 기간 유형 — 라디오 버튼 */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">기간 유형</label>
+              <div className="flex gap-4">
+                {['연도', '반기', '분기'].map(t => (
+                  <label key={t} className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="period_type"
+                      value={t}
+                      checked={form.period_type === t}
+                      onChange={() => setField('period_type', t)}
+                      className="accent-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">{t}별</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* 기간 라벨 자동 생성 */}
+            {form.period_type === '반기' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">반기 선택</label>
+                <select className="form-input w-48" value={half} onChange={e => setPeriodSub(e.target.value, null)}>
+                  <option>상반기</option>
+                  <option>하반기</option>
+                </select>
+              </div>
+            )}
+            {form.period_type === '분기' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">분기 선택</label>
+                <select className="form-input w-48" value={quarter} onChange={e => setPeriodSub(null, e.target.value)}>
+                  <option>1분기</option>
+                  <option>2분기</option>
+                  <option>3분기</option>
+                  <option>4분기</option>
+                </select>
+              </div>
+            )}
+
+            {/* 자동 생성된 라벨 미리보기 */}
+            <div className="text-xs text-blue-600 bg-white rounded px-2 py-1.5 border border-blue-100">
+              기간 라벨 : <span className="font-semibold">{getAutoLabel(form.year, form.period_type, half, quarter)}</span>
             </div>
           </div>
-          <div><label className="block text-xs font-medium text-gray-600 mb-1">메모</label><textarea className="form-input" value={form.memo} onChange={e => setField('memo', e.target.value)} /></div>
+
+          {/* 성장 지표 입력 */}
+          <div className="bg-gray-50 rounded-xl p-3 space-y-2">
+            <div className="text-xs font-semibold text-gray-600">성장 지표</div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">매출액 (만원)</label>
+                <input type="number" className="form-input" value={form.revenue} onChange={e => setField('revenue', e.target.value)} placeholder="0" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">고용인원 (명)</label>
+                <input type="number" className="form-input" value={form.employees} onChange={e => setField('employees', e.target.value)} placeholder="0" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">투자유치 (만원)</label>
+                <input type="number" className="form-input" value={form.investment} onChange={e => setField('investment', e.target.value)} placeholder="0" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">수출액 (만원)</label>
+                <input type="number" className="form-input" value={form.export_amount} onChange={e => setField('export_amount', e.target.value)} placeholder="0" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">특허건수</label>
+                <input type="number" className="form-input" value={form.patent_count} onChange={e => setField('patent_count', e.target.value)} placeholder="0" />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">메모</label>
+            <textarea className="form-input" value={form.memo} onChange={e => setField('memo', e.target.value)} />
+          </div>
         </div>
       </Modal>
 
@@ -321,11 +454,13 @@ function FounderGrowthDetail({ founder, company, growths, supports, onDelete }) 
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50">
-                <th className="text-left px-3 py-2 text-xs font-medium text-gray-500">연도</th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-gray-500">기간</th>
                 <th className="text-right px-3 py-2 text-xs font-medium text-gray-500">매출(만원)</th>
                 <th className="text-center px-3 py-2 text-xs font-medium text-gray-500">고용(명)</th>
                 <th className="text-right px-3 py-2 text-xs font-medium text-gray-500">투자(만원)</th>
-                <th className="px-3 py-2 text-xs font-medium text-gray-500">해당연도 지원사업</th>
+                <th className="text-right px-3 py-2 text-xs font-medium text-gray-500">수출(만원)</th>
+                <th className="text-center px-3 py-2 text-xs font-medium text-gray-500">특허</th>
+                <th className="px-3 py-2 text-xs font-medium text-gray-500">지원사업</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
@@ -338,10 +473,14 @@ function FounderGrowthDetail({ founder, company, growths, supports, onDelete }) 
                 })
                 return (
                   <tr key={g.id} className="border-b border-gray-100">
-                    <td className="px-3 py-2 font-semibold text-xs">{g.year}</td>
+                    <td className="px-3 py-2 font-semibold text-xs text-blue-700 whitespace-nowrap">
+                      {g.period_label || `${g.year}년`}
+                    </td>
                     <td className="px-3 py-2 text-right text-xs font-bold text-green-700">{Number(g.revenue || 0).toLocaleString()}</td>
-                    <td className="px-3 py-2 text-center text-xs">{g.employees}</td>
-                    <td className="px-3 py-2 text-right text-xs text-blue-700">{Number(g.investment || 0).toLocaleString()}</td>
+                    <td className="px-3 py-2 text-center text-xs">{g.employees ?? '-'}</td>
+                    <td className="px-3 py-2 text-right text-xs text-blue-700">{g.investment ? Number(g.investment).toLocaleString() : '-'}</td>
+                    <td className="px-3 py-2 text-right text-xs text-orange-600">{g.export_amount ? Number(g.export_amount).toLocaleString() : '-'}</td>
+                    <td className="px-3 py-2 text-center text-xs">{g.patent_count ?? '-'}</td>
                     <td className="px-3 py-2 text-xs">
                       {activeSups.map(s => <span key={s.id} className="bg-teal-100 text-teal-700 text-xs px-1 py-0.5 rounded mr-1">{s.program}</span>)}
                     </td>
