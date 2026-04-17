@@ -487,6 +487,19 @@ export default function Selected() {
     XLSX.writeFile(wb, '선정기업_일괄등록_템플릿.xlsx')
   }
 
+  // 엑셀 날짜 직렬값(예: 46129) → 'YYYY-MM-DD' 변환
+  function excelDateToString(value) {
+    if (!value && value !== 0) return null
+    if (typeof value === 'string' && value.includes('-')) return value  // 이미 문자열 날짜
+    const num = Number(value)
+    if (isNaN(num) || num < 1) return String(value) || null
+    const date = new Date((num - 25569) * 86400 * 1000)
+    const y = date.getUTCFullYear()
+    const m = String(date.getUTCMonth() + 1).padStart(2, '0')
+    const d = String(date.getUTCDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+
   async function handleXlsxFile(e) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -524,12 +537,15 @@ export default function Selected() {
         const isSpAdded = !!existing && !!program &&
           !baseSP.some(sp => sp.program === program && sp.sub_program === sub_program)
         return {
-          company_name, ceo, biz_no: s(r[2]), founded_date: s(r[3]), employees: s(r[4]),
+          company_name, ceo, biz_no: s(r[2]),
+          founded_date: excelDateToString(r[3]),
+          employees: s(r[4]),
           biz_type: s(r[5]), biz_item: s(r[6]), item: s(r[7]),
           type: s(r[8]) || '테크', region: s(r[9]), gender: s(r[10]),
           phone: s(r[11]), email: s(r[12]),
           program, sub_program,
-          start_date: s(r[15]), end_date: s(r[16]),
+          start_date: excelDateToString(r[15]),
+          end_date:   excelDateToString(r[16]),
           amount: s(r[17]), status: s(r[18]) || '지원중', staff: s(r[19]),
           isDuplicate: !!existing,
           isSpAdded,
