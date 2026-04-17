@@ -566,25 +566,38 @@ export default function Selected() {
   async function saveBulkXlsx() {
     if (xlsxPreview.length === 0) return
 
-    // 저장 직전 DB 재조회 (미리보기와 저장 사이에 변경된 내용 반영)
+    // ── STEP 1: 저장 직전 DB 전체 기업 목록 새로 조회 ──
+    console.log('[일괄저장] DB 조회 시작...')
     const { data: latestFirms, error: fetchErr } = await supabase
       .from('selected_firms').select('id, company_name, ceo, support_programs')
     if (fetchErr) { alert('기업 목록 조회 실패: ' + fetchErr.message); return }
+    console.log(`[일괄저장] DB 기업 수: ${(latestFirms || []).length}개`)
+    console.log('[일괄저장] DB 기업 목록:', (latestFirms || []).map(f => `${f.company_name}|${f.ceo}`))
 
+    // ── STEP 2: 각 행마다 중복 체크 ──
     const resolved = xlsxPreview.map(r => {
-      // 기업명 + 대표자 둘 다 일치해야 같은 기업
-      const existing = (latestFirms || []).find(f =>
-        f.company_name?.trim() === r.company_name.trim() &&
-        f.ceo?.trim() === r.ceo.trim()
-      )
+      const nameA = (r.company_name || '').trim()
+      const ceoA  = (r.ceo || '').trim()
+
+      const existing = (latestFirms || []).find(f => {
+        const nameB = (f.company_name || '').trim()
+        const ceoB  = (f.ceo || '').trim()
+        const match = nameA === nameB && ceoA === ceoB
+        console.log(`[중복체크] 엑셀:"${nameA}|${ceoA}" vs DB:"${nameB}|${ceoB}" → ${match ? '일치' : '불일치'}`)
+        return match
+      })
+
       const baseSP = existing?.support_programs ?? []
       const isSpAdded = !!existing && !!r.program &&
         !baseSP.some(sp => sp.program === r.program && sp.sub_program === r.sub_program)
+
+      console.log(`[중복체크 결과] "${nameA}|${ceoA}" → ${existing ? `기존 ID=${existing.id} (지원사업추가=${isSpAdded})` : '신규'}`)
       return { ...r, isDuplicate: !!existing, isSpAdded, existingId: existing?.id ?? null, existingSP: baseSP }
     })
 
     const newRows    = resolved.filter(r => !r.isDuplicate)
     const updateRows = resolved.filter(r => r.isDuplicate)
+    console.log(`[일괄저장] 신규: ${newRows.length}건, 업데이트: ${updateRows.length}건`)
 
     const buildInsertRow = r => ({
       company_name: r.company_name, ceo: r.ceo || null,
