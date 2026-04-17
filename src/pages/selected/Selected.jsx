@@ -19,7 +19,7 @@ const emptySpItem = () => ({
 })
 
 const emptyFirmForm = () => ({
-  company_name: '', ceo: '', biz_no: '', found_date: '', employees: '',
+  company_name: '', ceo: '', biz_no: '', founded_date: '', employees: '',
   biz_type: '', biz_item: '', sector: '', type: '테크', region: '',
   gender: '', phone: '', email: '', item: '',
   support_programs: [emptySpItem()],
@@ -144,7 +144,7 @@ export default function Selected() {
     }
     setFirmForm({
       company_name: f.company_name || '', ceo: f.ceo || '', biz_no: f.biz_no || '',
-      found_date: f.found_date || '', employees: f.employees || '',
+      founded_date: f.founded_date || '', employees: f.employees || '',
       biz_type: f.biz_type || '', biz_item: f.biz_item || '', sector: f.sector || '',
       type: f.type || '테크', region: f.region || '', gender: f.gender || '',
       phone: f.phone || '', email: f.email || '', item: f.item || '',
@@ -169,7 +169,7 @@ export default function Selected() {
       company_name: firmForm.company_name,
       ceo: firmForm.ceo,
       biz_no: firmForm.biz_no || null,
-      found_date: firmForm.found_date || null,
+      founded_date: firmForm.founded_date || null,
       employees: firmForm.employees ? Number(firmForm.employees) : null,
       biz_type: firmForm.biz_type || null,
       biz_item: firmForm.biz_item || null,
@@ -524,7 +524,7 @@ export default function Selected() {
         const isSpAdded = !!existing && !!program &&
           !baseSP.some(sp => sp.program === program && sp.sub_program === sub_program)
         return {
-          company_name, ceo, biz_no: s(r[2]), found_date: s(r[3]), employees: s(r[4]),
+          company_name, ceo, biz_no: s(r[2]), founded_date: s(r[3]), employees: s(r[4]),
           biz_type: s(r[5]), biz_item: s(r[6]), item: s(r[7]),
           type: s(r[8]) || '테크', region: s(r[9]), gender: s(r[10]),
           phone: s(r[11]), email: s(r[12]),
@@ -572,7 +572,7 @@ export default function Selected() {
 
     const buildInsertRow = r => ({
       company_name: r.company_name, ceo: r.ceo || null,
-      biz_no: r.biz_no || null, found_date: r.found_date || null,
+      biz_no: r.biz_no || null, founded_date: r.founded_date || null,
       employees: r.employees ? Number(r.employees) : null,
       biz_type: r.biz_type || null, biz_item: r.biz_item || null,
       sector: [r.biz_type, r.biz_item].filter(Boolean).join(' / ') || null,
@@ -737,7 +737,7 @@ export default function Selected() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div><label className="block text-xs font-medium text-gray-600 mb-1">사업자번호</label><input className="form-input" value={firmForm.biz_no} onChange={e => setFF('biz_no', e.target.value)} placeholder="000-00-00000" /></div>
-              <div><label className="block text-xs font-medium text-gray-600 mb-1">설립연월일</label><input type="date" className="form-input" value={firmForm.found_date} onChange={e => setFF('found_date', e.target.value)} /></div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">설립연월일</label><input type="date" className="form-input" value={firmForm.founded_date} onChange={e => setFF('founded_date', e.target.value)} /></div>
               <div><label className="block text-xs font-medium text-gray-600 mb-1">임직원수</label><input type="number" className="form-input" value={firmForm.employees} onChange={e => setFF('employees', e.target.value)} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -966,7 +966,7 @@ export default function Selected() {
               <table className="w-full text-xs">
                 <thead className="sticky top-0">
                   <tr className="border-b border-gray-200" style={{ background: '#2E75B6' }}>
-                    {['구분','기업명','대표자','지원사업명','세부프로그램','시작일','종료일','지원금(만원)','상태','담당자','사업자번호','유형','지역'].map(h => (
+                    {['구분','기업명','대표자','지원사업명','세부프로그램','시작일','종료일','지원금액(원)','상태','담당자','사업자번호','유형','지역'].map(h => (
                       <th key={h} className="text-left px-2 py-2 font-medium whitespace-nowrap" style={{ color: '#fff' }}>{h}</th>
                     ))}
                   </tr>
@@ -1112,7 +1112,7 @@ export default function Selected() {
           {detailTab === 'info' && (
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-2">
-                {[['대표자', detailFirm.ceo], ['사업자번호', detailFirm.biz_no], ['설립연월일', detailFirm.found_date],
+                {[['대표자', detailFirm.ceo], ['사업자번호', detailFirm.biz_no], ['설립연월일', detailFirm.founded_date],
                   ['업종', detailFirm.sector], ['아이템', detailFirm.item], ['지역', detailFirm.region],
                   ['임직원수', detailFirm.employees ? detailFirm.employees + '명' : '-'],
                   ['연락처', detailFirm.phone], ['기업유형', detailFirm.type]].map(([l, v]) => (
