@@ -203,28 +203,26 @@ export default function Certificate() {
               </p>
 
               {/* 기관장 + 전자관인 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
-                <p style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e3a6e', letterSpacing: '0.05em', lineHeight: 1 }}>
-                  울산경제일자리진흥원장
-                </p>
-                {/* (인) 위에 관인 이미지를 겹침 */}
-                <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '52px', height: '52px' }}>
-                  <span style={{ fontSize: '18px', color: '#374151' }}>(인)</span>
-                  <img
-                    src="/seal.png"
-                    alt="전자관인"
-                    style={{
-                      position: 'absolute',
-                      top: '50%', left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      height: '80px', width: '80px',
-                      objectFit: 'contain',
-                      opacity: 0.85,
-                      pointerEvents: 'none',
-                    }}
-                    onError={e => { e.target.style.display = 'none' }}
-                  />
-                </div>
+              <div style={{ position: 'relative', display: 'inline-block', marginTop: '8px' }}>
+                <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e3a6e', letterSpacing: '0.05em' }}>
+                  울산경제일자리진흥원장 (인)
+                </span>
+                <img
+                  src="/seal.png"
+                  alt="전자관인"
+                  style={{
+                    position: 'absolute',
+                    right: '-10px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: '70px',
+                    height: '70px',
+                    objectFit: 'contain',
+                    opacity: 0.85,
+                    pointerEvents: 'none',
+                  }}
+                  onError={e => { e.target.style.display = 'none' }}
+                />
               </div>
             </div>
 

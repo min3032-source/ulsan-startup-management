@@ -1084,29 +1084,27 @@ export function CertificateView({ name, programTitle, startDate, endDate, totalH
         <p style={{ fontSize: '15px', color: '#374151', letterSpacing: '0.08em' }}>
           {y}년&nbsp;&nbsp;{Number(m)}월&nbsp;&nbsp;{Number(d)}일
         </p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <p style={{ fontSize: '16px', fontWeight: 'bold', color: '#1e3a6e', letterSpacing: '0.04em', lineHeight: 1 }}>
-            울산경제일자리진흥원장
-          </p>
-          {/* (인) 위에 관인 이미지 겹침 */}
-          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44 }}>
-            <span style={{ fontSize: '15px', color: '#374151', position: 'relative', zIndex: 1 }}>(인)</span>
-            <img
-              src="/seal.png"
-              alt="전자관인"
-              style={{
-                position: 'absolute',
-                top: '50%', left: '50%',
-                transform: 'translate(-50%, -50%)',
-                height: 64, width: 64,
-                objectFit: 'contain',
-                opacity: 0.85,
-                pointerEvents: 'none',
-                zIndex: 2,
-              }}
-              onError={e => { e.target.style.display = 'none' }}
-            />
-          </div>
+        {/* 원장 서명 영역 */}
+        <div style={{ position: 'relative', display: 'inline-block' }}>
+          <span style={{ fontWeight: 'bold', fontSize: '16px', color: '#1e3a6e', letterSpacing: '0.04em' }}>
+            울산경제일자리진흥원장 (인)
+          </span>
+          <img
+            src="/seal.png"
+            alt="전자관인"
+            style={{
+              position: 'absolute',
+              right: '-10px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: '60px',
+              height: '60px',
+              objectFit: 'contain',
+              opacity: 0.85,
+              pointerEvents: 'none',
+            }}
+            onError={e => { e.target.style.display = 'none' }}
+          />
         </div>
       </div>
     </div>
