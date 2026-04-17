@@ -263,7 +263,7 @@ export default function Education() {
     const year = new Date().getFullYear()
     const { count } = await supabase.from('certificates').select('*', { count: 'exact', head: true })
     const seq = String((count || 0) + 1).padStart(3, '0')
-    const certNo = `울산경제일자리진흥원-${year}-${seq}`
+    const certNo = `제${year}-03-${seq}호`
     const { error } = await supabase.from('certificates').insert({
       application_id: appId,
       certificate_number: certNo,
@@ -1003,16 +1003,17 @@ function Field({ label, children }) {
   )
 }
 
+// 창업지원부 부서코드: 03 고정
 function formatCertNo(raw) {
   if (!raw) return '-'
-  if (/^제\d{4}-\d{2}-\d{3}호$/.test(raw)) return raw
+  if (/^제\d{4}-\d{2}-\d{3}호$/.test(raw)) {
+    return raw.replace(/^(제\d{4}-)\d{2}(-\d{3}호)$/, '$103$2')
+  }
   const match = raw.match(/(\d{4})[^\d]*(\d{2,3})$/)
   if (match) {
     const year = match[1]
     const seq  = String(match[2]).padStart(3, '0')
-    const now  = new Date()
-    const month = String(now.getMonth() + 1).padStart(2, '0')
-    return `제${year}-${month}-${seq}호`
+    return `제${year}-03-${seq}호`
   }
   return raw
 }

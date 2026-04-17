@@ -3,19 +3,19 @@ import { useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { Printer } from 'lucide-react'
 
-// 수료번호 → "제YYYY-MM-NNN호" 형식으로 변환
+// 수료번호 → "제YYYY-03-NNN호" 형식으로 변환 (창업지원부 부서코드: 03)
 function formatCertNumber(raw) {
   if (!raw) return '-'
-  // 이미 "제YYYY-MM-NNN호" 형식이면 그대로
-  if (/^제\d{4}-\d{2}-\d{3}호$/.test(raw)) return raw
+  // 이미 "제YYYY-MM-NNN호" 형식이면 부서코드만 03으로 교정
+  if (/^제\d{4}-\d{2}-\d{3}호$/.test(raw)) {
+    return raw.replace(/^(제\d{4}-)\d{2}(-\d{3}호)$/, '$103$2')
+  }
   // "울산경제일자리진흥원-YYYY-NNN" 또는 "YYYY-NNN" 등 파싱 시도
   const match = raw.match(/(\d{4})[^\d]*(\d{2,3})$/)
   if (match) {
     const year = match[1]
     const seq  = String(match[2]).padStart(3, '0')
-    const now  = new Date()
-    const month = String(now.getMonth() + 1).padStart(2, '0')
-    return `제${year}-${month}-${seq}호`
+    return `제${year}-03-${seq}호`
   }
   return raw
 }
