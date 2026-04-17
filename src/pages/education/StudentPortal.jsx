@@ -248,6 +248,7 @@ export default function StudentPortal() {
             programTitle={prog?.title}
             startDate={prog?.start_date}
             endDate={prog?.end_date}
+            totalHours={prog?.total_hours}
             issuedAt={cert?.issued_at}
             certNumber={cert?.certificate_number}
           />

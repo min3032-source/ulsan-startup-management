@@ -81,8 +81,8 @@ export default function Education() {
     setLoading(true)
     const [pRes, aRes, cRes, prRes] = await Promise.all([
       supabase.from('education_programs').select('*').order('created_at', { ascending: false }),
-      supabase.from('education_applications').select('*, education_programs(title, start_date, end_date), founders(name)').order('applied_at', { ascending: false }),
-      supabase.from('certificates').select('*, education_applications(applicant_name, education_programs(title, start_date, end_date))').order('issued_at', { ascending: false }),
+      supabase.from('education_applications').select('*, education_programs(title, start_date, end_date, total_hours), founders(name)').order('applied_at', { ascending: false }),
+      supabase.from('certificates').select('*, education_applications(applicant_name, education_programs(title, start_date, end_date, total_hours))').order('issued_at', { ascending: false }),
       supabase.from('profiles').select('id, name').eq('is_active', true),
     ])
     if (!pRes.error) setPrograms(pRes.data || [])
@@ -970,6 +970,7 @@ export default function Education() {
                 programTitle={certPreview.prog?.title}
                 startDate={certPreview.prog?.start_date}
                 endDate={certPreview.prog?.end_date}
+                totalHours={certPreview.prog?.total_hours}
                 issuedAt={certPreview.cert?.issued_at}
                 certNumber={certPreview.cert?.certificate_number}
               />
@@ -1002,34 +1003,111 @@ function Field({ label, children }) {
   )
 }
 
-export function CertificateView({ name, programTitle, startDate, endDate, issuedAt, certNumber }) {
+function formatCertNo(raw) {
+  if (!raw) return '-'
+  if (/^제\d{4}-\d{2}-\d{3}호$/.test(raw)) return raw
+  const match = raw.match(/(\d{4})[^\d]*(\d{2,3})$/)
+  if (match) {
+    const year = match[1]
+    const seq  = String(match[2]).padStart(3, '0')
+    const now  = new Date()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    return `제${year}-${month}-${seq}호`
+  }
+  return raw
+}
+
+export function CertificateView({ name, programTitle, startDate, endDate, totalHours, issuedAt, certNumber }) {
   const issueDate = issuedAt ? new Date(issuedAt) : new Date()
   const y = issueDate.getFullYear()
   const m = String(issueDate.getMonth() + 1).padStart(2, '0')
   const d = String(issueDate.getDate()).padStart(2, '0')
+  const certNo = formatCertNo(certNumber)
 
   return (
-    <div className="border-4 border-blue-800 p-8 text-center space-y-6 font-serif" style={{ minHeight: 480 }}>
-      <div>
-        <img src="/logo.gif" alt="울산경제일자리진흥원 로고" style={{ height: 36 }} className="w-auto mx-auto mb-2" />
-        <p className="text-sm font-bold text-blue-800 tracking-widest">울산경제일자리진흥원</p>
-        <h1 className="text-4xl font-bold text-gray-800 mt-4 tracking-[0.3em]">수  료  증</h1>
+    <div style={{
+      fontFamily: "'Gowun Batang', 'Noto Serif KR', 'Batang', serif",
+      border: '3px double #1e3a6e',
+      padding: '32px 28px',
+      textAlign: 'center',
+      minHeight: 480,
+      position: 'relative',
+      background: '#fff',
+    }}>
+      {/* 수료번호 — 좌측 상단 */}
+      <p style={{ position: 'absolute', top: 10, left: 14, fontSize: '11px', color: '#9ca3af' }}>{certNo}</p>
+
+      {/* 기관 로고 + 기관명 */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, marginBottom: 16 }}>
+        <img src="/logo.gif" alt="울산경제일자리진흥원" style={{ height: 44, width: 44, objectFit: 'contain' }} />
+        <p style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e3a6e', letterSpacing: '0.2em' }}>울산경제일자리진흥원</p>
       </div>
-      <div className="border-t border-b border-gray-300 py-6 space-y-2 text-left max-w-xs mx-auto">
-        <p className="text-sm text-gray-700"><span className="font-bold w-20 inline-block">성   명</span>: {name || '홍길동'}</p>
-        <p className="text-sm text-gray-700"><span className="font-bold w-20 inline-block">교 육 명</span>: {programTitle || '-'}</p>
-        <p className="text-sm text-gray-700">
-          <span className="font-bold w-20 inline-block">교육기간</span>: {startDate && endDate ? `${startDate} ~ ${endDate}` : '-'}
-        </p>
-        <p className="text-sm text-gray-700"><span className="font-bold w-20 inline-block">수 료 일</span>: {`${y}.${m}.${d}`}</p>
+
+      {/* 제목 */}
+      <h1 style={{ fontSize: '40px', fontWeight: 'bold', color: '#1a1a2e', letterSpacing: '0.5em', textIndent: '0.5em', lineHeight: 1, marginBottom: 20 }}>
+        수료증
+      </h1>
+
+      {/* 교육 내용 */}
+      <div style={{ borderTop: '2px solid #374151', borderBottom: '2px solid #374151', padding: '16px 0', maxWidth: 300, margin: '0 auto 16px', textAlign: 'left' }}>
+        <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
+          <tbody>
+            <tr>
+              <td style={{ fontWeight: 'bold', color: '#374151', width: 80, paddingBottom: 10, verticalAlign: 'top' }}>성&nbsp;&nbsp;&nbsp;&nbsp;명</td>
+              <td style={{ color: '#1f2937', paddingBottom: 10, verticalAlign: 'top' }}>:&nbsp;&nbsp;{name || '-'}</td>
+            </tr>
+            <tr>
+              <td style={{ fontWeight: 'bold', color: '#374151', paddingBottom: 10, verticalAlign: 'top' }}>교&nbsp;육&nbsp;명</td>
+              <td style={{ color: '#1f2937', paddingBottom: 10, verticalAlign: 'top', lineHeight: 1.5 }}>:&nbsp;&nbsp;{programTitle || '-'}</td>
+            </tr>
+            <tr>
+              <td style={{ fontWeight: 'bold', color: '#374151', paddingBottom: 10, verticalAlign: 'top' }}>교육기간</td>
+              <td style={{ color: '#1f2937', paddingBottom: 10, verticalAlign: 'top' }}>
+                :&nbsp;&nbsp;{startDate && endDate ? `${startDate} ~ ${endDate}` : '-'}
+              </td>
+            </tr>
+            <tr>
+              <td style={{ fontWeight: 'bold', color: '#374151', verticalAlign: 'top' }}>교육시간</td>
+              <td style={{ color: '#1f2937', verticalAlign: 'top' }}>:&nbsp;&nbsp;{totalHours ? `${totalHours}시간` : '-'}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-      <p className="text-sm text-gray-600 leading-relaxed">
+
+      {/* 본문 */}
+      <p style={{ fontSize: '13px', color: '#4b5563', lineHeight: 2, marginBottom: 20, letterSpacing: '0.03em' }}>
         위 사람은 위의 교육과정을 성실히 이수하였기에<br />이 증서를 수여합니다.
       </p>
-      <div className="space-y-1">
-        <p className="text-base font-bold text-gray-700">{`${y}년 ${Number(m)}월 ${Number(d)}일`}</p>
-        <p className="text-sm font-bold text-blue-800">울산경제일자리진흥원장 (인)</p>
-        {certNumber && <p className="text-xs text-gray-400 mt-2">수료증번호: {certNumber}</p>}
+
+      {/* 날짜 & 서명 */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+        <p style={{ fontSize: '15px', color: '#374151', letterSpacing: '0.08em' }}>
+          {y}년&nbsp;&nbsp;{Number(m)}월&nbsp;&nbsp;{Number(d)}일
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <p style={{ fontSize: '16px', fontWeight: 'bold', color: '#1e3a6e', letterSpacing: '0.04em', lineHeight: 1 }}>
+            울산경제일자리진흥원장
+          </p>
+          {/* (인) 위에 관인 이미지 겹침 */}
+          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44 }}>
+            <span style={{ fontSize: '15px', color: '#374151', position: 'relative', zIndex: 1 }}>(인)</span>
+            <img
+              src="/seal.png"
+              alt="전자관인"
+              style={{
+                position: 'absolute',
+                top: '50%', left: '50%',
+                transform: 'translate(-50%, -50%)',
+                height: 64, width: 64,
+                objectFit: 'contain',
+                opacity: 0.85,
+                pointerEvents: 'none',
+                zIndex: 2,
+              }}
+              onError={e => { e.target.style.display = 'none' }}
+            />
+          </div>
+        </div>
       </div>
     </div>
   )
