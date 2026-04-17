@@ -451,7 +451,7 @@ export default function Selected() {
       '연락처', '이메일',
       '지원사업명', '세부프로그램',
       '지원시작일(YYYY-MM-DD)', '지원종료일(YYYY-MM-DD)',
-      '지원금액(원)', '지원상태(지원중/완료)', '담당자',
+      '지원금액(만원)', '지원상태(지원중/완료)', '담당자',
     ]
     const EXAMPLE = [
       '네오투', '강동훈', '393-33-01777', '2020-01-01', '5',
@@ -506,25 +506,35 @@ export default function Selected() {
       // DB에서 최신 기업 목록 직접 조회
       const { data: existingFirms, error: dbErr } = await supabase
         .from('selected_firms')
-        .select('id, company_name, support_programs')
+        .select('id, company_name, ceo, support_programs')
       if (dbErr) throw dbErr
 
       const parsed = dataRows.map(r => {
         const company_name = s(r[0])
+        const ceo = s(r[1])
+        // 기업명 + 대표자 둘 다 일치해야 같은 기업으로 판단
         const existing = (existingFirms || []).find(f =>
-          f.company_name?.trim() === company_name
+          f.company_name?.trim() === company_name &&
+          f.ceo?.trim() === ceo
         )
+        const baseSP = existing?.support_programs ?? []
+        const program = s(r[13])
+        const sub_program = s(r[14])
+        // 동일 지원사업+세부프로그램이 없을 때만 추가 대상
+        const isSpAdded = !!existing && !!program &&
+          !baseSP.some(sp => sp.program === program && sp.sub_program === sub_program)
         return {
-          company_name, ceo: s(r[1]), biz_no: s(r[2]), found_date: s(r[3]), employees: s(r[4]),
+          company_name, ceo, biz_no: s(r[2]), found_date: s(r[3]), employees: s(r[4]),
           biz_type: s(r[5]), biz_item: s(r[6]), item: s(r[7]),
           type: s(r[8]) || '테크', region: s(r[9]), gender: s(r[10]),
           phone: s(r[11]), email: s(r[12]),
-          program: s(r[13]), sub_program: s(r[14]),
+          program, sub_program,
           start_date: s(r[15]), end_date: s(r[16]),
           amount: s(r[17]), status: s(r[18]) || '지원중', staff: s(r[19]),
           isDuplicate: !!existing,
+          isSpAdded,
           existingId: existing?.id ?? null,
-          existingSP: existing?.support_programs ?? [],
+          existingSP: baseSP,
         }
       })
       setXlsxPreview(parsed)
@@ -542,14 +552,19 @@ export default function Selected() {
 
     // 저장 직전 DB 재조회 (미리보기와 저장 사이에 변경된 내용 반영)
     const { data: latestFirms, error: fetchErr } = await supabase
-      .from('selected_firms').select('id, company_name, support_programs')
+      .from('selected_firms').select('id, company_name, ceo, support_programs')
     if (fetchErr) { alert('기업 목록 조회 실패: ' + fetchErr.message); return }
 
     const resolved = xlsxPreview.map(r => {
+      // 기업명 + 대표자 둘 다 일치해야 같은 기업
       const existing = (latestFirms || []).find(f =>
-        f.company_name?.trim() === r.company_name.trim()
+        f.company_name?.trim() === r.company_name.trim() &&
+        f.ceo?.trim() === r.ceo.trim()
       )
-      return { ...r, isDuplicate: !!existing, existingId: existing?.id ?? null, existingSP: existing?.support_programs ?? [] }
+      const baseSP = existing?.support_programs ?? []
+      const isSpAdded = !!existing && !!r.program &&
+        !baseSP.some(sp => sp.program === r.program && sp.sub_program === r.sub_program)
+      return { ...r, isDuplicate: !!existing, isSpAdded, existingId: existing?.id ?? null, existingSP: baseSP }
     })
 
     const newRows    = resolved.filter(r => !r.isDuplicate)
@@ -930,53 +945,75 @@ export default function Selected() {
       </Modal>
 
       {/* ── 2단계: 미리보기 모달 ── */}
-      <Modal isOpen={xlsxModal} onClose={() => { setXlsxModal(false); setXlsxPreview([]) }}
-        title={`엑셀 일괄 등록 미리보기 — 신규 ${xlsxPreview.filter(r=>!r.isDuplicate).length}개 / 업데이트 ${xlsxPreview.filter(r=>r.isDuplicate).length}개`} wide
-        footer={
-          <>
-            <button onClick={() => { setXlsxModal(false); setXlsxPreview([]) }} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
-            <button onClick={saveBulkXlsx} className="px-4 py-1.5 text-sm text-white rounded-lg" style={{ background: '#2E75B6' }}>
-              저장 (신규 {xlsxPreview.filter(r=>!r.isDuplicate).length}개, 업데이트 {xlsxPreview.filter(r=>r.isDuplicate).length}개)
-            </button>
-          </>
-        }
-      >
-        <div className="overflow-x-auto max-h-[60vh]">
-          <table className="w-full text-xs">
-            <thead className="sticky top-0">
-              <tr className="border-b border-gray-200" style={{ background: '#2E75B6' }}>
-                {['구분','기업명','대표자','지원사업명','세부프로그램','시작일','종료일','지원금(만)','상태','담당자','사업자번호','유형','지역'].map(h => (
-                  <th key={h} className="text-left px-2 py-2 font-medium whitespace-nowrap" style={{ color: '#fff' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {xlsxPreview.map((r, i) => (
-                <tr key={i} className={`border-b border-gray-100 hover:bg-blue-50 ${r.isDuplicate ? 'bg-orange-50' : ''}`}>
-                  <td className="px-2 py-1.5 whitespace-nowrap">
-                    {r.isDuplicate
-                      ? <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-xs font-medium">업데이트</span>
-                      : <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-xs font-medium">신규</span>
-                    }
-                  </td>
-                  <td className="px-2 py-1.5 font-semibold text-blue-700 whitespace-nowrap">{r.company_name}</td>
-                  <td className="px-2 py-1.5 whitespace-nowrap">{r.ceo}</td>
-                  <td className="px-2 py-1.5 text-blue-600 whitespace-nowrap">{r.program}</td>
-                  <td className="px-2 py-1.5 text-gray-500">{r.sub_program}</td>
-                  <td className="px-2 py-1.5 whitespace-nowrap">{r.start_date}</td>
-                  <td className="px-2 py-1.5 whitespace-nowrap">{r.end_date}</td>
-                  <td className="px-2 py-1.5 font-bold text-green-700">{r.amount}</td>
-                  <td className="px-2 py-1.5"><span className="bg-blue-100 text-blue-700 px-1 py-0.5 rounded">{r.status}</span></td>
-                  <td className="px-2 py-1.5 whitespace-nowrap">{r.staff}</td>
-                  <td className="px-2 py-1.5 text-gray-400">{r.biz_no}</td>
-                  <td className="px-2 py-1.5 text-gray-500">{r.type}</td>
-                  <td className="px-2 py-1.5 whitespace-nowrap text-gray-500">{r.region}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Modal>
+      {(() => {
+        const newCnt   = xlsxPreview.filter(r => !r.isDuplicate).length
+        const updCnt   = xlsxPreview.filter(r => r.isDuplicate).length
+        const spAddCnt = xlsxPreview.filter(r => r.isSpAdded).length
+        const totalAmt = xlsxPreview.reduce((a, r) => a + (Number(r.amount) || 0), 0)
+        return (
+          <Modal isOpen={xlsxModal} onClose={() => { setXlsxModal(false); setXlsxPreview([]) }}
+            title={`엑셀 일괄 등록 미리보기 — 신규 ${newCnt}개 / 업데이트 ${updCnt}개${spAddCnt > 0 ? ` / 지원사업추가 ${spAddCnt}개` : ''}`} wide
+            footer={
+              <>
+                <button onClick={() => { setXlsxModal(false); setXlsxPreview([]) }} className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
+                <button onClick={saveBulkXlsx} className="px-4 py-1.5 text-sm text-white rounded-lg" style={{ background: '#2E75B6' }}>
+                  저장 (신규 {newCnt}개, 업데이트 {updCnt}개)
+                </button>
+              </>
+            }
+          >
+            <div className="overflow-x-auto max-h-[60vh]">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0">
+                  <tr className="border-b border-gray-200" style={{ background: '#2E75B6' }}>
+                    {['구분','기업명','대표자','지원사업명','세부프로그램','시작일','종료일','지원금(만원)','상태','담당자','사업자번호','유형','지역'].map(h => (
+                      <th key={h} className="text-left px-2 py-2 font-medium whitespace-nowrap" style={{ color: '#fff' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {xlsxPreview.map((r, i) => (
+                    <tr key={i} className={`border-b border-gray-100 hover:bg-blue-50 ${r.isDuplicate ? 'bg-orange-50' : ''}`}>
+                      <td className="px-2 py-1.5 whitespace-nowrap">
+                        <div className="flex flex-col gap-0.5">
+                          {r.isDuplicate
+                            ? <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-xs font-medium">업데이트</span>
+                            : <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-xs font-medium">신규</span>
+                          }
+                          {r.isSpAdded && (
+                            <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-xs font-medium">지원사업추가</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-2 py-1.5 font-semibold text-blue-700 whitespace-nowrap">{r.company_name}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">{r.ceo}</td>
+                      <td className="px-2 py-1.5 text-blue-600 whitespace-nowrap">{r.program}</td>
+                      <td className="px-2 py-1.5 text-gray-500">{r.sub_program}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">{r.start_date}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">{r.end_date}</td>
+                      <td className="px-2 py-1.5 font-bold text-green-700">{r.amount ? Number(r.amount).toLocaleString() : '-'}</td>
+                      <td className="px-2 py-1.5"><span className="bg-blue-100 text-blue-700 px-1 py-0.5 rounded">{r.status}</span></td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">{r.staff}</td>
+                      <td className="px-2 py-1.5 text-gray-400">{r.biz_no}</td>
+                      <td className="px-2 py-1.5 text-gray-500">{r.type}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap text-gray-500">{r.region}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                {xlsxPreview.length > 0 && (
+                  <tfoot>
+                    <tr className="bg-gray-50 border-t-2 border-gray-200">
+                      <td colSpan={7} className="px-2 py-2 text-xs font-semibold text-gray-600 text-right">총 지원금액 합계</td>
+                      <td className="px-2 py-2 text-xs font-bold text-green-700">{totalAmt.toLocaleString()}만원</td>
+                      <td colSpan={5} />
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          </Modal>
+        )
+      })()}
 
       {/* ── 성장지표 업로드 모달 (1단계) ── */}
       <Modal isOpen={gmUploadModal} onClose={() => setGmUploadModal(false)} title="성장지표 일괄 등록"
