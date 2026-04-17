@@ -71,9 +71,9 @@ export default function Certificate() {
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet" />
 
-      <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-6 print:bg-white print:p-0">
+      <div className="certificate-container min-h-screen bg-gray-100 flex flex-col items-center justify-center p-6 print:bg-white print:p-0">
         {/* 인쇄 버튼 */}
-        <div className="mb-6 print:hidden">
+        <div className="print-hide mb-6">
           <button
             onClick={() => window.print()}
             className="flex items-center gap-2 px-6 py-3 text-white rounded-xl shadow-md hover:opacity-90 transition"
@@ -207,16 +207,20 @@ export default function Certificate() {
                 <p style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e3a6e', letterSpacing: '0.05em', lineHeight: 1 }}>
                   울산경제일자리진흥원장
                 </p>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <span style={{ fontSize: '18px', color: '#374151', marginRight: '6px' }}>(인)</span>
+                {/* (인) 위에 관인 이미지를 겹침 */}
+                <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '52px', height: '52px' }}>
+                  <span style={{ fontSize: '18px', color: '#374151' }}>(인)</span>
                   <img
                     src="/seal.png"
                     alt="전자관인"
                     style={{
-                      height: '72px', width: '72px',
+                      position: 'absolute',
+                      top: '50%', left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      height: '80px', width: '80px',
                       objectFit: 'contain',
-                      opacity: 0.88,
-                      marginLeft: '-4px',
+                      opacity: 0.85,
+                      pointerEvents: 'none',
                     }}
                     onError={e => { e.target.style.display = 'none' }}
                   />
@@ -236,17 +240,29 @@ export default function Certificate() {
             size: A4 portrait;
             margin: 0;
           }
-          html, body {
+          body {
             margin: 0;
             padding: 0;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
-          .print\\:hidden { display: none !important; }
-          .print\\:shadow-none { box-shadow: none !important; }
+          body > *:not(.certificate-container) {
+            display: none !important;
+          }
+          .certificate-container {
+            display: block !important;
+            width: 210mm;
+            height: 297mm;
+            margin: 0;
+            padding: 0;
+          }
+          .print-hide {
+            display: none !important;
+          }
           #certificate {
             width: 210mm !important;
-            min-height: 297mm !important;
+            height: 297mm !important;
+            min-height: unset !important;
             margin: 0 !important;
             padding: 18mm 20mm !important;
             box-shadow: none !important;
