@@ -74,24 +74,25 @@ export default function Budget() {
 
   useEffect(() => { fetchPrograms() }, [])
 
-  async function fetchPrograms() {
+  const fetchPrograms = async () => {
     setLoading(true)
-    const pRes = await supabase.from('budget_programs').select('*').order('created_at', { ascending: false })
-    const programList = pRes.data || []
-    if (!pRes.error) setPrograms(programList)
-
-    if (programList.length > 0) {
-      const ids = programList.map(p => p.id)
-      const eRes = await supabase
-        .from('budget_executions')
+    try {
+      const { data, error } = await supabase
+        .from('budget_programs')
         .select('*')
-        .in('program_id', ids)
-        .order('exec_date', { ascending: false })
-      if (!eRes.error) setExecutions(eRes.data || [])
-    } else {
-      setExecutions([])
+        .order('created_at', { ascending: false })
+      if (error) {
+        console.error('fetchPrograms error:', error)
+        alert('조회 실패: ' + error.message)
+      } else {
+        console.log('fetchPrograms data:', data)
+        setPrograms(data || [])
+      }
+    } catch (err) {
+      console.error('fetchPrograms catch:', err)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   function showToast(msg) {
