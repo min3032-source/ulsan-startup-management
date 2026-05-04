@@ -76,12 +76,21 @@ export default function Budget() {
 
   async function loadAll() {
     setLoading(true)
-    const [pRes, eRes] = await Promise.all([
-      supabase.from('budget_programs').select('*').order('created_at', { ascending: false }),
-      supabase.from('budget_executions').select('*').order('exec_date', { ascending: false }),
-    ])
-    if (!pRes.error) setPrograms(pRes.data || [])
-    if (!eRes.error) setExecutions(eRes.data || [])
+    const pRes = await supabase.from('budget_programs').select('*').order('created_at', { ascending: false })
+    const programList = pRes.data || []
+    if (!pRes.error) setPrograms(programList)
+
+    if (programList.length > 0) {
+      const ids = programList.map(p => p.id)
+      const eRes = await supabase
+        .from('budget_executions')
+        .select('*')
+        .in('program_id', ids)
+        .order('exec_date', { ascending: false })
+      if (!eRes.error) setExecutions(eRes.data || [])
+    } else {
+      setExecutions([])
+    }
     setLoading(false)
   }
 
