@@ -57,7 +57,7 @@ export default function Budget() {
 
   // 필터
   const [search, setSearch] = useState('')
-  const [filterYear, setFilterYear] = useState(String(CURRENT_YEAR))
+  const [filterYear, setFilterYear] = useState('')
 
   // 프로그램 모달
   const [showProgramModal, setShowProgramModal] = useState(false)
