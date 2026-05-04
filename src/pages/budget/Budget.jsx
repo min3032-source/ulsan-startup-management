@@ -72,9 +72,9 @@ export default function Budget() {
   const [editExec, setEditExec] = useState(null)
   const [execForm, setExecForm] = useState(defaultExecForm())
 
-  useEffect(() => { loadAll() }, [])
+  useEffect(() => { fetchPrograms() }, [])
 
-  async function loadAll() {
+  async function fetchPrograms() {
     setLoading(true)
     const pRes = await supabase.from('budget_programs').select('*').order('created_at', { ascending: false })
     const programList = pRes.data || []
@@ -142,7 +142,7 @@ export default function Budget() {
     if (error) { alert('저장 실패: ' + error.message); return }
     setShowProgramModal(false)
     showToast(editProgram ? '사업이 수정되었습니다.' : '사업이 등록되었습니다.')
-    loadAll()
+    fetchPrograms()
   }
 
   async function deleteProgram(p, e) {
@@ -152,7 +152,7 @@ export default function Budget() {
     if (error) { alert('삭제 실패: ' + error.message); return }
     if (selectedProgram?.id === p.id) setSelectedProgram(null)
     showToast('삭제되었습니다.')
-    loadAll()
+    fetchPrograms()
   }
 
   // ── 집행 내역 저장 ─────────────────────────────────────────
@@ -195,14 +195,14 @@ export default function Budget() {
     if (error) { alert('저장 실패: ' + error.message); return }
     setShowExecModal(false)
     showToast(editExec ? '집행 내역이 수정되었습니다.' : '집행 내역이 등록되었습니다.')
-    loadAll()
+    fetchPrograms()
   }
 
   async function deleteExec(ex) {
     const { error } = await supabase.from('budget_executions').delete().eq('id', ex.id)
     if (error) { alert('삭제 실패: ' + error.message); return }
     showToast('삭제되었습니다.')
-    loadAll()
+    fetchPrograms()
   }
 
   // ── 계산 ──────────────────────────────────────────────────
