@@ -85,25 +85,23 @@ export default function Budget() {
         console.error('fetchPrograms error:', error)
         alert('조회 실패: ' + error.message)
       } else {
-        console.log('fetchPrograms data:', data)
         setPrograms(data || [])
-        if (data && data.length > 0) {
-          const ids = data.map(p => p.id)
-          const eRes = await supabase
-            .from('budget_executions')
-            .select('*')
-            .in('program_id', ids)
-            .order('exec_date', { ascending: false })
-          if (!eRes.error) setExecutions(eRes.data || [])
-        } else {
-          setExecutions([])
-        }
       }
     } catch (err) {
       console.error('fetchPrograms catch:', err)
     } finally {
       setLoading(false)
     }
+  }
+
+  const fetchExecutions = async (programId) => {
+    if (!programId) return
+    const { data, error } = await supabase
+      .from('budget_executions')
+      .select('*')
+      .eq('program_id', programId)
+      .order('exec_date', { ascending: false })
+    if (!error) setExecutions(data || [])
   }
 
   function showToast(msg) {
@@ -207,14 +205,14 @@ export default function Budget() {
     if (error) { alert('저장 실패: ' + error.message); return }
     setShowExecModal(false)
     showToast(editExec ? '집행 내역이 수정되었습니다.' : '집행 내역이 등록되었습니다.')
-    fetchPrograms()
+    fetchExecutions(selectedProgram.id)
   }
 
   async function deleteExec(ex) {
     const { error } = await supabase.from('budget_executions').delete().eq('id', ex.id)
     if (error) { alert('삭제 실패: ' + error.message); return }
     showToast('삭제되었습니다.')
-    fetchPrograms()
+    fetchExecutions(selectedProgram.id)
   }
 
   // ── 계산 ──────────────────────────────────────────────────
@@ -312,7 +310,15 @@ export default function Budget() {
               return (
                 <tr
                   key={p.id}
-                  onClick={() => setSelectedProgram(isSelected ? null : p)}
+                  onClick={() => {
+                    if (isSelected) {
+                      setSelectedProgram(null)
+                      setExecutions([])
+                    } else {
+                      setSelectedProgram(p)
+                      fetchExecutions(p.id)
+                    }
+                  }}
                   className={`border-b border-gray-50 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
                 >
                   <td className="px-4 py-2.5">
