@@ -38,7 +38,7 @@ function RateBar({ rate }) {
 }
 
 function defaultProgramForm() {
-  return { name: '', total_budget: '', year: String(CURRENT_YEAR), category: '기타', assignee: '', memo: '' }
+  return { name: '', total_budget: '', year: String(CURRENT_YEAR), category: '기타', manager: '', memo: '' }
 }
 
 function defaultExecForm() {
@@ -105,7 +105,7 @@ export default function Budget() {
       total_budget: p.total_budget || '',
       year: p.year || String(CURRENT_YEAR),
       category: p.category || '기타',
-      assignee: p.assignee || '',
+      manager: p.manager || '',
       memo: p.memo || '',
     })
     setShowProgramModal(true)
@@ -120,7 +120,7 @@ export default function Budget() {
       total_budget: Number(programForm.total_budget),
       year: programForm.year,
       category: programForm.category,
-      assignee: programForm.assignee.trim() || null,
+      manager: programForm.manager.trim() || null,
       memo: programForm.memo.trim() || null,
     }
     let error
@@ -201,7 +201,7 @@ export default function Budget() {
 
   const filteredPrograms = programs.filter(p => {
     const matchYear = !filterYear || p.year === filterYear
-    const matchSearch = !search || p.name?.includes(search) || p.category?.includes(search) || p.assignee?.includes(search)
+    const matchSearch = !search || p.name?.includes(search) || p.category?.includes(search) || p.manager?.includes(search)
     return matchYear && matchSearch
   })
 
@@ -310,7 +310,7 @@ export default function Budget() {
                     {remain < 0 ? '-' : ''}{fmtMoney(Math.abs(remain))}
                   </td>
                   <td className="px-4 py-2.5 w-32"><RateBar rate={rate} /></td>
-                  <td className="px-4 py-2.5 text-xs text-gray-500">{p.assignee || '-'}</td>
+                  <td className="px-4 py-2.5 text-xs text-gray-500">{p.manager || '-'}</td>
                   <td className="px-4 py-2.5">
                     {canWrite && (
                       <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
@@ -463,8 +463,8 @@ export default function Budget() {
                 <input
                   className="input-base"
                   placeholder="담당자명"
-                  value={programForm.assignee}
-                  onChange={e => setProgramForm(f => ({ ...f, assignee: e.target.value }))}
+                  value={programForm.manager}
+                  onChange={e => setProgramForm(f => ({ ...f, manager: e.target.value }))}
                 />
               </Field>
               <Field label="메모">
