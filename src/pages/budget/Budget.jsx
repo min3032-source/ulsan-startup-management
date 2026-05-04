@@ -87,6 +87,17 @@ export default function Budget() {
       } else {
         console.log('fetchPrograms data:', data)
         setPrograms(data || [])
+        if (data && data.length > 0) {
+          const ids = data.map(p => p.id)
+          const eRes = await supabase
+            .from('budget_executions')
+            .select('*')
+            .in('program_id', ids)
+            .order('exec_date', { ascending: false })
+          if (!eRes.error) setExecutions(eRes.data || [])
+        } else {
+          setExecutions([])
+        }
       }
     } catch (err) {
       console.error('fetchPrograms catch:', err)
