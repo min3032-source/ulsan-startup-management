@@ -628,13 +628,21 @@ export default function Education() {
                             <>
                               <button
                                 onClick={() => setCertPreview({ cert, app: a, prog })}
-                                className="flex items-center gap-1 text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50"
+                                className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50"
                               >
-                                <Printer size={11} /> 보기
+                                미리보기
                               </button>
+                              <a
+                                href={`/certificate/${cert.id}?autoprint=1`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-xs px-2 py-1 border border-blue-200 text-blue-600 rounded hover:bg-blue-50"
+                              >
+                                <Printer size={11} /> 인쇄
+                              </a>
                               <button
                                 onClick={() => sendCertEmail(cert)}
-                                className="flex items-center gap-1 text-xs px-2 py-1 border border-blue-200 text-blue-600 rounded hover:bg-blue-50"
+                                className="flex items-center gap-1 text-xs px-2 py-1 border border-gray-300 text-gray-600 rounded hover:bg-gray-50"
                               >
                                 <Mail size={11} /> 발송
                               </button>
@@ -961,30 +969,36 @@ export default function Education() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-base font-bold text-gray-800">수료증 미리보기</h2>
+              <div>
+                <h2 className="text-base font-bold text-gray-800">수료증 미리보기</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{certPreview.cert?.certificate_number}</p>
+              </div>
               <button onClick={() => setCertPreview(null)}><X size={18} className="text-gray-400" /></button>
             </div>
-            <div className="p-8">
-              <CertificateView
-                name={certPreview.app.applicant_name}
-                programTitle={certPreview.prog?.title}
-                startDate={certPreview.prog?.start_date}
-                endDate={certPreview.prog?.end_date}
-                totalHours={certPreview.prog?.total_hours}
-                issuedAt={certPreview.cert?.issued_at}
-                certNumber={certPreview.cert?.certificate_number}
-              />
+            {/* 스케일된 A4 미리보기 */}
+            <div style={{ overflow: 'hidden', display: 'flex', justifyContent: 'center', padding: '20px 16px', background: '#f3f4f6', minHeight: '380px' }}>
+              <div style={{ transform: 'scale(0.68)', transformOrigin: 'top center', width: '540px', flexShrink: 0 }}>
+                <CertificateView
+                  name={certPreview.app.applicant_name}
+                  programTitle={certPreview.prog?.title}
+                  startDate={certPreview.prog?.start_date}
+                  endDate={certPreview.prog?.end_date}
+                  totalHours={certPreview.prog?.total_hours}
+                  issuedAt={certPreview.cert?.issued_at}
+                  certNumber={certPreview.cert?.certificate_number}
+                />
+              </div>
             </div>
             <div className="px-6 py-3 border-t border-gray-100 flex justify-end gap-2">
               <button onClick={() => setCertPreview(null)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">닫기</button>
               <a
-                href={`/certificate/${certPreview.cert?.id}`}
+                href={`/certificate/${certPreview.cert?.id}?autoprint=1`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-4 py-2 text-sm text-white rounded-lg"
                 style={{ background: '#2E75B6' }}
               >
-                <Printer size={14} /> 인쇄 페이지 열기
+                <Printer size={14} /> 인쇄하기
               </a>
             </div>
           </div>

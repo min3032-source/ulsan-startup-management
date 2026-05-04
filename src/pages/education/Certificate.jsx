@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { Printer } from 'lucide-react'
 
@@ -22,6 +22,8 @@ function formatCertNumber(raw) {
 
 export default function Certificate() {
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
+  const autoPrint = searchParams.get('autoprint') === '1'
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -42,6 +44,14 @@ export default function Certificate() {
     }
     load()
   }, [id])
+
+  useEffect(() => {
+    if (!loading && data && autoPrint) {
+      document.fonts.ready.then(() => {
+        setTimeout(() => window.print(), 300)
+      })
+    }
+  }, [loading, data, autoPrint])
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center text-gray-400">로딩 중...</div>

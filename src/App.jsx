@@ -22,6 +22,7 @@ import Education from './pages/education/Education'
 import EducationApply from './pages/education/EducationApply'
 import Certificate from './pages/education/Certificate'
 import StudentPortal from './pages/education/StudentPortal'
+import Budget from './pages/budget/Budget'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -65,6 +66,7 @@ function AppRoutes() {
         <Route path="report" element={<Report />} />
         <Route path="settings" element={<Settings />} />
         <Route path="education" element={<Education />} />
+        <Route path="budget" element={<Budget />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

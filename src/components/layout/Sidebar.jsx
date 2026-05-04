@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, BarChart3, UserPlus, MessageSquare, Database,
   Users, UserCheck, Link2, Building, TrendingUp, LineChart,
-  FileText, Settings, LogOut, ChevronRight, X, Award, BookOpen
+  FileText, Settings, LogOut, ChevronRight, X, Award, BookOpen, Wallet
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
@@ -43,6 +43,12 @@ const navGroups = [
     label: '교육 관리',
     items: [
       { to: '/education', icon: BookOpen, label: '교육 프로그램' },
+    ]
+  },
+  {
+    label: '사업비 관리',
+    items: [
+      { to: '/budget', icon: Wallet, label: '사업비 관리' },
     ]
   },
   {
