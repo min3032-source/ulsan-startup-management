@@ -1143,8 +1143,8 @@ export default function Budget() {
     if (filterYear) q = q.eq('year', Number(filterYear))
     const { data } = await q
     setPrograms(data || [])
-    if (data && data.length > 0) {
-      const { data: execs } = await supabase.from('budget_executions').select('program_id, amount')
+    {
+      const { data: execs } = await supabase.from('budget_executions').select('program_id, amount').limit(100000)
       const totals = {}
       execs?.forEach(e => { totals[e.program_id] = (totals[e.program_id] || 0) + Number(e.amount) })
       setExecTotals(totals)
@@ -1213,9 +1213,9 @@ export default function Budget() {
 
   const treeData = buildTree(items)
   const leafItems = items.filter(i => i.level === 4)
+  // 선택된 사업의 tree panel용
   const totalBudget = leafItems.reduce((s, i) => s + (Number(i.budgeted_amount) || 0), 0)
   const totalExec = executions.reduce((s, e) => s + (Number(e.amount) || 0), 0)
-  const totalRate = totalBudget > 0 ? totalExec / totalBudget * 100 : 0
   const selectedExecs = selectedItem ? executions.filter(e => e.budget_item_id === selectedItem.id) : []
   const selBudget = Number(selectedItem?.budgeted_amount) || 0
   const selExec = selectedExecs.reduce((s, e) => s + (Number(e.amount) || 0), 0)
@@ -1223,12 +1223,17 @@ export default function Budget() {
   const selRate = selBudget > 0 ? selExec / selBudget * 100 : 0
 
   // ── KPI 계산 ──────────────────────────────────────────────────────────────────
-  const allTotalBudget = programs.reduce((s, p) => s + (Number(p.total_budget) || 0), 0)
-  const allTotalExec = programs.reduce((s, p) => s + (execTotals[p.id] || 0), 0)
-  const kpiTotalBudget = selectedProgram ? totalBudget : allTotalBudget
-  const kpiTotalExec = selectedProgram ? totalExec : allTotalExec
+  // 선택된 사업: level4 budgeted_amount 합계 / executions amount 합계
+  // 전체 보기: programs total_budget 합계 / execTotals 합계
+  const kpiLoading = selectedProgram ? (loading.items || loading.exec) : loading.programs
+  const kpiTotalBudget = selectedProgram
+    ? leafItems.reduce((s, i) => s + (Number(i.budgeted_amount) || 0), 0)
+    : programs.reduce((s, p) => s + (Number(p.total_budget) || 0), 0)
+  const kpiTotalExec = selectedProgram
+    ? executions.reduce((s, e) => s + (Number(e.amount) || 0), 0)
+    : programs.reduce((s, p) => s + (execTotals[p.id] || 0), 0)
   const kpiRemain = kpiTotalBudget - kpiTotalExec
-  const kpiRate = kpiTotalBudget > 0 ? kpiTotalExec / kpiTotalBudget * 100 : 0
+  const kpiRate = kpiTotalBudget > 0 ? (kpiTotalExec / kpiTotalBudget * 100) : 0
 
   const ReceiptIcon = () => (
     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5">
@@ -1331,15 +1336,21 @@ export default function Budget() {
           ].map(({ label, value, sub, color, bg }) => (
             <div key={label} className="rounded-xl border shadow-sm p-4 flex flex-col gap-1" style={{ background: bg }}>
               <div className="text-xs font-semibold text-gray-500">{label}</div>
-              <div className="text-lg font-bold" style={{ color }}>{value}</div>
+              {kpiLoading
+                ? <Skeleton style={{ height: 28, width: '70%', marginTop: 2 }} />
+                : <div className="text-lg font-bold" style={{ color }}>{value}</div>
+              }
               <div className="text-[11px] text-gray-400">{sub}</div>
             </div>
           ))}
           <div className="rounded-xl border shadow-sm p-4 flex items-center gap-3 bg-white">
-            <CircleProgress rate={kpiRate} />
+            {kpiLoading ? <Skeleton style={{ width: 64, height: 64, borderRadius: '50%', flexShrink: 0 }} /> : <CircleProgress rate={kpiRate} />}
             <div>
               <div className="text-xs font-semibold text-gray-500">집행률</div>
-              <div className="text-xl font-bold" style={{ color: barColor(kpiRate) }}>{kpiRate.toFixed(1)}%</div>
+              {kpiLoading
+                ? <Skeleton style={{ height: 28, width: 60, marginTop: 2 }} />
+                : <div className="text-xl font-bold" style={{ color: barColor(kpiRate) }}>{kpiRate.toFixed(1)}%</div>
+              }
               <div className="text-[11px] text-gray-400">{selectedProgram ? selectedProgram.name : '전체'}</div>
             </div>
           </div>
