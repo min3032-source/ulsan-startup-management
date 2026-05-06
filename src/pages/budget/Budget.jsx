@@ -506,6 +506,23 @@ function HistoryModal({ item, onClose, onSave }) {
     if (onSave) onSave()
   }
 
+  const deleteHistory = async (h) => {
+    if (!window.confirm('이 추경 이력을 삭제하시겠습니까?')) return
+    const { error } = await supabase.from('budget_item_histories').delete().eq('id', h.id)
+    if (error) { alert('삭제 실패: ' + error.message); return }
+    const remaining = histories.filter(r => r.id !== h.id)
+    const revisionHistories = remaining.filter(r => r.revision_number > 0)
+    const latest = [...remaining].sort((a, b) => b.revision_number - a.revision_number)[0]
+    const newBudget = latest ? Number(latest.new_amount) : null
+    const { data: itemData } = await supabase.from('budget_items').select('original_amount').eq('id', item.id).single()
+    await supabase.from('budget_items').update({
+      budgeted_amount: newBudget ?? (Number(itemData?.original_amount) || 0),
+      revision_count: revisionHistories.length,
+    }).eq('id', item.id)
+    loadHistories()
+    if (onSave) onSave()
+  }
+
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl">
@@ -525,7 +542,7 @@ function HistoryModal({ item, onClose, onSave }) {
                   <th className="px-2 py-2 text-right text-gray-500 font-semibold">증감</th>
                   <th className="px-2 py-2 text-left text-gray-500 font-semibold">변경일</th>
                   <th className="px-2 py-2 text-left text-gray-500 font-semibold">사유</th>
-                  <th className="w-10" />
+                  <th className="w-16" />
                 </tr>
               </thead>
               <tbody>
@@ -571,10 +588,16 @@ function HistoryModal({ item, onClose, onSave }) {
                                 <button onClick={cancelEdit} className="text-gray-400 hover:text-gray-600 p-0.5"><X size={12} /></button>
                               </div>
                             ) : (
-                              <button onClick={() => startEdit(h)}
-                                className="px-1 py-0.5 text-[10px] font-semibold rounded bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors">
-                                수정
-                              </button>
+                              <div className="flex gap-0.5 justify-center">
+                                <button onClick={() => startEdit(h)}
+                                  className="px-1 py-0.5 text-[10px] font-semibold rounded bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors">
+                                  수정
+                                </button>
+                                <button onClick={() => deleteHistory(h)}
+                                  className="px-1 py-0.5 text-[10px] font-semibold rounded bg-red-100 text-red-500 hover:bg-red-200 transition-colors">
+                                  삭제
+                                </button>
+                              </div>
                             )
                           )}
                         </td>
