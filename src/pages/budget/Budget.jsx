@@ -94,8 +94,9 @@ async function createDefaultItems(programId, userId) {
     }
     if (l3Map[l3Key]) {
       const { data: l4data } = await supabase.from('budget_items').insert({ program_id: programId, level: 4, parent_id: l3Map[l3Key], name: item.l4, budgeted_amount: item.amount, original_amount: item.amount, sort_order: l4O++ }).select().single()
-      if (l4data && userId) {
-        await supabase.from('budget_item_histories').insert({ budget_item_id: l4data.id, revision_type: '당초', revision_number: 0, previous_amount: null, new_amount: item.amount, reason: null, created_by: userId })
+      if (l4data) {
+        const { error: hErr } = await supabase.from('budget_item_histories').insert({ budget_item_id: l4data.id, revision_type: '당초', revision_number: 0, previous_amount: null, new_amount: item.amount, reason: null, created_by: userId || null })
+        if (hErr) console.error('history insert error:', hErr.message)
       }
     }
   }
@@ -628,8 +629,9 @@ function TreeRow({ node, executions, selectedItem, onSelect, editingId, editingV
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Budget() {
-  const { profile } = useAuth()
+  const { profile, user } = useAuth()
   const canEdit = profile?.role !== 'viewer'
+  const userId = user?.id
 
   const [activeTab, setActiveTab] = useState('programs')
   const [filterYear, setFilterYear] = useState(String(CURRENT_YEAR))
@@ -963,10 +965,10 @@ export default function Budget() {
       {showProgramModal && (
         <ProgramModal onClose={() => setShowProgramModal(false)}
           onSave={() => { setShowProgramModal(false); fetchPrograms() }}
-          userId={profile?.id} />
+          userId={userId} />
       )}
       {showItemModal && selectedProgram && (
-        <ItemAddModal programId={selectedProgram.id} items={items} userId={profile?.id}
+        <ItemAddModal programId={selectedProgram.id} items={items} userId={userId}
           onClose={() => setShowItemModal(false)}
           onSave={() => { setShowItemModal(false); fetchItems(selectedProgram.id) }} />
       )}
@@ -976,7 +978,7 @@ export default function Budget() {
           onSave={() => { setShowExecModal(false); fetchExecutions(selectedProgram.id); fetchPrograms() }} />
       )}
       {revisionTarget && (
-        <RevisionModal item={revisionTarget} userId={profile?.id}
+        <RevisionModal item={revisionTarget} userId={userId}
           onClose={() => setRevisionTarget(null)}
           onSave={() => { setRevisionTarget(null); fetchItems(selectedProgram.id) }} />
       )}
