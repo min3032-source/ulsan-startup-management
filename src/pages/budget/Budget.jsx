@@ -53,6 +53,15 @@ function rateColor(rate) {
   return '#2E75B6'
 }
 
+function barColor(rate) {
+  if (rate > 100) return '#ef4444'
+  if (rate > 80) return '#10b981'
+  if (rate > 50) return '#f59e0b'
+  return '#3b82f6'
+}
+
+const PROGRAM_COLORS = ['#1d4ed8', '#059669', '#7c3aed', '#d97706', '#dc2626', '#0891b2']
+
 function buildTree(flatItems) {
   const map = {}
   flatItems.forEach(i => { map[i.id] = { ...i, children: [] } })
@@ -72,6 +81,11 @@ function getNodeBudget(node) {
 function getNodeExec(node, executions) {
   if (node.level === 4) return executions.filter(e => e.budget_item_id === node.id).reduce((s, e) => s + (Number(e.amount) || 0), 0)
   return (node.children || []).reduce((s, c) => s + getNodeExec(c, executions), 0)
+}
+
+function getNodeOriginal(node) {
+  if (node.level === 4) return Number(node.original_amount) || 0
+  return (node.children || []).reduce((s, c) => s + getNodeOriginal(c), 0)
 }
 
 async function createDefaultItems(programId, userId) {
@@ -153,6 +167,25 @@ function AmountInput({ value, onChange, placeholder = '0', autoFocus = false }) 
         <p className="text-xs text-blue-600 mt-1 pl-1">{formatKorean(parseAmount(value))}</p>
       )}
     </div>
+  )
+}
+
+// ─── Skeleton / CircleProgress ───────────────────────────────────────────────
+function Skeleton({ className, style }) {
+  return <div className={`animate-pulse bg-gray-200 rounded ${className || ''}`} style={style} />
+}
+
+function CircleProgress({ rate }) {
+  const r = 26, circ = 2 * Math.PI * r
+  const offset = circ * (1 - Math.min(Math.max(rate, 0), 100) / 100)
+  return (
+    <svg width="64" height="64" viewBox="0 0 64 64" style={{ flexShrink: 0 }}>
+      <circle cx="32" cy="32" r={r} fill="none" stroke="#e2e8f0" strokeWidth="7" />
+      <circle cx="32" cy="32" r={r} fill="none" stroke={barColor(rate)} strokeWidth="7"
+        strokeDasharray={circ.toFixed(2)} strokeDashoffset={offset.toFixed(2)}
+        strokeLinecap="round" transform="rotate(-90 32 32)"
+        style={{ transition: 'stroke-dashoffset 0.5s ease' }} />
+    </svg>
   )
 }
 
@@ -962,103 +995,109 @@ function HistoryModal({ item, onClose, onSave }) {
 }
 
 // ─── TreeRow ──────────────────────────────────────────────────────────────────
-const LEVEL_BG = { 1: 'bg-gray-100', 2: 'bg-gray-50', 3: 'bg-white', 4: 'bg-white' }
-const LEVEL_PL = { 1: 'pl-2', 2: 'pl-6', 3: 'pl-10', 4: 'pl-14' }
-const LEVEL_TEXT = {
-  1: 'font-bold text-sm text-gray-800',
-  2: 'font-semibold text-sm text-gray-700',
-  3: 'text-xs text-gray-600',
-  4: 'text-sm text-blue-700 hover:text-blue-900',
+const LEVEL_STYLE = {
+  1: { bg: '#1e3a5f', color: 'white', fontWeight: 700, fontSize: 12, pl: 16 },
+  2: { bg: '#dbeafe', color: '#1a56db', fontWeight: 600, fontSize: 12, pl: 28 },
+  3: { bg: '#f8fafc', color: '#4b5563', fontWeight: 500, fontSize: 11, pl: 40 },
+  4: { bg: 'white', color: '#374151', fontWeight: 400, fontSize: 13, pl: 52 },
 }
 
 function TreeRow({ node, executions, selectedItem, onSelect, editingId, editingValue, onStartEdit, onEditChange, onSaveEdit, onCancelEdit, canEdit, onRevise, onHistory }) {
   const [open, setOpen] = useState(node.level <= 2)
   const hasChildren = node.children && node.children.length > 0
   const budget = getNodeBudget(node)
+  const original = getNodeOriginal(node)
   const exec = getNodeExec(node, executions)
   const remain = budget - exec
   const rate = budget > 0 ? (exec / budget) * 100 : 0
   const isSelected = selectedItem?.id === node.id
   const isEditing = editingId === node.id
+  const s = LEVEL_STYLE[node.level]
+  const rowBg = node.level === 4 && isSelected ? '#eff6ff' : s.bg
+  const isLight = node.level === 1
 
   return (
     <>
-      <div className={`flex items-center border-b border-gray-100 transition-colors ${LEVEL_BG[node.level]} ${isSelected ? '!bg-blue-100' : 'hover:bg-blue-50'}`}
-        style={{ minHeight: 36 }}>
+      <div style={{ background: rowBg, borderBottom: '1px solid #e8edf4', minHeight: 36, transition: 'background 0.1s' }}
+        className={`flex items-center ${node.level === 4 && !isSelected ? 'hover:!bg-[#f0f7ff]' : ''}`}
+        onClick={() => { if (hasChildren) setOpen(o => !o); if (node.level === 4) onSelect(node) }}>
+
         {/* 과목명 */}
-        <div className={`flex items-center gap-1 flex-1 min-w-0 py-1.5 cursor-pointer ${LEVEL_PL[node.level]}`}
-          onClick={() => {
-            if (hasChildren) setOpen(o => !o)
-            if (node.level === 4) onSelect(node)
-          }}>
-          <span className="flex-shrink-0 w-4 text-gray-400 flex items-center">
+        <div className="flex items-center gap-1 flex-1 min-w-0 py-2" style={{ paddingLeft: s.pl, cursor: node.level === 4 || hasChildren ? 'pointer' : 'default' }}>
+          <span className="flex-shrink-0 w-4 flex items-center" style={{ color: isLight ? 'rgba(255,255,255,0.5)' : '#9ca3af' }}>
             {hasChildren ? (open ? <ChevronDown size={12} /> : <ChevronRight size={12} />) : null}
           </span>
-          <span className={`truncate ${LEVEL_TEXT[node.level]}`}>{node.name}</span>
+          <span className="truncate" style={{ color: s.color, fontWeight: s.fontWeight, fontSize: s.fontSize }}>{node.name}</span>
           {node.level === 4 && node.revision_count > 0 && (
-            <span className="ml-1 flex-shrink-0 px-1 py-0.5 text-[9px] font-bold rounded bg-yellow-100 text-yellow-700">추경{node.revision_count}</span>
+            <span style={{ background: '#fef3c7', color: '#92400e', fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 9999, flexShrink: 0 }}>추경{node.revision_count}</span>
           )}
         </div>
 
-        {/* 예산액 */}
-        <div className="w-28 text-right pr-2 text-xs text-gray-600 flex-shrink-0">
+        {/* 당초예산 */}
+        <div style={{ width: 88, flexShrink: 0, textAlign: 'right', paddingRight: 8, fontSize: 11, color: isLight ? 'rgba(255,255,255,0.55)' : '#9ca3af' }}>
+          {node.level === 4 ? (original > 0 ? formatAmount(original) : '-') : '-'}
+        </div>
+
+        {/* 현재예산 */}
+        <div style={{ width: 96, flexShrink: 0, textAlign: 'right', paddingRight: 8 }}>
           {isEditing ? (
-            <div className="flex items-center gap-0.5 justify-end">
+            <div className="flex items-center gap-0.5 justify-end" onClick={e => e.stopPropagation()}>
               <input type="text" value={editingValue} autoFocus
-                onChange={e => {
-                  const raw = e.target.value.replace(/,/g, '').replace(/[^0-9]/g, '')
-                  onEditChange(parseInt(raw || '0') ? formatAmount(parseInt(raw)) : '')
-                }}
+                onChange={e => { const raw = e.target.value.replace(/,/g, '').replace(/[^0-9]/g, ''); onEditChange(parseInt(raw || '0') ? formatAmount(parseInt(raw)) : '') }}
                 onKeyDown={e => { if (e.key === 'Enter') onSaveEdit(); if (e.key === 'Escape') onCancelEdit() }}
                 className="w-20 border border-blue-400 rounded px-1 py-0.5 text-xs text-right outline-none" />
-              <button onClick={onSaveEdit} className="text-green-500 hover:text-green-700 p-0.5"><Check size={12} /></button>
-              <button onClick={onCancelEdit} className="text-gray-400 hover:text-gray-600 p-0.5"><X size={12} /></button>
+              <button onClick={e => { e.stopPropagation(); onSaveEdit() }} className="text-green-500 hover:text-green-700 p-0.5"><Check size={11} /></button>
+              <button onClick={e => { e.stopPropagation(); onCancelEdit() }} className="text-gray-400 hover:text-gray-600 p-0.5"><X size={11} /></button>
             </div>
           ) : (
-            <span>{budget > 0 ? formatAmount(budget) : '-'}</span>
+            <span style={{ fontSize: 11, color: isLight ? 'rgba(255,255,255,0.9)' : '#374151', fontWeight: node.level <= 2 ? 600 : 400 }}>
+              {budget > 0 ? formatAmount(budget) : '-'}
+            </span>
           )}
         </div>
 
         {/* 집행액 */}
-        <div className="w-24 text-right pr-2 text-xs text-gray-600 flex-shrink-0">
+        <div style={{ width: 88, flexShrink: 0, textAlign: 'right', paddingRight: 8, fontSize: 11, color: isLight ? 'rgba(255,255,255,0.9)' : exec > 0 ? '#059669' : '#d1d5db', fontWeight: exec > 0 ? 600 : 400 }}>
           {exec > 0 ? formatAmount(exec) : '-'}
         </div>
 
         {/* 잔액 */}
-        <div className={`w-24 text-right pr-2 text-xs flex-shrink-0 ${remain < 0 ? 'text-red-500 font-semibold' : 'text-gray-600'}`}>
+        <div style={{ width: 80, flexShrink: 0, textAlign: 'right', paddingRight: 8, fontSize: 11, fontWeight: remain < 0 ? 600 : 400, color: remain < 0 ? '#dc2626' : isLight ? 'rgba(255,255,255,0.9)' : '#374151' }}>
           {budget > 0 ? formatAmount(remain) : '-'}
         </div>
 
-        {/* 집행률 */}
-        <div className="w-16 text-right pr-2 flex-shrink-0">
-          {budget > 0
-            ? <span className="text-xs font-semibold" style={{ color: rateColor(rate) }}>{rate.toFixed(1)}%</span>
-            : <span className="text-xs text-gray-300">-</span>}
+        {/* 집행률 bar */}
+        <div style={{ width: 136, flexShrink: 0, paddingRight: 12 }}>
+          {budget > 0 ? (
+            <div className="flex items-center gap-2">
+              <div style={{ flex: 1, height: 5, background: isLight ? 'rgba(255,255,255,0.2)' : '#e2e8f0', borderRadius: 9999, overflow: 'hidden' }}>
+                <div style={{ width: `${Math.min(rate, 100)}%`, height: '100%', background: isLight ? 'rgba(255,255,255,0.7)' : barColor(rate), borderRadius: 9999, transition: 'width 0.3s' }} />
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 600, color: isLight ? 'rgba(255,255,255,0.9)' : barColor(rate), width: 28, textAlign: 'right', flexShrink: 0 }}>
+                {rate.toFixed(0)}%
+              </span>
+            </div>
+          ) : <span style={{ fontSize: 10, color: '#d1d5db' }}>-</span>}
         </div>
 
-        {/* 액션 버튼 (level 4) */}
-        <div className="w-24 flex items-center justify-end gap-0.5 flex-shrink-0 pr-1">
+        {/* 액션 */}
+        <div style={{ width: 76, flexShrink: 0, paddingRight: 8 }} className="flex items-center justify-end gap-0.5" onClick={e => e.stopPropagation()}>
           {canEdit && node.level === 4 && !isEditing && (
             <>
-              <button onClick={() => onStartEdit(node)} className="text-gray-300 hover:text-blue-500 transition-colors p-0.5">
-                <Pencil size={11} />
-              </button>
+              <button onClick={() => onStartEdit(node)} className="p-1 text-gray-300 hover:text-blue-500 transition-colors"><Pencil size={10} /></button>
               <button onClick={e => { e.stopPropagation(); onRevise(node) }}
-                className="px-1 py-0.5 text-[10px] font-semibold rounded bg-yellow-100 text-yellow-700 hover:bg-yellow-200 transition-colors">
-                추경
-              </button>
+                style={{ background: '#fef3c7', color: '#92400e', fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4 }}
+                className="hover:opacity-80 transition-opacity">추경</button>
               <button onClick={e => { e.stopPropagation(); onHistory(node) }}
-                className="px-1 py-0.5 text-[10px] font-semibold rounded bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors">
-                이력
-              </button>
+                style={{ background: '#f1f5f9', color: '#475569', fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4 }}
+                className="hover:opacity-80 transition-opacity">이력</button>
             </>
           )}
         </div>
       </div>
 
-      {/* 인라인 한글 금액 */}
       {isEditing && parseAmount(editingValue) > 0 && (
-        <div className="bg-blue-50 border-b border-gray-100 px-3 py-0.5 text-xs text-blue-600 text-right">
+        <div style={{ background: '#eff6ff', borderBottom: '1px solid #e8edf4', padding: '2px 12px', textAlign: 'right', fontSize: 10, color: '#1d4ed8' }}>
           {formatKorean(parseAmount(editingValue))}
         </div>
       )}
@@ -1183,252 +1222,300 @@ export default function Budget() {
   const selRemain = selBudget - selExec
   const selRate = selBudget > 0 ? selExec / selBudget * 100 : 0
 
-  // ── 왼쪽 패널 ────────────────────────────────────────────────────────────────
-  const LeftPanel = (
-    <div className="flex flex-col h-full bg-white">
-      <div className="px-3 py-2.5 border-b flex-shrink-0">
-        <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
-          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white outline-none focus:border-blue-400">
-          <option value="">전체 연도</option>
-          {YEARS.map(y => <option key={y} value={y}>{y}년</option>)}
-        </select>
-      </div>
-      <div className="flex-1 overflow-y-auto">
-        {loading.programs ? (
-          <div className="p-6 text-center text-sm text-gray-400">로딩 중...</div>
-        ) : programs.length === 0 ? (
-          <div className="p-6 text-center text-sm text-gray-400">사업이 없습니다.</div>
-        ) : programs.map(p => {
-          const pExec = execTotals[p.id] || 0
-          const pRate = p.total_budget > 0 ? Math.min(pExec / p.total_budget * 100, 100) : 0
-          const isActive = selectedProgram?.id === p.id
-          return (
-            <div key={p.id} onClick={() => selectProgram(p)}
-              className={`px-3 py-3 border-b border-gray-100 cursor-pointer transition-colors hover:bg-blue-50 ${isActive ? 'bg-blue-50 border-l-2 border-l-blue-500' : ''}`}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm text-gray-800 truncate">{p.name}</div>
-                  <div className="text-xs text-gray-400 mt-0.5">{p.year}년 · {p.manager || '-'}</div>
-                  {p.total_budget > 0 && (
-                    <div className="text-xs text-gray-500 mt-0.5">{formatKorean(p.total_budget)}</div>
-                  )}
-                  {p.total_budget > 0 && (
-                    <div className="mt-1.5">
-                      <div className="flex justify-between text-[10px] text-gray-400 mb-1">
-                        <span>집행률</span>
-                        <span style={{ color: rateColor(pRate) }}>{pRate.toFixed(1)}%</span>
-                      </div>
-                      <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full transition-all" style={{ width: `${pRate}%`, background: rateColor(pRate) }} />
-                      </div>
-                    </div>
-                  )}
-                </div>
-                {canEdit && (
-                  <button onClick={e => { e.stopPropagation(); deleteProgram(p) }}
-                    className="flex-shrink-0 p-1 text-red-300 hover:text-red-500 transition-colors">
-                    <Trash2 size={13} />
-                  </button>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-      {canEdit && (
-        <div className="p-3 border-t flex-shrink-0">
-          <button onClick={() => setShowProgramModal(true)}
-            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ background: '#2E75B6' }}>
-            <Plus size={14} /> 사업 등록
-          </button>
-        </div>
-      )}
-    </div>
-  )
+  // ── KPI 계산 ──────────────────────────────────────────────────────────────────
+  const allTotalBudget = programs.reduce((s, p) => s + (Number(p.total_budget) || 0), 0)
+  const allTotalExec = programs.reduce((s, p) => s + (execTotals[p.id] || 0), 0)
+  const kpiTotalBudget = selectedProgram ? totalBudget : allTotalBudget
+  const kpiTotalExec = selectedProgram ? totalExec : allTotalExec
+  const kpiRemain = kpiTotalBudget - kpiTotalExec
+  const kpiRate = kpiTotalBudget > 0 ? kpiTotalExec / kpiTotalBudget * 100 : 0
 
-  // ── 가운데 패널 ───────────────────────────────────────────────────────────────
-  const MiddlePanel = (
-    <div className="flex flex-col h-full bg-white">
-      <div className="border-b flex-shrink-0">
-        <div className="px-3 py-2.5 flex items-center gap-2">
-          <div className="flex-1 font-semibold text-sm text-gray-700 truncate">
-            {selectedProgram ? selectedProgram.name : '예산 과목 트리'}
-          </div>
-          {canEdit && selectedProgram && (
-            <button onClick={() => setShowItemModal(true)}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-white rounded-lg flex-shrink-0 hover:opacity-90"
-              style={{ background: '#2E75B6' }}>
-              <Plus size={11} /> 과목 추가
-            </button>
-          )}
-        </div>
-        {selectedProgram && (
-          <div className="px-3 pb-2 flex gap-4 text-xs text-gray-500">
-            <span>예산 <b className="text-gray-700">{formatKorean(totalBudget)}</b></span>
-            <span>집행 <b style={{ color: rateColor(totalRate) }}>{formatKorean(totalExec)}</b></span>
-            <span>집행률 <b style={{ color: rateColor(totalRate) }}>{totalRate.toFixed(1)}%</b></span>
-          </div>
-        )}
-        {selectedProgram && (
-          <div className="flex items-center bg-gray-50 border-t text-[11px] font-semibold text-gray-400 py-1.5">
-            <div className="flex-1 pl-3">과목명</div>
-            <div className="w-28 text-right pr-2">예산액</div>
-            <div className="w-24 text-right pr-2">집행액</div>
-            <div className="w-24 text-right pr-2">잔액</div>
-            <div className="w-16 text-right pr-2">집행률</div>
-            <div className="w-24" />
-          </div>
-        )}
-      </div>
-      <div className="flex-1 overflow-y-auto">
-        {!selectedProgram ? (
-          <div className="flex items-center justify-center h-full text-sm text-gray-400">사업을 선택하세요.</div>
-        ) : loading.items ? (
-          <div className="p-6 text-center text-sm text-gray-400">로딩 중...</div>
-        ) : treeData.length === 0 ? (
-          <div className="p-6 text-center text-sm text-gray-400">예산 과목이 없습니다.</div>
-        ) : treeData.map(node => (
-          <TreeRow key={node.id} node={node} executions={executions}
-            selectedItem={selectedItem}
-            onSelect={item => { setSelectedItem(prev => prev?.id === item.id ? null : item); setActiveTab('exec') }}
-            editingId={editingId} editingValue={editingValue}
-            onStartEdit={n => { setEditingId(n.id); setEditingValue(n.budgeted_amount ? formatAmount(n.budgeted_amount) : '') }}
-            onEditChange={setEditingValue}
-            onSaveEdit={saveInlineBudget}
-            onCancelEdit={() => { setEditingId(null); setEditingValue('') }}
-            canEdit={canEdit}
-            onRevise={node => setRevisionTarget(node)}
-            onHistory={node => setHistoryTarget(node)} />
-        ))}
-      </div>
-    </div>
-  )
-
-  // ── 오른쪽 패널 ───────────────────────────────────────────────────────────────
-  const RightPanel = (
-    <div className="flex flex-col h-full bg-white">
-      <div className="px-3 py-2.5 border-b flex items-center gap-2 flex-shrink-0">
-        <div className="flex-1 font-semibold text-sm text-gray-700 truncate">
-          {selectedItem ? selectedItem.name : '집행 내역'}
-        </div>
-        {canEdit && selectedProgram && (
-          <button onClick={() => setShowExecModal(true)}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-white rounded-lg flex-shrink-0 hover:opacity-90"
-            style={{ background: '#2E75B6' }}>
-            <Plus size={11} /> 집행 추가
-          </button>
-        )}
-      </div>
-
-      {selectedItem && (
-        <div className="px-4 py-2.5 bg-blue-50 border-b flex-shrink-0 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-          {[
-            { label: '예산액', value: formatKorean(selBudget), color: '#374151' },
-            { label: '집행액', value: formatKorean(selExec), color: rateColor(selRate) },
-            { label: '잔액', value: formatKorean(selRemain), color: selRemain < 0 ? '#ef4444' : '#374151' },
-            { label: '집행률', value: `${selRate.toFixed(1)}%`, color: rateColor(selRate) },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="flex justify-between">
-              <span className="text-gray-500">{label}</span>
-              <span className="font-semibold" style={{ color }}>{value}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="flex-1 overflow-y-auto">
-        {!selectedProgram ? (
-          <div className="flex items-center justify-center h-full text-sm text-gray-400 text-center px-4">사업을 선택하세요.</div>
-        ) : !selectedItem ? (
-          <div className="flex items-center justify-center h-full text-sm text-gray-400 text-center px-4">
-            목(目) 항목을 클릭하면<br />집행 내역을 볼 수 있습니다.
-          </div>
-        ) : loading.exec ? (
-          <div className="p-6 text-center text-sm text-gray-400">로딩 중...</div>
-        ) : selectedExecs.length === 0 ? (
-          <div className="p-6 text-center text-sm text-gray-400">집행 내역이 없습니다.</div>
-        ) : (
-          <table className="w-full text-xs">
-            <thead className="bg-gray-50 sticky top-0 border-b border-gray-200">
-              <tr>
-                <th className="px-2 py-2 text-left text-gray-500 font-semibold w-7">#</th>
-                <th className="px-2 py-2 text-left text-gray-500 font-semibold">집행일</th>
-                <th className="px-2 py-2 text-left text-gray-500 font-semibold">적요</th>
-                <th className="px-2 py-2 text-right text-gray-500 font-semibold">금액</th>
-                {canEdit && <th className="w-7" />}
-              </tr>
-            </thead>
-            <tbody>
-              {selectedExecs.map((e, idx) => (
-                <tr key={e.id} className="border-t border-gray-100 hover:bg-gray-50">
-                  <td className="px-2 py-2 text-gray-400">{idx + 1}</td>
-                  <td className="px-2 py-2 text-gray-600 whitespace-nowrap">{e.execution_date}</td>
-                  <td className="px-2 py-2 text-gray-500 max-w-[80px] truncate">{e.note || '-'}</td>
-                  <td className="px-2 py-2 text-right font-semibold text-gray-800 whitespace-nowrap">{formatAmount(e.amount)}</td>
-                  {canEdit && (
-                    <td className="px-1 py-2 text-center">
-                      <button onClick={() => deleteExecution(e.id)} className="text-red-300 hover:text-red-500 transition-colors">
-                        <Trash2 size={12} />
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-            <tfoot className="bg-blue-50 border-t-2 border-blue-200">
-              <tr>
-                <td colSpan={3} className="px-2 py-2 text-xs font-semibold text-gray-600">합계</td>
-                <td className="px-2 py-2 text-right text-xs font-bold text-gray-800">{formatAmount(selExec)}</td>
-                {canEdit && <td />}
-              </tr>
-            </tfoot>
-          </table>
-        )}
-      </div>
-    </div>
+  const ReceiptIcon = () => (
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5">
+      <path d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/>
+    </svg>
   )
 
   return (
     <>
-      {/* 데스크탑 3패널 */}
-      <div className="hidden md:flex flex-col" style={{ height: 'calc(100vh - 64px)' }}>
-        <div className="bg-white border-b px-5 py-3 flex-shrink-0 flex items-center justify-between">
+      <div className="flex flex-col bg-slate-50" style={{ height: 'calc(100vh - 64px)', overflow: 'hidden' }}>
+
+        {/* 헤더 */}
+        <div className="bg-white border-b px-6 py-3 flex-shrink-0 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-gray-800">사업비 관리</h1>
-            <p className="text-xs text-gray-400 mt-0.5">예산 과목 트리 · 집행 내역 관리</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {selectedProgram ? selectedProgram.name : '전체 사업'} · 예산 현황
+            </p>
           </div>
-          {canManageStandard && (
-            <button onClick={() => setShowStandardManage(true)}
-              className="px-3 py-1.5 text-xs font-semibold text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-              표준과목 관리
-            </button>
-          )}
-        </div>
-        <div className="flex flex-1 overflow-hidden">
-          <div className="w-56 border-r flex-shrink-0 overflow-hidden flex flex-col">{LeftPanel}</div>
-          <div className="flex-1 border-r overflow-hidden flex flex-col min-w-0">{MiddlePanel}</div>
-          <div className="w-72 flex-shrink-0 overflow-hidden flex flex-col">{RightPanel}</div>
-        </div>
-      </div>
-
-      {/* 모바일 탭 */}
-      <div className="md:hidden flex flex-col" style={{ height: 'calc(100vh - 64px)' }}>
-        <div className="bg-white border-b px-3 py-2 flex-shrink-0">
-          <div className="flex border border-gray-200 rounded-lg overflow-hidden">
-            {[{ k: 'programs', l: '사업' }, { k: 'tree', l: '예산과목' }, { k: 'exec', l: '집행내역' }].map(({ k, l }) => (
-              <button key={k} onClick={() => setActiveTab(k)}
-                className={`flex-1 py-1.5 text-xs font-semibold transition-colors ${activeTab === k ? 'text-white' : 'text-gray-500 bg-white'}`}
-                style={activeTab === k ? { background: '#2E75B6' } : {}}>
-                {l}
+          <div className="flex items-center gap-2">
+            <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white outline-none focus:border-blue-400">
+              <option value="">전체 연도</option>
+              {YEARS.map(y => <option key={y} value={y}>{y}년</option>)}
+            </select>
+            {canManageStandard && (
+              <button onClick={() => setShowStandardManage(true)}
+                className="px-3 py-1.5 text-xs font-semibold text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                표준과목 관리
               </button>
-            ))}
+            )}
           </div>
         </div>
-        <div className="flex-1 overflow-hidden">
-          {activeTab === 'programs' && LeftPanel}
-          {activeTab === 'tree' && MiddlePanel}
-          {activeTab === 'exec' && RightPanel}
+
+        {/* 사업 카드 (수평 스크롤) */}
+        <div className="flex-shrink-0 bg-white border-b px-4 py-3">
+          <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: 'thin' }}>
+            {loading.programs ? (
+              [1, 2, 3].map(i => <Skeleton key={i} style={{ width: 220, height: 96, flexShrink: 0 }} />)
+            ) : (
+              <>
+                {programs.map((p, idx) => {
+                  const pExec = execTotals[p.id] || 0
+                  const pRate = p.total_budget > 0 ? Math.min(pExec / p.total_budget * 100, 100) : 0
+                  const isActive = selectedProgram?.id === p.id
+                  const color = PROGRAM_COLORS[idx % PROGRAM_COLORS.length]
+                  return (
+                    <div key={p.id} onClick={() => selectProgram(p)}
+                      className="flex-shrink-0 rounded-xl border-2 cursor-pointer transition-all hover:shadow-md"
+                      style={{ width: 220, borderColor: isActive ? color : '#e5e7eb', background: isActive ? `${color}10` : 'white' }}>
+                      <div className="h-1.5 rounded-t-xl" style={{ background: color }} />
+                      <div className="p-3">
+                        <div className="flex items-start justify-between gap-1">
+                          <div className="font-semibold text-sm text-gray-800 leading-tight" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.name}</div>
+                          {canEdit && (
+                            <button onClick={e => { e.stopPropagation(); deleteProgram(p) }}
+                              className="flex-shrink-0 p-0.5 text-red-300 hover:text-red-500 transition-colors">
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-gray-400 mt-0.5">{p.year}년 · {p.manager || '-'}</div>
+                        {p.total_budget > 0 && (
+                          <>
+                            <div className="text-xs font-semibold mt-1" style={{ color }}>{formatKorean(p.total_budget)}</div>
+                            <div className="mt-1.5">
+                              <div className="flex justify-between text-[10px] text-gray-400 mb-0.5">
+                                <span>집행률</span>
+                                <span style={{ color: barColor(pRate) }}>{pRate.toFixed(1)}%</span>
+                              </div>
+                              <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full transition-all" style={{ width: `${pRate}%`, background: barColor(pRate) }} />
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+                {canEdit && (
+                  <div onClick={() => setShowProgramModal(true)}
+                    className="flex-shrink-0 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all"
+                    style={{ width: 130, minHeight: 96 }}>
+                    <Plus size={20} className="text-gray-400" />
+                    <span className="text-xs text-gray-400 font-medium">사업 등록</span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* KPI 카드 */}
+        <div className="flex-shrink-0 px-4 pt-3 pb-2 grid grid-cols-4 gap-3">
+          {[
+            { label: '총예산', value: formatKorean(kpiTotalBudget), sub: '현재 예산 기준', color: '#1d4ed8', bg: '#eff6ff' },
+            { label: '총집행액', value: formatKorean(kpiTotalExec), sub: `${kpiRate.toFixed(1)}% 집행`, color: '#059669', bg: '#ecfdf5' },
+            { label: '잔액', value: formatKorean(kpiRemain), sub: kpiRemain < 0 ? '예산 초과!' : '남은 예산', color: kpiRemain < 0 ? '#ef4444' : '#374151', bg: 'white' },
+          ].map(({ label, value, sub, color, bg }) => (
+            <div key={label} className="rounded-xl border shadow-sm p-4 flex flex-col gap-1" style={{ background: bg }}>
+              <div className="text-xs font-semibold text-gray-500">{label}</div>
+              <div className="text-lg font-bold" style={{ color }}>{value}</div>
+              <div className="text-[11px] text-gray-400">{sub}</div>
+            </div>
+          ))}
+          <div className="rounded-xl border shadow-sm p-4 flex items-center gap-3 bg-white">
+            <CircleProgress rate={kpiRate} />
+            <div>
+              <div className="text-xs font-semibold text-gray-500">집행률</div>
+              <div className="text-xl font-bold" style={{ color: barColor(kpiRate) }}>{kpiRate.toFixed(1)}%</div>
+              <div className="text-[11px] text-gray-400">{selectedProgram ? selectedProgram.name : '전체'}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* 메인 2컬럼 */}
+        <div className="flex flex-1 overflow-hidden px-4 pb-4 gap-3" style={{ minHeight: 0 }}>
+
+          {/* 예산 트리 패널 (60%) */}
+          <div className="flex flex-col rounded-xl border shadow-sm bg-white overflow-hidden" style={{ flex: 3 }}>
+            <div className="px-4 py-3 border-b flex items-center justify-between flex-shrink-0">
+              <div>
+                <div className="font-semibold text-sm text-gray-800">
+                  {selectedProgram ? selectedProgram.name : '예산 과목 트리'}
+                </div>
+                {selectedProgram && (
+                  <div className="text-[11px] text-gray-400 mt-0.5">
+                    예산 {formatKorean(totalBudget)} · 집행 {formatKorean(totalExec)}
+                  </div>
+                )}
+              </div>
+              {canEdit && selectedProgram && (
+                <button onClick={() => setShowItemModal(true)}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-lg hover:opacity-90"
+                  style={{ background: '#1d4ed8' }}>
+                  <Plus size={12} /> 과목 추가
+                </button>
+              )}
+            </div>
+            {selectedProgram && (
+              <div className="flex items-center bg-gray-50 border-b text-[11px] font-semibold text-gray-400 py-1.5 flex-shrink-0">
+                <div className="flex-1 pl-3">과목명</div>
+                <div className="w-24 text-right pr-2">당초예산</div>
+                <div className="w-24 text-right pr-2">현재예산</div>
+                <div className="w-24 text-right pr-2">집행액</div>
+                <div className="w-24 text-right pr-2">잔액</div>
+                <div className="w-28 pr-3">집행률</div>
+                <div className="w-20" />
+              </div>
+            )}
+            <div className="flex-1 overflow-y-auto">
+              {!selectedProgram ? (
+                <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                  <div className="text-4xl mb-3">📊</div>
+                  <div className="text-sm font-semibold text-gray-500">사업을 선택하세요</div>
+                  <div className="text-xs text-gray-400 mt-1">위 카드에서 사업을 클릭하면 예산 트리가 표시됩니다</div>
+                </div>
+              ) : loading.items ? (
+                <div className="p-4 space-y-2">
+                  {[1, 2, 3, 4].map(i => <Skeleton key={i} style={{ height: 36 }} />)}
+                </div>
+              ) : treeData.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                  <div className="text-4xl mb-3">📋</div>
+                  <div className="text-sm font-semibold text-gray-500">예산 과목이 없습니다</div>
+                  {canEdit && (
+                    <button onClick={() => setShowItemModal(true)}
+                      className="mt-3 px-4 py-2 text-xs font-semibold text-white rounded-lg"
+                      style={{ background: '#1d4ed8' }}>
+                      과목 추가하기
+                    </button>
+                  )}
+                </div>
+              ) : treeData.map(node => (
+                <TreeRow key={node.id} node={node} executions={executions}
+                  selectedItem={selectedItem}
+                  onSelect={item => { setSelectedItem(prev => prev?.id === item.id ? null : item); setActiveTab('exec') }}
+                  editingId={editingId} editingValue={editingValue}
+                  onStartEdit={n => { setEditingId(n.id); setEditingValue(n.budgeted_amount ? formatAmount(n.budgeted_amount) : '') }}
+                  onEditChange={setEditingValue}
+                  onSaveEdit={saveInlineBudget}
+                  onCancelEdit={() => { setEditingId(null); setEditingValue('') }}
+                  canEdit={canEdit}
+                  onRevise={node => setRevisionTarget(node)}
+                  onHistory={node => setHistoryTarget(node)} />
+              ))}
+            </div>
+          </div>
+
+          {/* 집행 패널 (40%) */}
+          <div className="flex flex-col rounded-xl border shadow-sm bg-white overflow-hidden" style={{ flex: 2 }}>
+            <div className="px-4 py-3 border-b flex items-center justify-between flex-shrink-0">
+              <div>
+                <div className="font-semibold text-sm text-gray-800">
+                  {selectedItem ? selectedItem.name : '집행 내역'}
+                </div>
+                {selectedItem && (
+                  <div className="text-[11px] text-gray-400 mt-0.5">
+                    예산 {formatKorean(selBudget)} · 집행률 {selRate.toFixed(1)}%
+                  </div>
+                )}
+              </div>
+              {canEdit && selectedProgram && (
+                <button onClick={() => setShowExecModal(true)}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-lg hover:opacity-90"
+                  style={{ background: '#059669' }}>
+                  <Plus size={12} /> 집행 추가
+                </button>
+              )}
+            </div>
+
+            {selectedItem && (
+              <div className="px-4 py-2 bg-blue-50 border-b flex-shrink-0 grid grid-cols-2 gap-1 text-xs">
+                {[
+                  { label: '예산액', value: formatKorean(selBudget), color: '#374151' },
+                  { label: '집행액', value: formatKorean(selExec), color: rateColor(selRate) },
+                  { label: '잔액', value: formatKorean(selRemain), color: selRemain < 0 ? '#ef4444' : '#374151' },
+                  { label: '집행률', value: `${selRate.toFixed(1)}%`, color: rateColor(selRate) },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="flex justify-between">
+                    <span className="text-gray-500">{label}</span>
+                    <span className="font-semibold" style={{ color }}>{value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto">
+              {!selectedProgram ? (
+                <div className="flex flex-col items-center justify-center h-full text-center py-12 px-6">
+                  <ReceiptIcon />
+                  <div className="text-sm font-semibold text-gray-500 mt-3">사업을 선택하세요</div>
+                </div>
+              ) : !selectedItem ? (
+                <div className="flex flex-col items-center justify-center h-full text-center py-12 px-6">
+                  <ReceiptIcon />
+                  <div className="text-sm font-semibold text-gray-500 mt-3">목(目) 항목을 클릭하세요</div>
+                  <div className="text-xs text-gray-400 mt-1">트리에서 항목을 선택하면<br />집행 내역이 표시됩니다</div>
+                </div>
+              ) : loading.exec ? (
+                <div className="p-4 space-y-2">
+                  {[1, 2, 3].map(i => <Skeleton key={i} style={{ height: 56 }} />)}
+                </div>
+              ) : selectedExecs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center py-12 px-6">
+                  <ReceiptIcon />
+                  <div className="text-sm font-semibold text-gray-500 mt-3">집행 내역이 없습니다</div>
+                  {canEdit && (
+                    <button onClick={() => setShowExecModal(true)}
+                      className="mt-3 px-4 py-2 text-xs font-semibold text-white rounded-lg"
+                      style={{ background: '#059669' }}>
+                      집행 추가하기
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="p-3 space-y-2">
+                  {selectedExecs.map((e, idx) => (
+                    <div key={e.id} className="rounded-lg border border-gray-100 bg-white p-3 hover:border-blue-200 hover:bg-blue-50 transition-colors group">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-gray-400 font-mono">#{idx + 1}</span>
+                            <span className="text-xs text-gray-500">{e.execution_date}</span>
+                          </div>
+                          <div className="text-sm font-semibold text-gray-700 mt-0.5 truncate">{e.note || '-'}</div>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <span className="text-sm font-bold text-gray-800">{formatAmount(e.amount)}</span>
+                          {canEdit && (
+                            <button onClick={() => deleteExecution(e.id)} className="p-1 text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="pt-2 pb-1 border-t border-gray-100 flex justify-between items-center px-1">
+                    <span className="text-xs text-gray-500 font-semibold">합계</span>
+                    <span className="text-sm font-bold text-gray-800">{formatAmount(selExec)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
