@@ -95,7 +95,7 @@ async function createDefaultItems(programId, userId) {
     if (l3Map[l3Key]) {
       const { data: l4data } = await supabase.from('budget_items').insert({ program_id: programId, level: 4, parent_id: l3Map[l3Key], name: item.l4, budgeted_amount: item.amount, original_amount: item.amount, sort_order: l4O++ }).select().single()
       if (l4data) {
-        const { error: hErr } = await supabase.from('budget_item_histories').insert({ budget_item_id: l4data.id, revision_type: '당초', revision_number: 0, previous_amount: null, new_amount: item.amount, reason: null, created_by: userId || null })
+        const { error: hErr } = await supabase.from('budget_item_histories').insert({ budget_item_id: l4data.id, revision_type: '당초', revision_number: 0, previous_amount: null, new_amount: item.amount, reason: null })
         if (hErr) console.error('history insert error:', hErr.message)
       }
     }
@@ -224,10 +224,10 @@ function ItemAddModal({ programId, items, userId, onClose, onSave }) {
       sort_order: sortOrder,
     }).select().single()
     if (error) { alert('저장 실패: ' + error.message); setSaving(false); return }
-    if (newItem && level === 4 && userId) {
+    if (newItem && level === 4) {
       await supabase.from('budget_item_histories').insert({
         budget_item_id: newItem.id, revision_type: '당초', revision_number: 0,
-        previous_amount: null, new_amount: amt, reason: null, created_by: userId,
+        previous_amount: null, new_amount: amt, reason: null,
       })
     }
     setSaving(false); onSave()
@@ -379,7 +379,7 @@ function RevisionModal({ item, userId, onClose, onSave }) {
     const { error: hErr } = await supabase.from('budget_item_histories').insert({
       budget_item_id: item.id, revision_type: nextRevType, revision_number: nextRevNum,
       previous_amount: Number(item.budgeted_amount) || 0, new_amount: amt,
-      reason: reason.trim() || null, created_by: userId,
+      reason: reason.trim() || null,
     })
     if (hErr) { alert('저장 실패: ' + hErr.message); setSaving(false); return }
     const { error: uErr } = await supabase.from('budget_items').update({ budgeted_amount: amt, revision_count: nextRevNum }).eq('id', item.id)
@@ -681,10 +681,25 @@ export default function Budget() {
 
   useEffect(() => { fetchPrograms() }, [fetchPrograms])
 
+  const ensureInitialHistories = async (programId) => {
+    const { data: l4items } = await supabase.from('budget_items')
+      .select('id, budgeted_amount').eq('program_id', programId).eq('level', 4)
+    if (!l4items || l4items.length === 0) return
+    const { data: existingHistories } = await supabase.from('budget_item_histories')
+      .select('budget_item_id').in('budget_item_id', l4items.map(i => i.id)).eq('revision_number', 0)
+    const existingIds = new Set((existingHistories || []).map(h => h.budget_item_id))
+    const missing = l4items.filter(i => !existingIds.has(i.id))
+    if (missing.length === 0) return
+    await supabase.from('budget_item_histories').insert(
+      missing.map(i => ({ budget_item_id: i.id, revision_type: '당초', revision_number: 0, previous_amount: null, new_amount: Number(i.budgeted_amount) || 0, reason: null }))
+    )
+  }
+
   const selectProgram = (p) => {
     setSelectedProgram(p); setSelectedItem(null)
     setItems([]); setExecutions([])
     fetchItems(p.id); fetchExecutions(p.id)
+    ensureInitialHistories(p.id)
     setActiveTab('tree')
   }
 
