@@ -102,6 +102,37 @@ async function createDefaultItems(programId, userId) {
   }
 }
 
+async function createItemsFromSelected(programId, selectedWithAmounts, allStdItems) {
+  const stdMap = {}
+  allStdItems.forEach(i => { stdMap[i.id] = i })
+  const l1Map = {}, l2Map = {}, l3Map = {}
+  let l1O = 0, l2O = 0, l3O = 0, l4O = 0
+  for (const sel of selectedWithAmounts) {
+    const l4std = stdMap[sel.id]
+    if (!l4std) continue
+    const l3std = stdMap[l4std.parent_id]
+    const l2std = l3std ? stdMap[l3std.parent_id] : null
+    const l1std = l2std ? stdMap[l2std.parent_id] : null
+    if (l1std && !l1Map[l1std.id]) {
+      const { data } = await supabase.from('budget_items').insert({ program_id: programId, level: 1, parent_id: null, name: l1std.name, budgeted_amount: 0, sort_order: l1O++ }).select().single()
+      if (data) l1Map[l1std.id] = data.id
+    }
+    if (l2std && !l2Map[l2std.id]) {
+      const { data } = await supabase.from('budget_items').insert({ program_id: programId, level: 2, parent_id: l1Map[l1std?.id] || null, name: l2std.name, budgeted_amount: 0, sort_order: l2O++ }).select().single()
+      if (data) l2Map[l2std.id] = data.id
+    }
+    if (l3std && !l3Map[l3std.id]) {
+      const { data } = await supabase.from('budget_items').insert({ program_id: programId, level: 3, parent_id: l2Map[l2std?.id] || null, name: l3std.name, budgeted_amount: 0, sort_order: l3O++ }).select().single()
+      if (data) l3Map[l3std.id] = data.id
+    }
+    const amt = parseAmount(sel.amount) || 0
+    const { data: l4data } = await supabase.from('budget_items').insert({ program_id: programId, level: 4, parent_id: l3Map[l3std?.id] || null, name: l4std.name, budgeted_amount: amt, original_amount: amt, sort_order: l4O++ }).select().single()
+    if (l4data) {
+      await supabase.from('budget_item_histories').insert({ budget_item_id: l4data.id, revision_type: '당초', revision_number: 0, previous_amount: null, new_amount: amt, reason: null })
+    }
+  }
+}
+
 // ─── AmountInput ──────────────────────────────────────────────────────────────
 function AmountInput({ value, onChange, placeholder = '0', autoFocus = false }) {
   return (
@@ -125,10 +156,262 @@ function AmountInput({ value, onChange, placeholder = '0', autoFocus = false }) 
   )
 }
 
+// ─── StdManageRow ─────────────────────────────────────────────────────────────
+function StdManageRow({ node, onDelete }) {
+  const [open, setOpen] = useState(node.level <= 2)
+  const hasChildren = node.children && node.children.length > 0
+  const LEVEL_PL = { 1: 'pl-1', 2: 'pl-5', 3: 'pl-9', 4: 'pl-13' }
+  const LEVEL_TEXT = { 1: 'font-bold text-sm text-gray-800', 2: 'font-semibold text-sm text-gray-700', 3: 'text-xs text-gray-600', 4: 'text-xs text-blue-700' }
+  return (
+    <>
+      <div className={`flex items-center py-1.5 hover:bg-gray-50 rounded gap-1 ${LEVEL_PL[node.level]}`}>
+        {hasChildren
+          ? <button onClick={() => setOpen(o => !o)} className="text-gray-400 flex-shrink-0">{open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</button>
+          : <span className="w-4 flex-shrink-0" />}
+        <span className={`flex-1 ${LEVEL_TEXT[node.level]}`}>{node.name}</span>
+        <button onClick={() => onDelete(node.id)} className="text-red-300 hover:text-red-500 p-0.5 flex-shrink-0"><Trash2 size={11} /></button>
+      </div>
+      {open && hasChildren && node.children.map(c => <StdManageRow key={c.id} node={c} onDelete={onDelete} />)}
+    </>
+  )
+}
+
+// ─── StandardTreeRow ──────────────────────────────────────────────────────────
+function StandardTreeRow({ node, checked, onToggle, existingNames }) {
+  const [open, setOpen] = useState(node.level <= 2)
+  const hasChildren = node.children && node.children.length > 0
+  const isExisting = existingNames?.has(node.name)
+  const isChecked = checked.has(node.id)
+  const LEVEL_PL = { 1: 'pl-1', 2: 'pl-5', 3: 'pl-9', 4: 'pl-13' }
+  const LEVEL_TEXT = { 1: 'font-bold text-sm text-gray-800', 2: 'font-semibold text-sm text-gray-700', 3: 'text-xs text-gray-600', 4: 'text-sm text-gray-700' }
+  return (
+    <>
+      <div className={`flex items-center py-1.5 rounded gap-1 ${LEVEL_PL[node.level]} ${isExisting ? '' : 'hover:bg-gray-50'}`}>
+        <input type="checkbox" checked={isChecked} disabled={isExisting}
+          onChange={() => onToggle(node)}
+          className="flex-shrink-0 accent-blue-600 cursor-pointer disabled:cursor-not-allowed" />
+        {hasChildren
+          ? <button onClick={() => setOpen(o => !o)} className="text-gray-400 flex-shrink-0">{open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</button>
+          : <span className="w-4 flex-shrink-0" />}
+        <span className={`${LEVEL_TEXT[node.level]} ${isExisting ? 'text-gray-400 line-through' : ''}`}>
+          {node.name}{isExisting && <span className="ml-1 text-[10px] text-gray-400 no-underline">(추가됨)</span>}
+        </span>
+      </div>
+      {open && hasChildren && node.children.map(c => (
+        <StandardTreeRow key={c.id} node={c} checked={checked} onToggle={onToggle} existingNames={existingNames} />
+      ))}
+    </>
+  )
+}
+
+// ─── StandardItemSelectModal ──────────────────────────────────────────────────
+function StandardItemSelectModal({ onClose, onConfirm, existingNames = new Set() }) {
+  const [stdItems, setStdItems] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [checked, setChecked] = useState(new Set())
+  const [phase, setPhase] = useState('select')
+  const [selectedWithAmounts, setSelectedWithAmounts] = useState([])
+
+  useEffect(() => {
+    supabase.from('budget_standard_items').select('*').order('sort_order')
+      .then(({ data }) => { setStdItems(data || []); setLoading(false) })
+  }, [])
+
+  const stdMap = {}
+  stdItems.forEach(i => { stdMap[i.id] = i })
+  const treeData = buildTree(stdItems)
+
+  const getDescIds = (nodeId) => {
+    const ids = []
+    const traverse = (id) => stdItems.filter(i => i.parent_id === id).forEach(c => { ids.push(c.id); traverse(c.id) })
+    traverse(nodeId)
+    return ids
+  }
+  const getAncIds = (itemId) => {
+    const ids = []
+    let cur = stdMap[itemId]
+    while (cur?.parent_id) { ids.push(cur.parent_id); cur = stdMap[cur.parent_id] }
+    return ids
+  }
+
+  const toggleCheck = (node) => {
+    if (existingNames.has(node.name)) return
+    const nc = new Set(checked)
+    if (nc.has(node.id)) {
+      nc.delete(node.id)
+      getDescIds(node.id).forEach(id => nc.delete(id))
+      getAncIds(node.id).forEach(aid => {
+        if (!stdItems.filter(i => i.parent_id === aid).some(c => nc.has(c.id))) nc.delete(aid)
+      })
+    } else {
+      nc.add(node.id)
+      getDescIds(node.id).forEach(id => { if (!existingNames.has(stdMap[id]?.name)) nc.add(id) })
+      getAncIds(node.id).forEach(id => nc.add(id))
+    }
+    setChecked(nc)
+  }
+
+  const goToAmount = () => {
+    const level4 = stdItems.filter(i => i.level === 4 && checked.has(i.id))
+    if (level4.length === 0) { alert('과목을 선택하세요.'); return }
+    setSelectedWithAmounts(level4.map(i => ({ ...i, amount: '' })))
+    setPhase('amount')
+  }
+
+  if (phase === 'amount') return (
+    <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0">
+          <h2 className="text-lg font-bold text-gray-800">예산액 입력</h2>
+          <button onClick={onClose}><X size={18} className="text-gray-400" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+          {selectedWithAmounts.map((item, idx) => (
+            <div key={item.id}>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">{item.name}</label>
+              <AmountInput value={item.amount} placeholder="0 (나중에 수정 가능)"
+                onChange={v => setSelectedWithAmounts(prev => prev.map((s, i) => i === idx ? { ...s, amount: v } : s))} />
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-between gap-2 px-6 py-4 border-t flex-shrink-0">
+          <button onClick={() => setPhase('select')} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">← 다시 선택</button>
+          <button onClick={() => onConfirm(selectedWithAmounts, stdItems)}
+            className="px-4 py-2 text-sm font-semibold text-white rounded-lg hover:opacity-90" style={{ background: '#2E75B6' }}>
+            선택 완료
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0">
+          <h2 className="text-lg font-bold text-gray-800">표준과목 선택</h2>
+          <button onClick={onClose}><X size={18} className="text-gray-400" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-3">
+          {loading
+            ? <div className="text-center text-sm text-gray-400 py-8">로딩 중...</div>
+            : treeData.length === 0
+              ? <div className="text-center text-sm text-gray-400 py-8">표준과목이 없습니다.<br/><span className="text-xs">표준과목 관리에서 먼저 과목을 등록하세요.</span></div>
+              : treeData.map(node => <StandardTreeRow key={node.id} node={node} checked={checked} onToggle={toggleCheck} existingNames={existingNames} />)}
+        </div>
+        <div className="flex justify-between items-center px-6 py-4 border-t flex-shrink-0">
+          <span className="text-xs text-gray-500">{stdItems.filter(i => i.level === 4 && checked.has(i.id)).length}개 선택됨</span>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
+            <button onClick={goToAmount} className="px-4 py-2 text-sm font-semibold text-white rounded-lg hover:opacity-90" style={{ background: '#2E75B6' }}>다음 →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── StandardItemManageModal ──────────────────────────────────────────────────
+function StandardItemManageModal({ onClose }) {
+  const [stdItems, setStdItems] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [addingLevel, setAddingLevel] = useState(null)
+  const [addingParentId, setAddingParentId] = useState('')
+  const [addingName, setAddingName] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const loadItems = () => {
+    supabase.from('budget_standard_items').select('*').order('sort_order')
+      .then(({ data }) => { setStdItems(data || []); setLoading(false) })
+  }
+  useEffect(() => { loadItems() }, [])
+
+  const treeData = buildTree(stdItems)
+
+  const addItem = async () => {
+    if (!addingName.trim()) { alert('과목명을 입력하세요.'); return }
+    if (addingLevel > 1 && !addingParentId) { alert('상위 과목을 선택하세요.'); return }
+    setSaving(true)
+    const sortOrder = stdItems.filter(i => i.parent_id === (addingParentId || null) && i.level === addingLevel).length
+    await supabase.from('budget_standard_items').insert({ level: addingLevel, parent_id: addingParentId || null, name: addingName.trim(), sort_order: sortOrder })
+    setAddingLevel(null); setAddingParentId(''); setAddingName('')
+    setSaving(false); loadItems()
+  }
+
+  const deleteItem = async (id) => {
+    if (!window.confirm('이 과목과 하위 과목이 모두 삭제됩니다. 계속하시겠습니까?')) return
+    const getAllDescIds = (pid) => {
+      const ids = [pid]
+      stdItems.filter(i => i.parent_id === pid).forEach(c => ids.push(...getAllDescIds(c.id)))
+      return ids
+    }
+    await supabase.from('budget_standard_items').delete().in('id', getAllDescIds(id))
+    loadItems()
+  }
+
+  const parents = addingLevel > 1 ? stdItems.filter(i => i.level === addingLevel - 1) : []
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0">
+          <h2 className="text-lg font-bold text-gray-800">표준과목 관리</h2>
+          <button onClick={onClose}><X size={18} className="text-gray-400" /></button>
+        </div>
+        <div className="px-6 py-3 border-b flex-shrink-0 bg-gray-50">
+          {addingLevel === null ? (
+            <div className="flex gap-2 flex-wrap">
+              {[{ v: 1, l: '관(款)' }, { v: 2, l: '항(項)' }, { v: 3, l: '세항' }, { v: 4, l: '목(目)' }].map(({ v, l }) => (
+                <button key={v} onClick={() => { setAddingLevel(v); setAddingParentId(''); setAddingName('') }}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-white rounded-lg hover:opacity-90" style={{ background: '#2E75B6' }}>
+                  <Plus size={11} /> {l} 추가
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-gray-600">{['관(款)', '항(項)', '세항', '목(目)'][addingLevel - 1]} 추가</span>
+                <button onClick={() => setAddingLevel(null)} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
+              </div>
+              {addingLevel > 1 && (
+                <select value={addingParentId} onChange={e => setAddingParentId(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs bg-white outline-none focus:border-blue-400">
+                  <option value="">-- 상위 과목 선택 --</option>
+                  {parents.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              )}
+              <div className="flex gap-2">
+                <input value={addingName} onChange={e => setAddingName(e.target.value)} placeholder="과목명 입력"
+                  onKeyDown={e => e.key === 'Enter' && addItem()}
+                  className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-xs outline-none focus:border-blue-400" />
+                <button onClick={addItem} disabled={saving}
+                  className="px-3 py-1.5 text-xs font-semibold text-white rounded disabled:opacity-60" style={{ background: '#2E75B6' }}>저장</button>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-3">
+          {loading
+            ? <div className="text-center text-sm text-gray-400 py-8">로딩 중...</div>
+            : treeData.length === 0
+              ? <div className="text-center text-sm text-gray-400 py-8">등록된 표준과목이 없습니다.</div>
+              : treeData.map(node => <StdManageRow key={node.id} node={node} onDelete={deleteItem} />)}
+        </div>
+        <div className="flex justify-end px-6 py-4 border-t flex-shrink-0">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">닫기</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── ProgramModal ─────────────────────────────────────────────────────────────
 function ProgramModal({ onClose, onSave, userId }) {
   const [form, setForm] = useState({ name: '', year: String(CURRENT_YEAR), manager: '', memo: '', total_budget: '' })
-  const [autoCreate, setAutoCreate] = useState(true)
+  const [showStdSelect, setShowStdSelect] = useState(false)
+  const [selectedItems, setSelectedItems] = useState([])
+  const [allStdItems, setAllStdItems] = useState([])
   const [saving, setSaving] = useState(false)
 
   const save = async () => {
@@ -140,76 +423,138 @@ function ProgramModal({ onClose, onSave, userId }) {
       total_budget: parseAmount(form.total_budget),
     }).select().single()
     if (error) { alert('저장 실패: ' + error.message); setSaving(false); return }
-    if (autoCreate) await createDefaultItems(data.id, userId)
-    setSaving(false)
-    onSave()
+    if (selectedItems.length > 0) await createItemsFromSelected(data.id, selectedItems, allStdItems)
+    setSaving(false); onSave()
+  }
+
+  const handleStdConfirm = (items, allItems) => {
+    setSelectedItems(items); setAllStdItems(allItems); setShowStdSelect(false)
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-        <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="text-lg font-bold text-gray-800">사업 등록</h2>
-          <button onClick={onClose}><X size={18} className="text-gray-400" /></button>
-        </div>
-        <div className="px-6 py-5 space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1.5">사업명 *</label>
-            <input value={form.name} onChange={e => setForm(v => ({ ...v, name: e.target.value }))}
-              placeholder="예: 울산 창업 U-시리즈"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400" />
+    <>
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
+          <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0">
+            <h2 className="text-lg font-bold text-gray-800">사업 등록</h2>
+            <button onClick={onClose}><X size={18} className="text-gray-400" /></button>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1.5">연도</label>
-              <select value={form.year} onChange={e => setForm(v => ({ ...v, year: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-blue-400">
-                {YEARS.map(y => <option key={y} value={y}>{y}년</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1.5">담당자</label>
-              <input value={form.manager} onChange={e => setForm(v => ({ ...v, manager: e.target.value }))}
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">사업명 *</label>
+              <input value={form.name} onChange={e => setForm(v => ({ ...v, name: e.target.value }))}
+                placeholder="예: 울산 창업 U-시리즈"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400" />
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5">연도</label>
+                <select value={form.year} onChange={e => setForm(v => ({ ...v, year: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-blue-400">
+                  {YEARS.map(y => <option key={y} value={y}>{y}년</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5">담당자</label>
+                <input value={form.manager} onChange={e => setForm(v => ({ ...v, manager: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">총 예산</label>
+              <AmountInput value={form.total_budget} onChange={v => setForm(f => ({ ...f, total_budget: v }))} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">메모</label>
+              <input value={form.memo} onChange={e => setForm(v => ({ ...v, memo: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400" />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-semibold text-gray-500">예산 과목 선택</label>
+                <button onClick={() => setShowStdSelect(true)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-white rounded-lg hover:opacity-90" style={{ background: '#2E75B6' }}>
+                  <Plus size={11} /> 표준과목에서 선택
+                </button>
+              </div>
+              {selectedItems.length === 0 ? (
+                <div className="border border-dashed border-gray-300 rounded-lg p-4 text-center text-xs text-gray-400">
+                  표준과목에서 예산 과목을 선택하세요
+                </div>
+              ) : (
+                <div className="border border-gray-200 rounded-lg divide-y max-h-48 overflow-y-auto">
+                  {selectedItems.map((item, idx) => (
+                    <div key={item.id} className="px-3 py-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold text-gray-700">{item.name}</span>
+                        <button onClick={() => setSelectedItems(prev => prev.filter(s => s.id !== item.id))}
+                          className="text-red-300 hover:text-red-500 p-0.5"><X size={12} /></button>
+                      </div>
+                      <AmountInput value={item.amount} placeholder="0 (나중에 수정 가능)"
+                        onChange={v => setSelectedItems(prev => prev.map((s, i) => i === idx ? { ...s, amount: v } : s))} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1.5">총 예산</label>
-            <AmountInput value={form.total_budget} onChange={v => setForm(f => ({ ...f, total_budget: v }))} />
+          <div className="flex justify-end gap-2 px-6 py-4 border-t flex-shrink-0">
+            <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
+            <button onClick={save} disabled={saving}
+              className="px-4 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-60" style={{ background: '#2E75B6' }}>
+              {saving ? '저장 중...' : '저장'}
+            </button>
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1.5">메모</label>
-            <input value={form.memo} onChange={e => setForm(v => ({ ...v, memo: e.target.value }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400" />
-          </div>
-          <label className="flex items-center gap-2 cursor-pointer select-none pt-1">
-            <input type="checkbox" checked={autoCreate} onChange={e => setAutoCreate(e.target.checked)}
-              className="w-4 h-4 accent-blue-600" />
-            <span className="text-sm text-gray-700">기본 과목 자동 생성 (21개)</span>
-          </label>
-        </div>
-        <div className="flex justify-end gap-2 px-6 py-4 border-t">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
-          <button onClick={save} disabled={saving}
-            className="px-4 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-60"
-            style={{ background: '#2E75B6' }}>
-            {saving ? '저장 중...' : '저장'}
-          </button>
         </div>
       </div>
-    </div>
+      {showStdSelect && <StandardItemSelectModal onClose={() => setShowStdSelect(false)} onConfirm={handleStdConfirm} />}
+    </>
   )
 }
 
 // ─── ItemAddModal ─────────────────────────────────────────────────────────────
 function ItemAddModal({ programId, items, userId, onClose, onSave }) {
+  const [mode, setMode] = useState(null) // null | 'direct' | 'standard'
   const [level, setLevel] = useState(4)
   const [parentId, setParentId] = useState('')
   const [name, setName] = useState('')
   const [amount, setAmount] = useState('')
   const [saving, setSaving] = useState(false)
 
+  const existingNames = new Set(items.map(i => i.name))
   const parents = items.filter(i => i.level === level - 1)
+
+  if (mode === null) return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm">
+        <div className="flex items-center justify-between px-6 py-4 border-b">
+          <h2 className="text-lg font-bold text-gray-800">과목 추가</h2>
+          <button onClick={onClose}><X size={18} className="text-gray-400" /></button>
+        </div>
+        <div className="px-6 py-8 space-y-3">
+          <button onClick={() => setMode('standard')}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-semibold text-white hover:opacity-90" style={{ background: '#2E75B6' }}>
+            <Plus size={15} /> 표준과목에서 선택
+          </button>
+          <button onClick={() => setMode('direct')}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-semibold text-gray-700 border border-gray-300 hover:bg-gray-50">
+            직접 입력
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
+  if (mode === 'standard') return (
+    <StandardItemSelectModal
+      onClose={onClose}
+      existingNames={existingNames}
+      onConfirm={async (selectedItems, allStdItems) => {
+        await createItemsFromSelected(programId, selectedItems, allStdItems)
+        onSave()
+      }}
+    />
+  )
 
   const save = async () => {
     if (!name.trim()) { alert('과목명을 입력하세요.'); return }
@@ -732,6 +1077,7 @@ function TreeRow({ node, executions, selectedItem, onSelect, editingId, editingV
 export default function Budget() {
   const { profile, user } = useAuth()
   const canEdit = profile?.role !== 'viewer'
+  const canManageStandard = profile?.role === 'master' || profile?.role === 'admin'
   const userId = user?.id
 
   const [activeTab, setActiveTab] = useState('programs')
@@ -750,6 +1096,7 @@ export default function Budget() {
   const [showExecModal, setShowExecModal] = useState(false)
   const [revisionTarget, setRevisionTarget] = useState(null)
   const [historyTarget, setHistoryTarget] = useState(null)
+  const [showStandardManage, setShowStandardManage] = useState(false)
 
   const fetchPrograms = useCallback(async () => {
     setLoading(l => ({ ...l, programs: true }))
@@ -1046,9 +1393,17 @@ export default function Budget() {
     <>
       {/* 데스크탑 3패널 */}
       <div className="hidden md:flex flex-col" style={{ height: 'calc(100vh - 64px)' }}>
-        <div className="bg-white border-b px-5 py-3 flex-shrink-0">
-          <h1 className="text-xl font-bold text-gray-800">사업비 관리</h1>
-          <p className="text-xs text-gray-400 mt-0.5">예산 과목 트리 · 집행 내역 관리</p>
+        <div className="bg-white border-b px-5 py-3 flex-shrink-0 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-gray-800">사업비 관리</h1>
+            <p className="text-xs text-gray-400 mt-0.5">예산 과목 트리 · 집행 내역 관리</p>
+          </div>
+          {canManageStandard && (
+            <button onClick={() => setShowStandardManage(true)}
+              className="px-3 py-1.5 text-xs font-semibold text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+              표준과목 관리
+            </button>
+          )}
         </div>
         <div className="flex flex-1 overflow-hidden">
           <div className="w-56 border-r flex-shrink-0 overflow-hidden flex flex-col">{LeftPanel}</div>
@@ -1100,6 +1455,9 @@ export default function Budget() {
       )}
       {historyTarget && (
         <HistoryModal item={historyTarget} onClose={() => setHistoryTarget(null)} onSave={() => fetchItems(selectedProgram.id)} />
+      )}
+      {showStandardManage && (
+        <StandardItemManageModal onClose={() => setShowStandardManage(false)} />
       )}
     </>
   )
