@@ -469,18 +469,46 @@ function RevisionModal({ item, userId, onClose, onSave }) {
 }
 
 // ─── HistoryModal ─────────────────────────────────────────────────────────────
-function HistoryModal({ item, onClose }) {
+function HistoryModal({ item, onClose, onSave }) {
   const [histories, setHistories] = useState([])
   const [loading, setLoading] = useState(true)
+  const [editingId, setEditingId] = useState(null)
+  const [editAmount, setEditAmount] = useState('')
+  const [editReason, setEditReason] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
+  const loadHistories = () => {
     supabase.from('budget_item_histories').select('*').eq('budget_item_id', item.id).order('revision_number')
       .then(({ data }) => { setHistories(data || []); setLoading(false) })
-  }, [item.id])
+  }
+
+  useEffect(() => { loadHistories() }, [item.id])
+
+  const startEdit = (h) => {
+    setEditingId(h.id)
+    setEditAmount(h.new_amount ? formatAmount(h.new_amount) : '')
+    setEditReason(h.reason || '')
+  }
+  const cancelEdit = () => { setEditingId(null); setEditAmount(''); setEditReason('') }
+
+  const saveEdit = async (h) => {
+    const amt = parseAmount(editAmount)
+    if (amt <= 0) { alert('금액을 입력하세요.'); return }
+    setSaving(true)
+    const { error } = await supabase.from('budget_item_histories')
+      .update({ new_amount: amt, reason: editReason.trim() || null }).eq('id', h.id)
+    if (error) { alert('저장 실패: ' + error.message); setSaving(false); return }
+    const updatedHistories = histories.map(r => r.id === h.id ? { ...r, new_amount: amt } : r)
+    const latest = [...updatedHistories].sort((a, b) => b.revision_number - a.revision_number)[0]
+    await supabase.from('budget_items').update({ budgeted_amount: latest.new_amount }).eq('id', item.id)
+    setSaving(false); setEditingId(null)
+    loadHistories()
+    if (onSave) onSave()
+  }
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl">
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <h2 className="text-lg font-bold text-gray-800">예산 이력 — {item.name}</h2>
           <button onClick={onClose}><X size={18} className="text-gray-400" /></button>
@@ -497,23 +525,59 @@ function HistoryModal({ item, onClose }) {
                   <th className="px-2 py-2 text-right text-gray-500 font-semibold">증감</th>
                   <th className="px-2 py-2 text-left text-gray-500 font-semibold">변경일</th>
                   <th className="px-2 py-2 text-left text-gray-500 font-semibold">사유</th>
+                  <th className="w-10" />
                 </tr>
               </thead>
               <tbody>
                 {histories.length === 0
-                  ? <tr><td colSpan={5} className="px-2 py-3 text-center text-gray-400">이력 없음</td></tr>
-                  : histories.map((h, idx) => {
-                    const prev = idx > 0 ? Number(histories[idx - 1].new_amount) || 0 : null
-                    const diff = prev !== null ? (Number(h.new_amount) || 0) - prev : null
+                  ? <tr><td colSpan={6} className="px-2 py-3 text-center text-gray-400">이력 없음</td></tr>
+                  : histories.map(h => {
+                    const isEditing = editingId === h.id
+                    const diff = h.revision_number === 0 ? null : (Number(h.new_amount) || 0) - (Number(h.previous_amount) || 0)
                     return (
                       <tr key={h.id} className="border-t border-gray-100">
-                        <td className="px-2 py-2 font-semibold text-gray-700">{h.revision_type}</td>
-                        <td className="px-2 py-2 text-right text-gray-800">{formatAmount(h.new_amount)}</td>
-                        <td className={`px-2 py-2 text-right font-semibold ${diff === null ? 'text-gray-300' : diff >= 0 ? 'text-blue-600' : 'text-red-500'}`}>
+                        <td className="px-2 py-2 font-semibold text-gray-700 whitespace-nowrap">{h.revision_type}</td>
+                        <td className="px-2 py-2 text-right text-gray-800">
+                          {isEditing ? (
+                            <div className="flex flex-col items-end">
+                              <input type="text" value={editAmount} autoFocus
+                                onChange={e => {
+                                  const raw = e.target.value.replace(/,/g, '').replace(/[^0-9]/g, '')
+                                  setEditAmount(parseInt(raw || '0') ? formatAmount(parseInt(raw)) : '')
+                                }}
+                                className="w-28 border border-blue-400 rounded px-1 py-0.5 text-xs text-right outline-none" />
+                              {parseAmount(editAmount) > 0 && (
+                                <span className="text-[10px] text-blue-500 mt-0.5">{formatKorean(parseAmount(editAmount))}</span>
+                              )}
+                            </div>
+                          ) : formatAmount(h.new_amount)}
+                        </td>
+                        <td className={`px-2 py-2 text-right font-semibold whitespace-nowrap ${diff === null ? 'text-gray-300' : diff >= 0 ? 'text-green-600' : 'text-red-500'}`}>
                           {diff === null ? '-' : (diff >= 0 ? '+' : '') + formatAmount(diff)}
                         </td>
-                        <td className="px-2 py-2 text-gray-500">{h.created_at ? h.created_at.slice(0, 10) : '-'}</td>
-                        <td className="px-2 py-2 text-gray-500">{h.reason || '-'}</td>
+                        <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{h.created_at ? h.created_at.slice(0, 10) : '-'}</td>
+                        <td className="px-2 py-2 text-gray-500">
+                          {isEditing ? (
+                            <input type="text" value={editReason} onChange={e => setEditReason(e.target.value)}
+                              placeholder="사유"
+                              className="w-full border border-blue-400 rounded px-1 py-0.5 text-xs outline-none" />
+                          ) : (h.reason || '-')}
+                        </td>
+                        <td className="px-1 py-2 text-center">
+                          {h.revision_number > 0 && (
+                            isEditing ? (
+                              <div className="flex gap-0.5 justify-center">
+                                <button onClick={() => saveEdit(h)} disabled={saving} className="text-green-500 hover:text-green-700 p-0.5"><Check size={12} /></button>
+                                <button onClick={cancelEdit} className="text-gray-400 hover:text-gray-600 p-0.5"><X size={12} /></button>
+                              </div>
+                            ) : (
+                              <button onClick={() => startEdit(h)}
+                                className="px-1 py-0.5 text-[10px] font-semibold rounded bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors">
+                                수정
+                              </button>
+                            )
+                          )}
+                        </td>
                       </tr>
                     )
                   })}
@@ -1012,7 +1076,7 @@ export default function Budget() {
           onSave={() => { setRevisionTarget(null); fetchItems(selectedProgram.id) }} />
       )}
       {historyTarget && (
-        <HistoryModal item={historyTarget} onClose={() => setHistoryTarget(null)} />
+        <HistoryModal item={historyTarget} onClose={() => setHistoryTarget(null)} onSave={() => fetchItems(selectedProgram.id)} />
       )}
     </>
   )
