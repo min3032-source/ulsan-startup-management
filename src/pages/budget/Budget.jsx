@@ -74,7 +74,7 @@ function getNodeExec(node, executions) {
   return (node.children || []).reduce((s, c) => s + getNodeExec(c, executions), 0)
 }
 
-async function createDefaultItems(programId) {
+async function createDefaultItems(programId, userId) {
   const l1Map = {}, l2Map = {}, l3Map = {}
   let l1O = 0, l2O = 0, l3O = 0, l4O = 0
   for (const item of DEFAULT_BUDGET_ITEMS) {
@@ -93,7 +93,10 @@ async function createDefaultItems(programId) {
       if (data) l3Map[l3Key] = data.id
     }
     if (l3Map[l3Key]) {
-      await supabase.from('budget_items').insert({ program_id: programId, level: 4, parent_id: l3Map[l3Key], name: item.l4, budgeted_amount: item.amount, sort_order: l4O++ })
+      const { data: l4data } = await supabase.from('budget_items').insert({ program_id: programId, level: 4, parent_id: l3Map[l3Key], name: item.l4, budgeted_amount: item.amount, original_amount: item.amount, sort_order: l4O++ }).select().single()
+      if (l4data && userId) {
+        await supabase.from('budget_item_histories').insert({ budget_item_id: l4data.id, revision_type: '당초', revision_number: 0, previous_amount: null, new_amount: item.amount, reason: null, created_by: userId })
+      }
     }
   }
 }
@@ -122,7 +125,7 @@ function AmountInput({ value, onChange, placeholder = '0', autoFocus = false }) 
 }
 
 // ─── ProgramModal ─────────────────────────────────────────────────────────────
-function ProgramModal({ onClose, onSave }) {
+function ProgramModal({ onClose, onSave, userId }) {
   const [form, setForm] = useState({ name: '', year: String(CURRENT_YEAR), manager: '', memo: '', total_budget: '' })
   const [autoCreate, setAutoCreate] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -136,7 +139,7 @@ function ProgramModal({ onClose, onSave }) {
       total_budget: parseAmount(form.total_budget),
     }).select().single()
     if (error) { alert('저장 실패: ' + error.message); setSaving(false); return }
-    if (autoCreate) await createDefaultItems(data.id)
+    if (autoCreate) await createDefaultItems(data.id, userId)
     setSaving(false)
     onSave()
   }
@@ -198,7 +201,7 @@ function ProgramModal({ onClose, onSave }) {
 }
 
 // ─── ItemAddModal ─────────────────────────────────────────────────────────────
-function ItemAddModal({ programId, items, onClose, onSave }) {
+function ItemAddModal({ programId, items, userId, onClose, onSave }) {
   const [level, setLevel] = useState(4)
   const [parentId, setParentId] = useState('')
   const [name, setName] = useState('')
@@ -212,11 +215,20 @@ function ItemAddModal({ programId, items, onClose, onSave }) {
     if (level > 1 && !parentId) { alert('상위 과목을 선택하세요.'); return }
     setSaving(true)
     const sortOrder = items.filter(i => i.parent_id === (parentId || null) && i.level === level).length
-    const { error } = await supabase.from('budget_items').insert({
+    const amt = level === 4 ? parseAmount(amount) : 0
+    const { data: newItem, error } = await supabase.from('budget_items').insert({
       program_id: programId, level, parent_id: parentId || null,
-      name: name.trim(), budgeted_amount: level === 4 ? parseAmount(amount) : 0, sort_order: sortOrder,
-    })
+      name: name.trim(), budgeted_amount: amt,
+      ...(level === 4 ? { original_amount: amt } : {}),
+      sort_order: sortOrder,
+    }).select().single()
     if (error) { alert('저장 실패: ' + error.message); setSaving(false); return }
+    if (newItem && level === 4 && userId) {
+      await supabase.from('budget_item_histories').insert({
+        budget_item_id: newItem.id, revision_type: '당초', revision_number: 0,
+        previous_amount: null, new_amount: amt, reason: null, created_by: userId,
+      })
+    }
     setSaving(false); onSave()
   }
 
@@ -343,6 +355,165 @@ function ExecAddModal({ programId, items, defaultItemId, onClose, onSave }) {
   )
 }
 
+// ─── RevisionModal ────────────────────────────────────────────────────────────
+function RevisionModal({ item, userId, onClose, onSave }) {
+  const [histories, setHistories] = useState([])
+  const [newAmount, setNewAmount] = useState('')
+  const [reason, setReason] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    supabase.from('budget_item_histories').select('*').eq('budget_item_id', item.id).order('revision_number')
+      .then(({ data }) => { setHistories(data || []); setLoading(false) })
+  }, [item.id])
+
+  const nextRevNum = (item.revision_count || 0) + 1
+  const nextRevType = `추경${nextRevNum}`
+
+  const save = async () => {
+    const amt = parseAmount(newAmount)
+    if (amt <= 0) { alert('변경 후 예산액을 입력하세요.'); return }
+    setSaving(true)
+    const { error: hErr } = await supabase.from('budget_item_histories').insert({
+      budget_item_id: item.id, revision_type: nextRevType, revision_number: nextRevNum,
+      previous_amount: Number(item.budgeted_amount) || 0, new_amount: amt,
+      reason: reason.trim() || null, created_by: userId,
+    })
+    if (hErr) { alert('저장 실패: ' + hErr.message); setSaving(false); return }
+    const { error: uErr } = await supabase.from('budget_items').update({ budgeted_amount: amt, revision_count: nextRevNum }).eq('id', item.id)
+    if (uErr) { alert('저장 실패: ' + uErr.message); setSaving(false); return }
+    setSaving(false); onSave()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
+        <div className="flex items-center justify-between px-6 py-4 border-b">
+          <h2 className="text-lg font-bold text-gray-800">추경 — {item.name}</h2>
+          <button onClick={onClose}><X size={18} className="text-gray-400" /></button>
+        </div>
+        <div className="px-6 py-4">
+          {loading ? (
+            <div className="text-center text-sm text-gray-400 py-4">로딩 중...</div>
+          ) : (
+            <>
+              <table className="w-full text-xs mb-4">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="px-2 py-2 text-left text-gray-500 font-semibold">구분</th>
+                    <th className="px-2 py-2 text-right text-gray-500 font-semibold">예산액</th>
+                    <th className="px-2 py-2 text-left text-gray-500 font-semibold">변경일</th>
+                    <th className="px-2 py-2 text-left text-gray-500 font-semibold">사유</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {histories.length === 0
+                    ? <tr><td colSpan={4} className="px-2 py-3 text-center text-gray-400">이력 없음</td></tr>
+                    : histories.map(h => (
+                      <tr key={h.id} className="border-t border-gray-100">
+                        <td className="px-2 py-2 font-semibold text-gray-700">{h.revision_type}</td>
+                        <td className="px-2 py-2 text-right text-gray-800">{formatAmount(h.new_amount)}</td>
+                        <td className="px-2 py-2 text-gray-500">{h.created_at ? h.created_at.slice(0, 10) : '-'}</td>
+                        <td className="px-2 py-2 text-gray-500">{h.reason || '-'}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+              <hr className="my-4 border-gray-200" />
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-500 w-24 flex-shrink-0">구분</span>
+                  <span className="font-semibold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded">{nextRevType}</span>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">변경 후 예산액 *</label>
+                  <AmountInput value={newAmount} onChange={setNewAmount} autoFocus />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">사유</label>
+                  <input value={reason} onChange={e => setReason(e.target.value)}
+                    placeholder="변경 사유를 입력하세요"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-yellow-400" />
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="flex justify-end gap-2 px-6 py-4 border-t">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
+          <button onClick={save} disabled={saving || loading}
+            className="px-4 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-60"
+            style={{ background: '#d97706' }}>
+            {saving ? '저장 중...' : '추경 저장'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── HistoryModal ─────────────────────────────────────────────────────────────
+function HistoryModal({ item, onClose }) {
+  const [histories, setHistories] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    supabase.from('budget_item_histories').select('*').eq('budget_item_id', item.id).order('revision_number')
+      .then(({ data }) => { setHistories(data || []); setLoading(false) })
+  }, [item.id])
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
+        <div className="flex items-center justify-between px-6 py-4 border-b">
+          <h2 className="text-lg font-bold text-gray-800">예산 이력 — {item.name}</h2>
+          <button onClick={onClose}><X size={18} className="text-gray-400" /></button>
+        </div>
+        <div className="px-6 py-4">
+          {loading ? (
+            <div className="text-center text-sm text-gray-400 py-4">로딩 중...</div>
+          ) : (
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-gray-50 border-b">
+                  <th className="px-2 py-2 text-left text-gray-500 font-semibold">구분</th>
+                  <th className="px-2 py-2 text-right text-gray-500 font-semibold">예산액</th>
+                  <th className="px-2 py-2 text-right text-gray-500 font-semibold">증감</th>
+                  <th className="px-2 py-2 text-left text-gray-500 font-semibold">변경일</th>
+                  <th className="px-2 py-2 text-left text-gray-500 font-semibold">사유</th>
+                </tr>
+              </thead>
+              <tbody>
+                {histories.length === 0
+                  ? <tr><td colSpan={5} className="px-2 py-3 text-center text-gray-400">이력 없음</td></tr>
+                  : histories.map((h, idx) => {
+                    const prev = idx > 0 ? Number(histories[idx - 1].new_amount) || 0 : null
+                    const diff = prev !== null ? (Number(h.new_amount) || 0) - prev : null
+                    return (
+                      <tr key={h.id} className="border-t border-gray-100">
+                        <td className="px-2 py-2 font-semibold text-gray-700">{h.revision_type}</td>
+                        <td className="px-2 py-2 text-right text-gray-800">{formatAmount(h.new_amount)}</td>
+                        <td className={`px-2 py-2 text-right font-semibold ${diff === null ? 'text-gray-300' : diff >= 0 ? 'text-blue-600' : 'text-red-500'}`}>
+                          {diff === null ? '-' : (diff >= 0 ? '+' : '') + formatAmount(diff)}
+                        </td>
+                        <td className="px-2 py-2 text-gray-500">{h.created_at ? h.created_at.slice(0, 10) : '-'}</td>
+                        <td className="px-2 py-2 text-gray-500">{h.reason || '-'}</td>
+                      </tr>
+                    )
+                  })}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div className="flex justify-end px-6 py-4 border-t">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">닫기</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── TreeRow ──────────────────────────────────────────────────────────────────
 const LEVEL_BG = { 1: 'bg-gray-100', 2: 'bg-gray-50', 3: 'bg-white', 4: 'bg-white' }
 const LEVEL_PL = { 1: 'pl-2', 2: 'pl-6', 3: 'pl-10', 4: 'pl-14' }
@@ -353,7 +524,7 @@ const LEVEL_TEXT = {
   4: 'text-sm text-blue-700 hover:text-blue-900',
 }
 
-function TreeRow({ node, executions, selectedItem, onSelect, editingId, editingValue, onStartEdit, onEditChange, onSaveEdit, onCancelEdit, canEdit }) {
+function TreeRow({ node, executions, selectedItem, onSelect, editingId, editingValue, onStartEdit, onEditChange, onSaveEdit, onCancelEdit, canEdit, onRevise, onHistory }) {
   const [open, setOpen] = useState(node.level <= 2)
   const hasChildren = node.children && node.children.length > 0
   const budget = getNodeBudget(node)
@@ -377,6 +548,9 @@ function TreeRow({ node, executions, selectedItem, onSelect, editingId, editingV
             {hasChildren ? (open ? <ChevronDown size={12} /> : <ChevronRight size={12} />) : null}
           </span>
           <span className={`truncate ${LEVEL_TEXT[node.level]}`}>{node.name}</span>
+          {node.level === 4 && node.revision_count > 0 && (
+            <span className="ml-1 flex-shrink-0 px-1 py-0.5 text-[9px] font-bold rounded bg-yellow-100 text-yellow-700">추경{node.revision_count}</span>
+          )}
         </div>
 
         {/* 예산액 */}
@@ -415,13 +589,22 @@ function TreeRow({ node, executions, selectedItem, onSelect, editingId, editingV
             : <span className="text-xs text-gray-300">-</span>}
         </div>
 
-        {/* 수정 아이콘 (level 4) */}
-        <div className="w-7 flex items-center justify-center flex-shrink-0">
+        {/* 액션 버튼 (level 4) */}
+        <div className="w-24 flex items-center justify-end gap-0.5 flex-shrink-0 pr-1">
           {canEdit && node.level === 4 && !isEditing && (
-            <button onClick={() => onStartEdit(node)}
-              className="text-gray-300 hover:text-blue-500 transition-colors p-1">
-              <Pencil size={11} />
-            </button>
+            <>
+              <button onClick={() => onStartEdit(node)} className="text-gray-300 hover:text-blue-500 transition-colors p-0.5">
+                <Pencil size={11} />
+              </button>
+              <button onClick={e => { e.stopPropagation(); onRevise(node) }}
+                className="px-1 py-0.5 text-[10px] font-semibold rounded bg-yellow-100 text-yellow-700 hover:bg-yellow-200 transition-colors">
+                추경
+              </button>
+              <button onClick={e => { e.stopPropagation(); onHistory(node) }}
+                className="px-1 py-0.5 text-[10px] font-semibold rounded bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors">
+                이력
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -437,7 +620,7 @@ function TreeRow({ node, executions, selectedItem, onSelect, editingId, editingV
         <TreeRow key={child.id} node={child} executions={executions} selectedItem={selectedItem} onSelect={onSelect}
           editingId={editingId} editingValue={editingValue}
           onStartEdit={onStartEdit} onEditChange={onEditChange} onSaveEdit={onSaveEdit} onCancelEdit={onCancelEdit}
-          canEdit={canEdit} />
+          canEdit={canEdit} onRevise={onRevise} onHistory={onHistory} />
       ))}
     </>
   )
@@ -462,6 +645,8 @@ export default function Budget() {
   const [showProgramModal, setShowProgramModal] = useState(false)
   const [showItemModal, setShowItemModal] = useState(false)
   const [showExecModal, setShowExecModal] = useState(false)
+  const [revisionTarget, setRevisionTarget] = useState(null)
+  const [historyTarget, setHistoryTarget] = useState(null)
 
   const fetchPrograms = useCallback(async () => {
     setLoading(l => ({ ...l, programs: true }))
@@ -627,7 +812,7 @@ export default function Budget() {
             <div className="w-24 text-right pr-2">집행액</div>
             <div className="w-24 text-right pr-2">잔액</div>
             <div className="w-16 text-right pr-2">집행률</div>
-            <div className="w-7" />
+            <div className="w-24" />
           </div>
         )}
       </div>
@@ -647,7 +832,9 @@ export default function Budget() {
             onEditChange={setEditingValue}
             onSaveEdit={saveInlineBudget}
             onCancelEdit={() => { setEditingId(null); setEditingValue('') }}
-            canEdit={canEdit} />
+            canEdit={canEdit}
+            onRevise={node => setRevisionTarget(node)}
+            onHistory={node => setHistoryTarget(node)} />
         ))}
       </div>
     </div>
@@ -775,10 +962,11 @@ export default function Budget() {
       {/* 모달 */}
       {showProgramModal && (
         <ProgramModal onClose={() => setShowProgramModal(false)}
-          onSave={() => { setShowProgramModal(false); fetchPrograms() }} />
+          onSave={() => { setShowProgramModal(false); fetchPrograms() }}
+          userId={profile?.id} />
       )}
       {showItemModal && selectedProgram && (
-        <ItemAddModal programId={selectedProgram.id} items={items}
+        <ItemAddModal programId={selectedProgram.id} items={items} userId={profile?.id}
           onClose={() => setShowItemModal(false)}
           onSave={() => { setShowItemModal(false); fetchItems(selectedProgram.id) }} />
       )}
@@ -786,6 +974,14 @@ export default function Budget() {
         <ExecAddModal programId={selectedProgram.id} items={items} defaultItemId={selectedItem?.id || ''}
           onClose={() => setShowExecModal(false)}
           onSave={() => { setShowExecModal(false); fetchExecutions(selectedProgram.id); fetchPrograms() }} />
+      )}
+      {revisionTarget && (
+        <RevisionModal item={revisionTarget} userId={profile?.id}
+          onClose={() => setRevisionTarget(null)}
+          onSave={() => { setRevisionTarget(null); fetchItems(selectedProgram.id) }} />
+      )}
+      {historyTarget && (
+        <HistoryModal item={historyTarget} onClose={() => setHistoryTarget(null)} />
       )}
     </>
   )
