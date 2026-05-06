@@ -427,6 +427,20 @@ function RevisionModal({ item, userId, onClose, onSave }) {
                   <span className="text-gray-500 w-24 flex-shrink-0">구분</span>
                   <span className="font-semibold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded">{nextRevType}</span>
                 </div>
+                <div className="bg-gray-50 rounded-lg px-3 py-2.5 flex gap-6 text-xs">
+                  <div>
+                    <span className="text-gray-400">당초금액</span>
+                    <span className="ml-2 font-semibold text-gray-700">
+                      {formatAmount(histories.find(h => h.revision_number === 0)?.new_amount ?? 0)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">현재금액</span>
+                    <span className="ml-2 font-semibold text-blue-700">
+                      {formatAmount(Number(item.budgeted_amount) || 0)}
+                    </span>
+                  </div>
+                </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1.5">변경 후 예산액 *</label>
                   <AmountInput value={newAmount} onChange={setNewAmount} autoFocus />
