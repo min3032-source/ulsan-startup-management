@@ -82,6 +82,7 @@ function Overlay({ onClose, children }) {
   )
 }
 
+// 항목 추가/수정 모달 (수정 시 현재예산 변경 → 추경 이력 자동 저장)
 function EntryModal({ mode, entry, entries, programId, onClose, onSaved }) {
   const divisions = [...new Set(entries.map(e => e.division))]
   const [form, setForm] = useState({
@@ -89,6 +90,7 @@ function EntryModal({ mode, entry, entries, programId, onClose, onSaved }) {
     sub_item: entry?.sub_item || '',
     calculation: entry?.calculation || '',
     original_amount: entry ? formatAmount(entry.original_amount) : '',
+    budgeted_amount: entry ? formatAmount(entry.budgeted_amount) : '',
     sort_order: entry?.sort_order ?? '',
   })
   const [saving, setSaving] = useState(false)
@@ -96,24 +98,42 @@ function EntryModal({ mode, entry, entries, programId, onClose, onSaved }) {
   async function handleSave() {
     if (!form.division || !form.sub_item) return
     setSaving(true)
-    const amt = parseAmount(form.original_amount)
+    const origAmt = parseAmount(form.original_amount)
+    const bdgAmt = mode === 'edit' ? parseAmount(form.budgeted_amount || form.original_amount) : origAmt
+
     if (mode === 'add') {
       const { data: newEntry } = await supabase.from('budget_entries').insert({
         program_id: programId, division: form.division, sub_item: form.sub_item,
-        calculation: form.calculation, original_amount: amt, budgeted_amount: amt,
+        calculation: form.calculation, original_amount: origAmt, budgeted_amount: origAmt,
         sort_order: Number(form.sort_order) || 0,
       }).select().single()
       if (newEntry) {
         await supabase.from('budget_entry_histories').insert({
           budget_entry_id: newEntry.id, revision_type: '당초', revision_number: 0,
-          previous_amount: null, new_amount: amt, reason: null,
+          previous_amount: null, new_amount: origAmt, reason: null,
         })
       }
     } else {
-      await supabase.from('budget_entries').update({
+      const prevBdg = Number(entry.budgeted_amount) || 0
+      const updates = {
         division: form.division, sub_item: form.sub_item, calculation: form.calculation,
-        original_amount: amt, sort_order: Number(form.sort_order) || 0,
-      }).eq('id', entry.id)
+        original_amount: origAmt, sort_order: Number(form.sort_order) || 0,
+      }
+      if (bdgAmt !== prevBdg) {
+        const revCount = (Number(entry.revision_count) || 0) + 1
+        updates.budgeted_amount = bdgAmt
+        updates.revision_count = revCount
+        await supabase.from('budget_entry_histories').insert({
+          budget_entry_id: entry.id,
+          revision_type: `추경${revCount}`,
+          revision_number: revCount,
+          previous_amount: prevBdg,
+          new_amount: bdgAmt,
+          reason: null,
+          changed_at: new Date().toISOString(),
+        })
+      }
+      await supabase.from('budget_entries').update(updates).eq('id', entry.id)
     }
     setSaving(false)
     onSaved(); onClose()
@@ -144,6 +164,12 @@ function EntryModal({ mode, entry, entries, programId, onClose, onSaved }) {
           <label className={L}>당초예산</label>
           <AmountInput value={form.original_amount} onChange={v => setForm({ ...form, original_amount: v })} />
         </div>
+        {mode === 'edit' && (
+          <div className={F}>
+            <label className={L}>현재예산 <span className="text-blue-500 font-normal">(변경 시 추경 이력 자동 저장)</span></label>
+            <AmountInput value={form.budgeted_amount} onChange={v => setForm({ ...form, budgeted_amount: v })} />
+          </div>
+        )}
         <div className={F}>
           <label className={L}>정렬순서</label>
           <input type="number" value={form.sort_order} onChange={e => setForm({ ...form, sort_order: e.target.value })} className={I} placeholder="0" />
@@ -159,136 +185,41 @@ function EntryModal({ mode, entry, entries, programId, onClose, onSaved }) {
   )
 }
 
-function RevisionModal({ entry, onClose, onSaved }) {
-  const [histories, setHistories] = useState([])
-  const [newAmount, setNewAmount] = useState('')
-  const [reason, setReason] = useState('')
-  const [editingId, setEditingId] = useState(null)
-  const [editReason, setEditReason] = useState('')
-
-  useEffect(() => { load() }, [])
-
-  async function load() {
-    const { data } = await supabase.from('budget_entry_histories')
-      .select('*').eq('budget_entry_id', entry.id).order('revision_number')
-    setHistories(data || [])
-  }
-
-  async function handleAdd() {
-    const amt = parseAmount(newAmount)
-    if (!amt) return
-    const maxRev = Math.max(...histories.map(h => h.revision_number || 0), 0)
-    await supabase.from('budget_entry_histories').insert({
-      budget_entry_id: entry.id, revision_type: '추경',
-      revision_number: maxRev + 1,
-      previous_amount: Number(entry.budgeted_amount) || 0,
-      new_amount: amt, reason,
-      changed_at: new Date().toISOString(),
-    })
-    await supabase.from('budget_entries').update({ budgeted_amount: amt }).eq('id', entry.id)
-    entry.budgeted_amount = amt
-    setNewAmount(''); setReason('')
-    onSaved(); load()
-  }
-
-  async function handleDelete(h) {
-    await supabase.from('budget_entry_histories').delete().eq('id', h.id)
-    const remaining = histories.filter(x => x.id !== h.id)
-    const latest = remaining.sort((a, b) => (b.revision_number || 0) - (a.revision_number || 0))[0]
-    if (latest) {
-      await supabase.from('budget_entries').update({ budgeted_amount: latest.new_amount }).eq('id', entry.id)
-      entry.budgeted_amount = latest.new_amount
-    }
-    onSaved(); load()
-  }
-
-  async function handleEditSave(h) {
-    await supabase.from('budget_entry_histories').update({ reason: editReason }).eq('id', h.id)
-    setEditingId(null); load()
-  }
-
-  const TH = 'text-xs font-semibold text-gray-600 px-2 py-2 text-left border-b border-gray-200'
-  const TD = 'text-xs px-2 py-2 border-b border-gray-100'
-
-  return (
-    <Overlay onClose={onClose}>
-      <div className="bg-white rounded-xl shadow-xl p-6 mx-4" style={{ width: '660px', maxWidth: '96vw', maxHeight: '85vh', overflowY: 'auto' }}>
-        <h2 className="text-base font-bold text-gray-800 mb-1">추경 이력</h2>
-        <p className="text-xs text-gray-500 mb-4">{entry.division} / {entry.sub_item} — {entry.calculation?.slice(0, 30)}</p>
-
-        <table className="w-full mb-4">
-          <thead>
-            <tr className="bg-gray-50">
-              {['구분','예산액','증감','변경일','사유','관리'].map(h => <th key={h} className={TH}>{h}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {histories.map(h => (
-              <tr key={h.id}>
-                <td className={TD}><span className={`px-1.5 py-0.5 rounded text-xs ${h.revision_type === '당초' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}`}>{h.revision_type}</span></td>
-                <td className={TD + ' text-right'}>{formatAmount(h.new_amount)}</td>
-                <td className={TD + ' text-right'} style={{ color: h.previous_amount !== null ? (h.new_amount - h.previous_amount >= 0 ? '#16a34a' : '#dc2626') : '#6b7280' }}>
-                  {h.previous_amount !== null ? (h.new_amount - h.previous_amount >= 0 ? '+' : '') + formatAmount(h.new_amount - h.previous_amount) : '-'}
-                </td>
-                <td className={TD}>{h.changed_at ? h.changed_at.slice(0, 10) : '-'}</td>
-                <td className={TD}>
-                  {editingId === h.id
-                    ? <input value={editReason} onChange={e => setEditReason(e.target.value)} className="border border-gray-300 rounded px-2 py-0.5 text-xs w-full outline-none" />
-                    : (h.reason || '-')}
-                </td>
-                <td className={TD}>
-                  <div className="flex gap-1">
-                    {editingId === h.id
-                      ? <>
-                        <button onClick={() => handleEditSave(h)} className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">저장</button>
-                        <button onClick={() => setEditingId(null)} className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">취소</button>
-                      </>
-                      : <>
-                        <button onClick={() => { setEditingId(h.id); setEditReason(h.reason || '') }} className="text-xs px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded">수정</button>
-                        <button onClick={() => handleDelete(h)} className="text-xs px-1.5 py-0.5 bg-red-50 text-red-600 rounded">삭제</button>
-                      </>
-                    }
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <div className="border-t pt-4">
-          <p className="text-xs font-semibold text-gray-700 mb-2">새 추경 입력</p>
-          <div className="flex gap-2 items-start">
-            <div className="flex-1">
-              <AmountInput value={newAmount} onChange={setNewAmount} placeholder="변경 후 예산액" />
-            </div>
-            <input value={reason} onChange={e => setReason(e.target.value)} placeholder="사유"
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400" />
-            <button onClick={handleAdd} className="px-4 py-2 text-sm font-semibold text-white rounded-lg whitespace-nowrap" style={{ background: '#1e3a5f' }}>추경 저장</button>
-          </div>
-        </div>
-        <button onClick={onClose} className="mt-4 w-full py-2 text-sm border border-gray-300 rounded-lg text-gray-600">닫기</button>
-      </div>
-    </Overlay>
-  )
-}
-
-function ExecAddModal({ entries, programId, defaultEntryId, onClose, onSaved }) {
+// 집행 추가 모달 (잔액 초과 방지)
+function ExecAddModal({ entries, programId, defaultEntryId, execMap, onClose, onSaved }) {
   const [form, setForm] = useState({
-    budget_entry_id: defaultEntryId || (entries[0]?.id || ''),
+    budget_entry_id: String(defaultEntryId || entries[0]?.id || ''),
     execution_date: new Date().toISOString().slice(0, 10),
     amount: '',
     description: '',
   })
   const [saving, setSaving] = useState(false)
 
+  const selectedEntry = entries.find(e => String(e.id) === form.budget_entry_id)
+  const currentExec = selectedEntry ? (execMap[selectedEntry.id] || 0) : 0
+  const remaining = selectedEntry ? (Number(selectedEntry.budgeted_amount) || 0) - currentExec : 0
+  const inputAmt = parseAmount(form.amount)
+  const isOverBudget = inputAmt > 0 && inputAmt > remaining
+
   async function handleSave() {
     if (!form.amount || !form.budget_entry_id) return
+    if (isOverBudget) return
     setSaving(true)
+    // 서버에서 한번 더 잔액 체크
+    const { data: serverExecs } = await supabase.from('budget_entry_executions')
+      .select('amount').eq('budget_entry_id', form.budget_entry_id)
+    const serverTotal = (serverExecs || []).reduce((s, e) => s + (Number(e.amount) || 0), 0)
+    const entryBdg = Number(selectedEntry?.budgeted_amount || 0)
+    if (serverTotal + inputAmt > entryBdg) {
+      alert('잔액을 초과합니다')
+      setSaving(false)
+      return
+    }
     await supabase.from('budget_entry_executions').insert({
       budget_entry_id: form.budget_entry_id,
       program_id: programId,
       execution_date: form.execution_date,
-      amount: parseAmount(form.amount),
+      amount: inputAmt,
       description: form.description,
     })
     setSaving(false)
@@ -308,15 +239,24 @@ function ExecAddModal({ entries, programId, defaultEntryId, onClose, onSaved }) 
           </div>
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">항목 선택</label>
-            <select value={form.budget_entry_id} onChange={e => setForm({ ...form, budget_entry_id: e.target.value })} className={I}>
+            <select value={form.budget_entry_id} onChange={e => setForm({ ...form, budget_entry_id: e.target.value, amount: '' })} className={I}>
               {entries.map(e => (
-                <option key={e.id} value={e.id}>{e.division} — {e.sub_item} ({e.calculation?.slice(0, 22)}...)</option>
+                <option key={e.id} value={String(e.id)}>{e.division} — {e.sub_item} ({e.calculation?.slice(0, 22)}...)</option>
               ))}
             </select>
           </div>
+          {selectedEntry && (
+            <div className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+              잔액: <span className="font-semibold text-gray-700">{formatKorean(remaining)}</span>
+              <span className="text-gray-400 ml-2">({formatAmount(remaining)}원)</span>
+            </div>
+          )}
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">금액</label>
             <AmountInput value={form.amount} onChange={v => setForm({ ...form, amount: v })} />
+            {isOverBudget && (
+              <p className="text-xs text-red-500 mt-1 pl-1">잔액({formatAmount(remaining)}원)을 초과할 수 없습니다</p>
+            )}
           </div>
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">적요</label>
@@ -324,7 +264,7 @@ function ExecAddModal({ entries, programId, defaultEntryId, onClose, onSaved }) 
           </div>
         </div>
         <div className="flex gap-2 mt-4">
-          <button onClick={handleSave} disabled={saving}
+          <button onClick={handleSave} disabled={saving || isOverBudget}
             className="flex-1 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-60"
             style={{ background: '#1e3a5f' }}>{saving ? '저장 중...' : '저장'}</button>
           <button onClick={onClose} className="flex-1 py-2 text-sm border border-gray-300 rounded-lg text-gray-600">취소</button>
@@ -334,14 +274,23 @@ function ExecAddModal({ entries, programId, defaultEntryId, onClose, onSaved }) 
   )
 }
 
-function ProgramModal({ onClose, onSaved }) {
-  const [form, setForm] = useState({ name: '', year: new Date().getFullYear(), manager: '' })
+// 사업 등록/수정 모달
+function ProgramModal({ program, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    name: program?.name || '',
+    year: program?.year || new Date().getFullYear(),
+    manager: program?.manager || '',
+  })
   const [saving, setSaving] = useState(false)
 
   async function handleSave() {
     if (!form.name) return
     setSaving(true)
-    await supabase.from('budget_programs').insert({ name: form.name, year: Number(form.year), manager: form.manager })
+    if (program) {
+      await supabase.from('budget_programs').update({ name: form.name, year: Number(form.year), manager: form.manager }).eq('id', program.id)
+    } else {
+      await supabase.from('budget_programs').insert({ name: form.name, year: Number(form.year), manager: form.manager })
+    }
     setSaving(false)
     onSaved(); onClose()
   }
@@ -350,7 +299,7 @@ function ProgramModal({ onClose, onSaved }) {
   return (
     <Overlay onClose={onClose}>
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
-        <h2 className="text-base font-bold text-gray-800 mb-4">사업 등록</h2>
+        <h2 className="text-base font-bold text-gray-800 mb-4">{program ? '사업 수정' : '사업 등록'}</h2>
         <div className="flex flex-col gap-3">
           <div><label className="text-xs font-medium text-gray-600 block mb-1">사업명</label><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className={I} placeholder="사업명" /></div>
           <div><label className="text-xs font-medium text-gray-600 block mb-1">연도</label>
@@ -360,7 +309,7 @@ function ProgramModal({ onClose, onSaved }) {
           <div><label className="text-xs font-medium text-gray-600 block mb-1">담당자</label><input value={form.manager} onChange={e => setForm({ ...form, manager: e.target.value })} className={I} placeholder="홍길동" /></div>
         </div>
         <div className="flex gap-2 mt-4">
-          <button onClick={handleSave} disabled={saving} className="flex-1 py-2 text-sm font-semibold text-white rounded-lg" style={{ background: '#1e3a5f' }}>{saving ? '저장 중...' : '등록'}</button>
+          <button onClick={handleSave} disabled={saving} className="flex-1 py-2 text-sm font-semibold text-white rounded-lg" style={{ background: '#1e3a5f' }}>{saving ? '저장 중...' : program ? '수정' : '등록'}</button>
           <button onClick={onClose} className="flex-1 py-2 text-sm border border-gray-300 rounded-lg text-gray-600">취소</button>
         </div>
       </div>
@@ -382,9 +331,9 @@ export default function Budget() {
   const [loadingDetail, setLoadingDetail] = useState(false)
 
   const [entryModal, setEntryModal] = useState(null)
-  const [revModal, setRevModal] = useState(null)
   const [execModal, setExecModal] = useState(null)
   const [progModal, setProgModal] = useState(false)
+  const [progEditModal, setProgEditModal] = useState(null)
   const [stdConfirm, setStdConfirm] = useState(false)
   const [stdLoading, setStdLoading] = useState(false)
 
@@ -411,7 +360,7 @@ export default function Budget() {
     })
     setPrograms(progs || [])
     setProgramSummary(summary)
-    if ((progs || []).length > 0) setSelectedProgramId(String(progs[0].id))
+    if ((progs || []).length > 0 && !selectedProgramId) setSelectedProgramId(String(progs[0].id))
     setLoading(false)
   }
 
@@ -431,6 +380,7 @@ export default function Budget() {
     if (!window.confirm('이 항목을 삭제하시겠습니까?')) return
     await supabase.from('budget_entries').delete().eq('id', id)
     await loadDetail(selectedProgramId)
+    await loadPrograms()
   }
 
   async function deleteProgram(pid, e) {
@@ -444,6 +394,7 @@ export default function Budget() {
   async function deleteExec(id) {
     await supabase.from('budget_entry_executions').delete().eq('id', id)
     await loadDetail(selectedProgramId)
+    await loadPrograms()
   }
 
   async function loadStandardItems() {
@@ -475,8 +426,7 @@ export default function Budget() {
   })
 
   const totalBudget = entries.reduce((s, e) => s + (Number(e.budgeted_amount) || 0), 0)
-  const totalOriginal = entries.reduce((s, e) => s + (Number(e.original_amount) || 0), 0)
-  const totalExecAmt = Object.values(execMap).reduce((s, v) => s + v, 0)
+  const totalExecAmt = executions.reduce((s, e) => s + (Number(e.amount) || 0), 0)
   const totalRemain = totalBudget - totalExecAmt
   const totalRate = totalBudget > 0 ? totalExecAmt / totalBudget * 100 : 0
 
@@ -484,7 +434,7 @@ export default function Budget() {
   const selectedEntryExecs = executions.filter(e => e.budget_entry_id === selectedEntryId)
   const selectedEntry = entries.find(e => e.id === selectedEntryId)
 
-  // Group entries by division (preserving sort order)
+  // 구분별 그룹 (순서 유지)
   const groups = []
   const divMap = new Map()
   entries.forEach(entry => {
@@ -560,11 +510,10 @@ export default function Budget() {
               </div>
             </td>
             {!isViewer && (
-              <td style={{ ...CS, textAlign: 'center', minWidth: '130px' }}>
+              <td style={{ ...CS, textAlign: 'center', minWidth: '110px' }}>
                 <div style={{ display: 'flex', gap: '3px', justifyContent: 'center', flexWrap: 'wrap' }}>
                   {[
                     { label: '수정', bg: '#e0e7ff', color: '#3730a3', fn: e => { e.stopPropagation(); setEntryModal({ mode: 'edit', entry }) } },
-                    { label: '추경', bg: '#fef3c7', color: '#92400e', fn: e => { e.stopPropagation(); setRevModal(entry) } },
                     { label: '집행', bg: '#dcfce7', color: '#166534', fn: e => { e.stopPropagation(); setExecModal({ entryId: entry.id }) } },
                     { label: '삭제', bg: '#fee2e2', color: '#991b1b', fn: e => { e.stopPropagation(); deleteEntry(entry.id) } },
                   ].map(({ label, bg, color, fn }) => (
@@ -610,15 +559,26 @@ export default function Budget() {
               <div key={prog.id} onClick={() => setSelectedProgramId(pid)}
                 style={{ minWidth: '190px', border: isSel ? '2px solid #2563eb' : '2px solid #e5e7eb', background: isSel ? '#eff6ff' : 'white', borderRadius: '12px', padding: '14px', cursor: 'pointer', flexShrink: 0, position: 'relative' }}>
                 {!isViewer && (
-                  <button onClick={e => deleteProgram(prog.id, e)}
-                    title="사업 삭제"
-                    style={{ position: 'absolute', top: '8px', right: '8px', width: '22px', height: '22px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#9ca3af', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', lineHeight: 1 }}
-                    onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-                    onMouseLeave={e => e.currentTarget.style.color = '#9ca3af'}>
-                    🗑
-                  </button>
+                  <div style={{ position: 'absolute', top: '8px', right: '8px', display: 'flex', gap: '2px' }}>
+                    <button
+                      onClick={e => { e.stopPropagation(); setProgEditModal(prog) }}
+                      title="사업 수정"
+                      style={{ width: '22px', height: '22px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#9ca3af', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px' }}
+                      onMouseEnter={e => e.currentTarget.style.color = '#2563eb'}
+                      onMouseLeave={e => e.currentTarget.style.color = '#9ca3af'}>
+                      ✏
+                    </button>
+                    <button
+                      onClick={e => deleteProgram(prog.id, e)}
+                      title="사업 삭제"
+                      style={{ width: '22px', height: '22px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#9ca3af', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px' }}
+                      onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                      onMouseLeave={e => e.currentTarget.style.color = '#9ca3af'}>
+                      🗑
+                    </button>
+                  </div>
                 )}
-                <div style={{ fontWeight: '600', fontSize: '13px', color: '#111827', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: isViewer ? '0' : '20px' }}>{prog.name}</div>
+                <div style={{ fontWeight: '600', fontSize: '13px', color: '#111827', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: isViewer ? '0' : '50px' }}>{prog.name}</div>
                 <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '8px' }}>{prog.year}년{prog.manager ? ` · ${prog.manager}` : ''}</div>
                 <div style={{ fontSize: '13px', fontWeight: '500', color: '#1d4ed8', marginBottom: '8px' }}>{formatKorean(sm.budget)}</div>
                 <div style={{ background: '#e5e7eb', borderRadius: '999px', height: '5px', overflow: 'hidden' }}>
@@ -660,7 +620,7 @@ export default function Budget() {
 
           {/* 메인 2컬럼 */}
           <div className="flex gap-4">
-            {/* 왼쪽: 예산 현황 테이블 (60%) */}
+            {/* 왼쪽: 예산 현황 테이블 */}
             <div className="flex-1 min-w-0">
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
@@ -701,7 +661,7 @@ export default function Budget() {
               </div>
             </div>
 
-            {/* 오른쪽: 집행 내역 패널 (40%) */}
+            {/* 오른쪽: 집행 내역 패널 */}
             <div style={{ width: '340px', flexShrink: 0 }}>
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden h-full flex flex-col">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
@@ -775,19 +735,20 @@ export default function Budget() {
           onClose={() => setEntryModal(null)}
           onSaved={async () => { await loadDetail(selectedProgramId); await loadPrograms() }} />
       )}
-      {revModal && (
-        <RevisionModal entry={revModal}
-          onClose={() => setRevModal(null)}
-          onSaved={() => loadDetail(selectedProgramId)} />
-      )}
       {execModal && (
         <ExecAddModal entries={entries} programId={selectedProgramId}
           defaultEntryId={execModal.entryId}
+          execMap={execMap}
           onClose={() => setExecModal(null)}
           onSaved={async () => { await loadDetail(selectedProgramId); await loadPrograms() }} />
       )}
       {progModal && (
         <ProgramModal onClose={() => setProgModal(false)} onSaved={loadPrograms} />
+      )}
+      {progEditModal && (
+        <ProgramModal program={progEditModal}
+          onClose={() => setProgEditModal(null)}
+          onSaved={loadPrograms} />
       )}
     </div>
   )
