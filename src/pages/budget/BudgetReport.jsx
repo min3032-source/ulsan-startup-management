@@ -109,7 +109,6 @@ export default function BudgetReport() {
   const [programs, setPrograms] = useState([])
   const [selectedProgramId, setSelectedProgramId] = useState('')
   const [baseDate, setBaseDate] = useState(todayStr())
-  const [mode, setMode] = useState('budget')
   const [entries, setEntries] = useState([])
   const [execMap, setExecMap] = useState({})
   const [loading, setLoading] = useState(false)
@@ -191,17 +190,6 @@ export default function BudgetReport() {
             style={{ border: '1px solid #d1d5db', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', outline: 'none' }} />
         </div>
 
-        <div style={{ display: 'flex', border: '1px solid #d1d5db', borderRadius: '6px', overflow: 'hidden' }}>
-          {[['budget', '예산서'], ['exec', '집행현황']].map(([val, label]) => (
-            <button key={val} onClick={() => setMode(val)} style={{
-              padding: '6px 18px', fontSize: '13px', border: 'none', cursor: 'pointer',
-              background: mode === val ? '#1e3a5f' : 'white',
-              color: mode === val ? 'white' : '#374151',
-              fontWeight: mode === val ? '600' : '400',
-            }}>{label}</button>
-          ))}
-        </div>
-
         <button onClick={() => window.print()} style={{
           padding: '6px 18px', fontSize: '13px', background: '#1e3a5f',
           color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600'
@@ -216,7 +204,7 @@ export default function BudgetReport() {
         <div style={{ marginBottom: '20px' }}>
           <div style={{ textAlign: 'center', fontSize: '11px', color: '#6b7280', marginBottom: '6px' }}>울산경제일자리진흥원</div>
           <div style={{ textAlign: 'center', fontSize: '22px', fontWeight: 'bold', color: '#111827', marginBottom: '14px' }}>
-            {mode === 'budget' ? '사업비 예산서' : '사업비 집행현황 보고서'}
+            사업비 집행현황
           </div>
           <div style={{ textAlign: 'right', fontSize: '11px', color: '#4b5563', lineHeight: '1.9' }}>
             <div>사업명: <strong>{selectedProgram?.name || '-'}</strong></div>
