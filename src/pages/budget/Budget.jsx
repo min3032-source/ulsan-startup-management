@@ -165,26 +165,26 @@ function EntryModal({ mode, entry, entries, programId, onClose, onSaved }) {
 // 집행 추가 모달 (잔액 초과 방지)
 function ExecAddModal({ entries, programId, defaultEntryId, execMap, onClose, onSaved }) {
   const [form, setForm] = useState({
-    budget_entry_id: String(defaultEntryId || entries[0]?.id || ''),
+    entry_id: String(defaultEntryId || entries[0]?.id || ''),
     execution_date: new Date().toISOString().slice(0, 10),
     amount: '',
     description: '',
   })
   const [saving, setSaving] = useState(false)
 
-  const selectedEntry = entries.find(e => String(e.id) === form.budget_entry_id)
+  const selectedEntry = entries.find(e => String(e.id) === form.entry_id)
   const currentExec = selectedEntry ? (execMap[selectedEntry.id] || 0) : 0
   const remaining = selectedEntry ? (Number(selectedEntry.budgeted_amount) || 0) - currentExec : 0
   const inputAmt = parseAmount(form.amount)
   const isOverBudget = inputAmt > 0 && inputAmt > remaining
 
   async function handleSave() {
-    if (!form.amount || !form.budget_entry_id) return
+    if (!form.amount || !form.entry_id) return
     if (isOverBudget) return
     setSaving(true)
     // 서버에서 한번 더 잔액 체크
     const { data: serverExecs } = await supabase.from('budget_entry_executions')
-      .select('amount').eq('budget_entry_id', form.budget_entry_id)
+      .select('amount').eq('entry_id', form.entry_id)
     const serverTotal = (serverExecs || []).reduce((s, e) => s + (Number(e.amount) || 0), 0)
     const entryBdg = Number(selectedEntry?.budgeted_amount || 0)
     if (serverTotal + inputAmt > entryBdg) {
@@ -192,13 +192,14 @@ function ExecAddModal({ entries, programId, defaultEntryId, execMap, onClose, on
       setSaving(false)
       return
     }
-    await supabase.from('budget_entry_executions').insert({
-      budget_entry_id: form.budget_entry_id,
+    const { data, error } = await supabase.from('budget_entry_executions').insert({
+      entry_id: form.entry_id,
       program_id: programId,
       execution_date: form.execution_date,
       amount: inputAmt,
       description: form.description,
     })
+    console.log('exec insert result:', data, error)
     setSaving(false)
     onSaved(); onClose()
   }
@@ -216,7 +217,7 @@ function ExecAddModal({ entries, programId, defaultEntryId, execMap, onClose, on
           </div>
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">항목 선택</label>
-            <select value={form.budget_entry_id} onChange={e => setForm({ ...form, budget_entry_id: e.target.value, amount: '' })} className={I}>
+            <select value={form.entry_id} onChange={e => setForm({ ...form, entry_id: e.target.value, amount: '' })} className={I}>
               {entries.map(e => (
                 <option key={e.id} value={String(e.id)}>{e.division} — {e.sub_item} ({e.calculation?.slice(0, 22)}...)</option>
               ))}
@@ -542,7 +543,9 @@ export default function Budget() {
   // Derived
   const execMap = {}
   executions.forEach(e => {
-    execMap[e.budget_entry_id] = (execMap[e.budget_entry_id] || 0) + (Number(e.amount) || 0)
+    if (e.entry_id) {
+      execMap[e.entry_id] = (execMap[e.entry_id] || 0) + (Number(e.amount) || 0)
+    }
   })
 
   const totalBudget = entries.reduce((s, e) => s + (Number(e.budgeted_amount) || 0), 0)
@@ -551,7 +554,7 @@ export default function Budget() {
   const totalRate = totalBudget > 0 ? totalExecAmt / totalBudget * 100 : 0
 
   const selectedProgram = programs.find(p => String(p.id) === selectedProgramId)
-  const selectedEntryExecs = executions.filter(e => e.budget_entry_id === selectedEntryId)
+  const selectedEntryExecs = executions.filter(e => e.entry_id === selectedEntryId)
   const selectedEntry = entries.find(e => e.id === selectedEntryId)
 
   // 구분별 그룹 (순서 유지)
