@@ -132,13 +132,13 @@ export default function BudgetReport() {
   useEffect(() => {
     if (!selectedProgramId) { setExecMap({}); return }
     supabase.from('budget_entry_executions')
-      .select('budget_entry_id, amount')
+      .select('entry_id, amount')
       .eq('program_id', selectedProgramId)
       .limit(100000)
       .then(({ data }) => {
         const em = {}
         ;(data || []).forEach(e => {
-          em[e.budget_entry_id] = (em[e.budget_entry_id] || 0) + (Number(e.amount) || 0)
+          if (e.entry_id) em[e.entry_id] = (em[e.entry_id] || 0) + (Number(e.amount) || 0)
         })
         setExecMap(em)
       })
