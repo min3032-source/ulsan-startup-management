@@ -307,10 +307,10 @@ function ExcelUploadModal({ programId, onClose, onSaved }) {
 
   function downloadTemplate() {
     const ws = XLSX.utils.aoa_to_sheet([
-      ['구분', '세목', '산출내역', '예산액(원)'],
-      ['인건비', '인건비', '전담인력 인건비(6명)', 405700000],
-      ['일반운영비', '사무관리비', '소모품비 및 인쇄비 7,000×1식', 7000000],
-      ['일반운영비', '사무관리비', '임차료 및 관리비 50,000×12월', 600000000],
+      ['순번', '구분', '세목', '산출내역', '예산액(원)'],
+      [1, '인건비', '인건비', '전담인력 인건비(6명)', 405700000],
+      [2, '일반운영비', '사무관리비', '소모품비 및 인쇄비 7,000×1식', 7000000],
+      [3, '일반운영비', '사무관리비', '임차료 및 관리비 50,000×12월', 600000000],
     ])
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, '사업비')
@@ -330,12 +330,14 @@ function ExcelUploadModal({ programId, onClose, onSaved }) {
       data.forEach((row, i) => {
         const division = String(row['구분'] || '').trim()
         const sub_item = String(row['세목'] || '').trim()
+        if (division === '합 계' || sub_item === '합 계') return
         const calculation = String(row['산출내역'] || '').trim()
         const amt = Number(row['예산액(원)'])
+        const sortOrder = row['순번'] != null ? Number(row['순번']) : null
         if (!division) { errs.push(`${i + 2}행: 구분 누락`); return }
         if (!sub_item) { errs.push(`${i + 2}행: 세목 누락`); return }
         if (isNaN(amt) || amt <= 0) { errs.push(`${i + 2}행: 예산액 오류`); return }
-        parsed.push({ division, sub_item, calculation, original_amount: amt, budgeted_amount: amt })
+        parsed.push({ sort_order: sortOrder, division, sub_item, calculation, original_amount: amt, budgeted_amount: amt })
       })
       setParseErrors(errs)
       setRows(parsed)
@@ -357,10 +359,11 @@ function ExcelUploadModal({ programId, onClose, onSaved }) {
       sortBase = (existing?.[0]?.sort_order || 0) + 1
     }
     for (const [i, row] of rows.entries()) {
+      const sortOrder = row.sort_order != null ? row.sort_order : sortBase + i
       const { data: entry } = await supabase.from('budget_entries').insert({
         program_id: programId, division: row.division, sub_item: row.sub_item,
         calculation: row.calculation, original_amount: row.original_amount,
-        budgeted_amount: row.budgeted_amount, sort_order: sortBase + i,
+        budgeted_amount: row.budgeted_amount, sort_order: sortOrder,
       }).select().single()
       if (entry) {
         await supabase.from('budget_entry_histories').insert({
@@ -387,14 +390,14 @@ function ExcelUploadModal({ programId, onClose, onSaved }) {
             <div className="overflow-x-auto mb-4 border border-gray-200 rounded-lg">
               <table className="w-full border-collapse">
                 <thead>
-                  <tr>{['구분', '세목', '산출내역', '예산액(원)'].map(h => <th key={h} className={GTH}>{h}</th>)}</tr>
+                  <tr>{['순번', '구분', '세목', '산출내역', '예산액(원)'].map(h => <th key={h} className={GTH}>{h}</th>)}</tr>
                 </thead>
                 <tbody>
                   {[
-                    ['인건비', '인건비', '전담인력 인건비(6명)', '405,700,000'],
-                    ['일반운영비', '사무관리비', '소모품비 및 인쇄비 7,000×1식', '7,000,000'],
+                    ['1', '인건비', '인건비', '전담인력 인건비(6명)', '405,700,000'],
+                    ['2', '일반운영비', '사무관리비', '소모품비 및 인쇄비 7,000×1식', '7,000,000'],
                   ].map((r, i) => (
-                    <tr key={i}>{r.map((c, j) => <td key={j} className={GTD + (j === 3 ? ' text-right' : '')}>{c}</td>)}</tr>
+                    <tr key={i}>{r.map((c, j) => <td key={j} className={GTD + (j === 4 ? ' text-right' : '')}>{c}</td>)}</tr>
                   ))}
                 </tbody>
               </table>
@@ -424,11 +427,12 @@ function ExcelUploadModal({ programId, onClose, onSaved }) {
             <div className="border border-gray-200 rounded-lg overflow-hidden mb-4" style={{ maxHeight: '280px', overflowY: 'auto' }}>
               <table className="w-full border-collapse">
                 <thead className="sticky top-0">
-                  <tr>{['구분', '세목', '산출내역', '예산액(원)'].map(h => <th key={h} className={GTH}>{h}</th>)}</tr>
+                  <tr>{['순번', '구분', '세목', '산출내역', '예산액(원)'].map(h => <th key={h} className={GTH}>{h}</th>)}</tr>
                 </thead>
                 <tbody>
                   {rows.map((r, i) => (
                     <tr key={i}>
+                      <td className={GTD + ' text-right'}>{r.sort_order ?? i + 1}</td>
                       <td className={GTD}>{r.division}</td>
                       <td className={GTD}>{r.sub_item}</td>
                       <td className={GTD}>{r.calculation}</td>
@@ -552,6 +556,22 @@ export default function Budget() {
     await fetchEntries(selectedProgramId)
     await fetchExecutions(selectedProgramId)
     await loadPrograms()
+  }
+
+  function downloadExcel() {
+    if (!selectedProgramId) { alert('사업을 먼저 선택해주세요'); return }
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+    const progName = selectedProgram?.name || '사업'
+    const totalAmt = entries.reduce((s, e) => s + (Number(e.budgeted_amount) || 0), 0)
+    const wsData = [
+      ['순번', '구분', '세목', '산출내역', '예산액(원)'],
+      ...entries.map(e => [e.sort_order, e.division, e.sub_item, e.calculation, Number(e.budgeted_amount) || 0]),
+      ['', '합 계', '', '', totalAmt],
+    ]
+    const ws = XLSX.utils.aoa_to_sheet(wsData)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '사업비')
+    XLSX.writeFile(wb, `사업비_${progName}_${today}.xlsx`)
   }
 
 
@@ -768,9 +788,14 @@ export default function Budget() {
                   <h2 className="text-sm font-semibold text-gray-700">{selectedProgram?.name} 예산 현황</h2>
                   {!isViewer && (
                     <div className="flex gap-2">
+                      <button onClick={downloadExcel}
+                        className="px-3 py-1.5 text-xs font-semibold text-white rounded-lg"
+                        style={{ background: '#059669' }}>
+                        📥 엑셀 다운로드
+                      </button>
                       <button onClick={() => setExcelModal(true)}
                         className="px-3 py-1.5 text-xs border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">
-                        📥 엑셀 업로드
+                        📤 엑셀 업로드
                       </button>
                       <button onClick={() => setEntryModal({ mode: 'add' })}
                         className="px-3 py-1.5 text-xs font-semibold text-white rounded-lg"
