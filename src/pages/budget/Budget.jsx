@@ -201,7 +201,8 @@ function ExecAddModal({ entries, programId, defaultEntryId, execMap, onClose, on
     })
     console.log('exec insert result:', data, error)
     setSaving(false)
-    onSaved(); onClose()
+    onClose()
+    await onSaved()
   }
 
   const I = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400'
@@ -480,7 +481,29 @@ export default function Budget() {
   const [excelModal, setExcelModal] = useState(false)
 
   useEffect(() => { loadPrograms() }, [])
-  useEffect(() => { if (selectedProgramId) loadDetail(selectedProgramId) }, [selectedProgramId])
+  useEffect(() => {
+    if (selectedProgramId) {
+      setSelectedEntryId(null)
+      fetchEntries(selectedProgramId)
+      fetchExecutions(selectedProgramId)
+    }
+  }, [selectedProgramId])
+
+  async function fetchEntries(pid) {
+    setLoadingDetail(true)
+    const { data } = await supabase.from('budget_entries').select('*').eq('program_id', pid).order('sort_order')
+    setEntries(data || [])
+    setLoadingDetail(false)
+  }
+
+  async function fetchExecutions(programId) {
+    const { data, error } = await supabase
+      .from('budget_entry_executions')
+      .select('*')
+      .eq('program_id', programId)
+      .order('execution_date', { ascending: false })
+    if (!error) setExecutions(data || [])
+  }
 
   async function loadPrograms() {
     setLoading(true)
@@ -506,22 +529,11 @@ export default function Budget() {
     setLoading(false)
   }
 
-  async function loadDetail(pid) {
-    setLoadingDetail(true)
-    const [{ data: ents }, { data: execs }] = await Promise.all([
-      supabase.from('budget_entries').select('*').eq('program_id', pid).order('sort_order'),
-      supabase.from('budget_entry_executions').select('*').eq('program_id', pid).order('execution_date', { ascending: false }),
-    ])
-    setEntries(ents || [])
-    setExecutions(execs || [])
-    setSelectedEntryId(null)
-    setLoadingDetail(false)
-  }
-
   async function deleteEntry(id) {
     if (!window.confirm('이 항목을 삭제하시겠습니까?')) return
     await supabase.from('budget_entries').delete().eq('id', id)
-    await loadDetail(selectedProgramId)
+    await fetchEntries(selectedProgramId)
+    await fetchExecutions(selectedProgramId)
     await loadPrograms()
   }
 
@@ -535,7 +547,8 @@ export default function Budget() {
 
   async function deleteExec(id) {
     await supabase.from('budget_entry_executions').delete().eq('id', id)
-    await loadDetail(selectedProgramId)
+    await fetchEntries(selectedProgramId)
+    await fetchExecutions(selectedProgramId)
     await loadPrograms()
   }
 
@@ -554,8 +567,8 @@ export default function Budget() {
   const totalRate = totalBudget > 0 ? totalExecAmt / totalBudget * 100 : 0
 
   const selectedProgram = programs.find(p => String(p.id) === selectedProgramId)
-  const selectedEntryExecs = executions.filter(e => e.entry_id === selectedEntryId)
   const selectedEntry = entries.find(e => e.id === selectedEntryId)
+  const selectedEntryExecs = executions.filter(ex => ex.entry_id === selectedEntry?.id)
 
   // 구분별 그룹 (순서 유지)
   const groups = []
@@ -596,7 +609,7 @@ export default function Budget() {
           <td style={SSR}>{formatAmount(dBdg)}</td>
           <td style={SSR}>{formatAmount(dExec)}</td>
           <td style={SSR}>{formatAmount(dRemain)}</td>
-          <td style={SSR}>{dRate.toFixed(1)}%</td>
+          <td style={SSR}>{dRate.toFixed(2)}%</td>
           {!isViewer && <td style={SS} />}
         </tr>
       )
@@ -629,7 +642,7 @@ export default function Budget() {
                 <div style={{ flex: 1, background: '#e5e7eb', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
                   <div style={{ width: `${Math.min(rate, 100)}%`, background: rateColor(rate), height: '8px' }} />
                 </div>
-                <span style={{ fontSize: '11px', color: rateColor(rate), fontWeight: '600', minWidth: '30px', textAlign: 'right' }}>{rate.toFixed(0)}%</span>
+                <span style={{ fontSize: '11px', color: rateColor(rate), fontWeight: '600', minWidth: '36px', textAlign: 'right' }}>{rate.toFixed(2)}%</span>
               </div>
             </td>
             {!isViewer && (
@@ -659,7 +672,7 @@ export default function Budget() {
         <td style={TSR}>{formatAmount(totBdg)}</td>
         <td style={TSR}>{formatAmount(totExec)}</td>
         <td style={TSR}>{formatAmount(totRemain)}</td>
-        <td style={TSR}>{totRate.toFixed(1)}%</td>
+        <td style={TSR}>{totRate.toFixed(2)}%</td>
         {!isViewer && <td style={TS} />}
       </tr>
     )
@@ -731,7 +744,7 @@ export default function Budget() {
               { label: '총예산', value: formatKorean(totalBudget), sub: formatAmount(totalBudget) + '원', color: '#1e3a5f' },
               { label: '집행액', value: formatKorean(totalExecAmt), sub: formatAmount(totalExecAmt) + '원', color: '#059669' },
               { label: '잔액', value: formatKorean(totalRemain), sub: formatAmount(totalRemain) + '원', color: '#1d4ed8' },
-              { label: '집행률', value: totalRate.toFixed(1) + '%', sub: `${entries.length}개 항목`, color: rateColor(totalRate) },
+              { label: '집행률', value: totalRate.toFixed(2) + '%', sub: `${entries.length}개 항목`, color: rateColor(totalRate) },
             ].map(({ label, value, sub, color }) => (
               <div key={label} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
                 <div className="text-xs text-gray-400 mb-1">{label}</div>
@@ -801,10 +814,10 @@ export default function Budget() {
                 </div>
                 {!selectedEntryId ? (
                   <div className="flex-1 flex items-center justify-center text-gray-400 text-sm p-8 text-center">
-                    왼쪽 표에서 항목을 클릭하면 집행 내역이 표시됩니다
+                    항목을 클릭하면 집행 내역을 볼 수 있습니다
                   </div>
                 ) : selectedEntryExecs.length === 0 ? (
-                  <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">집행 내역 없음</div>
+                  <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">집행 내역이 없습니다</div>
                 ) : (
                   <div className="flex-1 overflow-y-auto">
                     {selectedEntryExecs.map(e => (
@@ -838,21 +851,21 @@ export default function Budget() {
       {excelModal && (
         <ExcelUploadModal programId={selectedProgramId}
           onClose={() => setExcelModal(false)}
-          onSaved={async () => { await loadDetail(selectedProgramId); await loadPrograms() }} />
+          onSaved={async () => { await fetchEntries(selectedProgramId); await fetchExecutions(selectedProgramId); await loadPrograms() }} />
       )}
 
       {entryModal && (
         <EntryModal mode={entryModal.mode} entry={entryModal.entry} entries={entries}
           programId={selectedProgramId}
           onClose={() => setEntryModal(null)}
-          onSaved={async () => { await loadDetail(selectedProgramId); await loadPrograms() }} />
+          onSaved={async () => { await fetchEntries(selectedProgramId); await fetchExecutions(selectedProgramId); await loadPrograms() }} />
       )}
       {execModal && (
         <ExecAddModal entries={entries} programId={selectedProgramId}
           defaultEntryId={execModal.entryId}
           execMap={execMap}
           onClose={() => setExecModal(null)}
-          onSaved={async () => { await loadDetail(selectedProgramId); await loadPrograms() }} />
+          onSaved={async () => { await fetchEntries(selectedProgramId); await fetchExecutions(selectedProgramId); await loadPrograms() }} />
       )}
       {progModal && (
         <ProgramModal onClose={() => setProgModal(false)} onSaved={loadPrograms} />
