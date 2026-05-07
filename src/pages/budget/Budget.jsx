@@ -1,30 +1,7 @@
 import { useState, useEffect } from 'react'
+import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-
-const DEFAULT_ENTRIES = [
-  {division:"인건비",sub_item:"인건비",calculation:"전담인력 인건비(6명)",original_amount:405700000,sort_order:1},
-  {division:"일반운영비",sub_item:"사무관리비",calculation:"소모품비 및 인쇄비 7,000×1식",original_amount:7000000,sort_order:2},
-  {division:"일반운영비",sub_item:"사무관리비",calculation:"임차료 및 관리비(사무기기 임차 포함) 50,000×12월",original_amount:600000000,sort_order:3},
-  {division:"일반운영비",sub_item:"사무관리비",calculation:"지급수수료(무인경비, 회계감사비) 19,000×1식",original_amount:19000000,sort_order:4},
-  {division:"일반운영비",sub_item:"사무관리비",calculation:"회의비 300×10회",original_amount:3000000,sort_order:5},
-  {division:"일반운영비",sub_item:"사무관리비",calculation:"광고선전비 20,000×1식",original_amount:20000000,sort_order:6},
-  {division:"일반운영비",sub_item:"사무관리비",calculation:"교육강사수당 400×50회",original_amount:20000000,sort_order:7},
-  {division:"일반운영비",sub_item:"사무관리비",calculation:"멘토 수당 400×50개사×5회",original_amount:100000000,sort_order:8},
-  {division:"일반운영비",sub_item:"사무관리비",calculation:"심사참석 수당 200×5명×10회",original_amount:10000000,sort_order:9},
-  {division:"일반운영비",sub_item:"공공운영비",calculation:"공공요금 및 제세공과금 7,500×1식",original_amount:7500000,sort_order:10},
-  {division:"일반운영비",sub_item:"행사운영비",calculation:"울산스타트업 페스타 10,000×1식",original_amount:10000000,sort_order:11},
-  {division:"여비",sub_item:"국내여비",calculation:"국내여비 20×5명×4일×12월",original_amount:4800000,sort_order:12},
-  {division:"수선유지교체비",sub_item:"수선유지비",calculation:"수선유지비 80,000×1식",original_amount:80000000,sort_order:13},
-  {division:"업무추진비",sub_item:"사업업무추진비",calculation:"업무추진비 4,000×1식",original_amount:4000000,sort_order:14},
-  {division:"교육훈련비",sub_item:"교육훈련비",calculation:"교육훈련 및 여비 5,000×1식",original_amount:5000000,sort_order:15},
-  {division:"민간사업지원금",sub_item:"민간사업지원금",calculation:"기술제품 실증 및 개발지원 10,000×25개사",original_amount:250000000,sort_order:16},
-  {division:"민간사업지원금",sub_item:"민간사업지원금",calculation:"기술보호 및 경영 전문서비스 지원 5,000×10개사",original_amount:50000000,sort_order:17},
-  {division:"민간사업지원금",sub_item:"민간사업지원금",calculation:"마케팅 지원 7,500×20개사",original_amount:150000000,sort_order:18},
-  {division:"민간사업지원금",sub_item:"민간사업지원금",calculation:"창업자 역량강화 교육비 지원 2,000×40개사",original_amount:80000000,sort_order:19},
-  {division:"민간사업지원금",sub_item:"민간사업지원금",calculation:"AI 솔루션 융합 지원 20,000×5개사",original_amount:100000000,sort_order:20},
-  {division:"위탁운영비",sub_item:"위탁운영비",calculation:"위탁운영비(총사업비의 10%)",original_amount:214000000,sort_order:21},
-]
 
 const formatAmount = n => (Number(n) || 0).toLocaleString('ko-KR')
 const parseAmount = s => parseInt((s || '').replace(/,/g, '') || '0') || 0
@@ -317,6 +294,171 @@ function ProgramModal({ program, onClose, onSaved }) {
   )
 }
 
+function ExcelUploadModal({ programId, onClose, onSaved }) {
+  const [step, setStep] = useState('guide')
+  const [rows, setRows] = useState([])
+  const [parseErrors, setParseErrors] = useState([])
+  const [replaceMode, setReplaceMode] = useState(false)
+  const [uploading, setUploading] = useState(false)
+
+  function downloadTemplate() {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['구분', '세목', '산출내역', '예산액(원)'],
+      ['인건비', '인건비', '전담인력 인건비(6명)', 405700000],
+      ['일반운영비', '사무관리비', '소모품비 및 인쇄비 7,000×1식', 7000000],
+      ['일반운영비', '사무관리비', '임차료 및 관리비 50,000×12월', 600000000],
+    ])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '사업비')
+    XLSX.writeFile(wb, '사업비_업로드_서식.xlsx')
+  }
+
+  function handleFile(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => {
+      const wb = XLSX.read(ev.target.result, { type: 'array' })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const data = XLSX.utils.sheet_to_json(ws)
+      const parsed = []
+      const errs = []
+      data.forEach((row, i) => {
+        const division = String(row['구분'] || '').trim()
+        const sub_item = String(row['세목'] || '').trim()
+        const calculation = String(row['산출내역'] || '').trim()
+        const amt = Number(row['예산액(원)'])
+        if (!division) { errs.push(`${i + 2}행: 구분 누락`); return }
+        if (!sub_item) { errs.push(`${i + 2}행: 세목 누락`); return }
+        if (isNaN(amt) || amt <= 0) { errs.push(`${i + 2}행: 예산액 오류`); return }
+        parsed.push({ division, sub_item, calculation, original_amount: amt, budgeted_amount: amt })
+      })
+      setParseErrors(errs)
+      setRows(parsed)
+      if (errs.length === 0 && parsed.length > 0) setStep('preview')
+    }
+    reader.readAsArrayBuffer(file)
+    e.target.value = ''
+  }
+
+  async function handleUpload() {
+    setUploading(true)
+    if (replaceMode) {
+      await supabase.from('budget_entries').delete().eq('program_id', programId)
+    }
+    let sortBase = 1
+    if (!replaceMode) {
+      const { data: existing } = await supabase.from('budget_entries')
+        .select('sort_order').eq('program_id', programId).order('sort_order', { ascending: false }).limit(1)
+      sortBase = (existing?.[0]?.sort_order || 0) + 1
+    }
+    for (const [i, row] of rows.entries()) {
+      const { data: entry } = await supabase.from('budget_entries').insert({
+        program_id: programId, division: row.division, sub_item: row.sub_item,
+        calculation: row.calculation, original_amount: row.original_amount,
+        budgeted_amount: row.budgeted_amount, sort_order: sortBase + i,
+      }).select().single()
+      if (entry) {
+        await supabase.from('budget_entry_histories').insert({
+          budget_entry_id: entry.id, revision_type: '당초', revision_number: 0,
+          previous_amount: null, new_amount: row.original_amount, reason: null,
+        })
+      }
+    }
+    setUploading(false)
+    alert(`${rows.length}개 항목이 업로드되었습니다`)
+    onSaved(); onClose()
+  }
+
+  const GTH = 'text-xs font-semibold text-gray-600 px-3 py-2 text-left bg-gray-50 border-b border-gray-200'
+  const GTD = 'text-xs px-3 py-2 border-b border-gray-100'
+
+  return (
+    <Overlay onClose={onClose}>
+      <div className="bg-white rounded-xl shadow-xl p-6 mx-4" style={{ width: '680px', maxWidth: '96vw', maxHeight: '85vh', overflowY: 'auto' }}>
+        {step === 'guide' ? (
+          <>
+            <h2 className="text-base font-bold text-gray-800 mb-1">엑셀 업로드</h2>
+            <p className="text-xs text-gray-500 mb-4">아래 서식에 맞게 작성 후 업로드해주세요</p>
+            <div className="overflow-x-auto mb-4 border border-gray-200 rounded-lg">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr>{['구분', '세목', '산출내역', '예산액(원)'].map(h => <th key={h} className={GTH}>{h}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {[
+                    ['인건비', '인건비', '전담인력 인건비(6명)', '405,700,000'],
+                    ['일반운영비', '사무관리비', '소모품비 및 인쇄비 7,000×1식', '7,000,000'],
+                  ].map((r, i) => (
+                    <tr key={i}>{r.map((c, j) => <td key={j} className={GTD + (j === 3 ? ' text-right' : '')}>{c}</td>)}</tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {parseErrors.length > 0 && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                {parseErrors.map((e, i) => <p key={i} className="text-xs text-red-600">{e}</p>)}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button onClick={downloadTemplate}
+                className="flex-1 py-2.5 text-sm font-semibold border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                📥 서식 다운로드
+              </button>
+              <label className="flex-1 py-2.5 text-sm font-semibold text-white rounded-lg text-center cursor-pointer"
+                style={{ background: '#1e3a5f' }}>
+                📤 파일 선택하여 업로드
+                <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFile} className="hidden" />
+              </label>
+            </div>
+            <button onClick={onClose} className="mt-3 w-full py-2 text-sm border border-gray-300 rounded-lg text-gray-600">닫기</button>
+          </>
+        ) : (
+          <>
+            <h2 className="text-base font-bold text-gray-800 mb-1">업로드 미리보기</h2>
+            <p className="text-xs text-gray-500 mb-4">{rows.length}개 항목이 확인되었습니다</p>
+            <div className="border border-gray-200 rounded-lg overflow-hidden mb-4" style={{ maxHeight: '280px', overflowY: 'auto' }}>
+              <table className="w-full border-collapse">
+                <thead className="sticky top-0">
+                  <tr>{['구분', '세목', '산출내역', '예산액(원)'].map(h => <th key={h} className={GTH}>{h}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={i}>
+                      <td className={GTD}>{r.division}</td>
+                      <td className={GTD}>{r.sub_item}</td>
+                      <td className={GTD}>{r.calculation}</td>
+                      <td className={GTD + ' text-right'}>{formatAmount(r.original_amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mb-4 p-3 bg-gray-50 rounded-lg flex gap-6">
+              {[
+                { value: false, label: '기존 항목 유지하고 추가' },
+                { value: true, label: '기존 항목 삭제 후 교체' },
+              ].map(({ value, label }) => (
+                <label key={label} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input type="radio" checked={replaceMode === value} onChange={() => setReplaceMode(value)} />
+                  {label}
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleUpload} disabled={uploading}
+                className="flex-1 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-60"
+                style={{ background: '#1e3a5f' }}>{uploading ? '업로드 중...' : '업로드 확정'}</button>
+              <button onClick={() => { setStep('guide'); setParseErrors([]) }}
+                className="flex-1 py-2 text-sm border border-gray-300 rounded-lg text-gray-600">다시 선택</button>
+            </div>
+          </>
+        )}
+      </div>
+    </Overlay>
+  )
+}
+
 export default function Budget() {
   const { hasRole } = useAuth()
   const isViewer = !hasRole('manager')
@@ -334,8 +476,7 @@ export default function Budget() {
   const [execModal, setExecModal] = useState(null)
   const [progModal, setProgModal] = useState(false)
   const [progEditModal, setProgEditModal] = useState(null)
-  const [stdConfirm, setStdConfirm] = useState(false)
-  const [stdLoading, setStdLoading] = useState(false)
+  const [excelModal, setExcelModal] = useState(false)
 
   useEffect(() => { loadPrograms() }, [])
   useEffect(() => { if (selectedProgramId) loadDetail(selectedProgramId) }, [selectedProgramId])
@@ -397,27 +538,6 @@ export default function Budget() {
     await loadPrograms()
   }
 
-  async function loadStandardItems() {
-    setStdLoading(true)
-    for (const item of DEFAULT_ENTRIES) {
-      const { data: entry } = await supabase.from('budget_entries').insert({
-        program_id: selectedProgramId,
-        division: item.division, sub_item: item.sub_item,
-        calculation: item.calculation, original_amount: item.original_amount,
-        budgeted_amount: item.original_amount, sort_order: item.sort_order,
-      }).select().single()
-      if (entry) {
-        await supabase.from('budget_entry_histories').insert({
-          budget_entry_id: entry.id, revision_type: '당초', revision_number: 0,
-          previous_amount: null, new_amount: item.original_amount, reason: null,
-        })
-      }
-    }
-    setStdLoading(false)
-    setStdConfirm(false)
-    await loadDetail(selectedProgramId)
-    await loadPrograms()
-  }
 
   // Derived
   const execMap = {}
@@ -627,9 +747,9 @@ export default function Budget() {
                   <h2 className="text-sm font-semibold text-gray-700">{selectedProgram?.name} 예산 현황</h2>
                   {!isViewer && (
                     <div className="flex gap-2">
-                      <button onClick={() => setStdConfirm(true)}
-                        className="px-3 py-1.5 text-xs border border-dashed border-gray-300 rounded-lg text-gray-500 hover:bg-gray-50">
-                        표준과목 불러오기
+                      <button onClick={() => setExcelModal(true)}
+                        className="px-3 py-1.5 text-xs border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">
+                        📥 엑셀 업로드
                       </button>
                       <button onClick={() => setEntryModal({ mode: 'add' })}
                         className="px-3 py-1.5 text-xs font-semibold text-white rounded-lg"
@@ -642,7 +762,7 @@ export default function Budget() {
                 {loadingDetail ? (
                   <div className="p-8 text-center text-gray-400 text-sm">로딩 중...</div>
                 ) : entries.length === 0 ? (
-                  <div className="p-8 text-center text-gray-400 text-sm">항목이 없습니다. 항목을 추가하거나 표준과목을 불러오세요.</div>
+                  <div className="p-8 text-center text-gray-400 text-sm">항목이 없습니다. 항목을 추가하거나 엑셀로 업로드하세요.</div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
@@ -712,21 +832,10 @@ export default function Budget() {
         </div>
       )}
 
-      {/* 표준과목 확인 모달 */}
-      {stdConfirm && (
-        <Overlay onClose={() => setStdConfirm(false)}>
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4 text-center">
-            <div className="text-2xl mb-3">📋</div>
-            <h2 className="text-base font-bold text-gray-800 mb-2">표준과목 불러오기</h2>
-            <p className="text-sm text-gray-500 mb-6">울산 창업 U-시리즈 기본 과목 21개를 현재 사업에 추가합니다.</p>
-            <div className="flex gap-2">
-              <button onClick={loadStandardItems} disabled={stdLoading}
-                className="flex-1 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-60"
-                style={{ background: '#1e3a5f' }}>{stdLoading ? '추가 중...' : '확인'}</button>
-              <button onClick={() => setStdConfirm(false)} className="flex-1 py-2 text-sm border border-gray-300 rounded-lg text-gray-600">취소</button>
-            </div>
-          </div>
-        </Overlay>
+      {excelModal && (
+        <ExcelUploadModal programId={selectedProgramId}
+          onClose={() => setExcelModal(false)}
+          onSaved={async () => { await loadDetail(selectedProgramId); await loadPrograms() }} />
       )}
 
       {entryModal && (
