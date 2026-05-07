@@ -53,7 +53,7 @@ export default function BudgetDashboard() {
           .order('sort_order', { ascending: true })
           .limit(100000),
         supabase.from('budget_entry_executions')
-          .select('id, program_id, budget_entry_id, amount, execution_date, created_at')
+          .select('id, program_id, entry_id, amount, execution_date, created_at')
           .order('id', { ascending: false })
           .limit(100000),
       ])
@@ -95,7 +95,7 @@ export default function BudgetDashboard() {
       })
 
       allExecs.forEach(e => {
-        const entry = entryMap[e.budget_entry_id]
+        const entry = entryMap[e.entry_id]
         if (!entry) return
         const pid = String(e.program_id)
         const div = entry.division || '(미분류)'
@@ -113,14 +113,21 @@ export default function BudgetDashboard() {
       const divAggAll = {}
       allEntries.forEach(e => {
         const div = e.division || '(미분류)'
-        if (!divAggAll[div]) divAggAll[div] = { budget: 0, minSort: e.sort_order ?? Infinity }
+        if (!divAggAll[div]) divAggAll[div] = { budget: 0, exec: 0, minSort: e.sort_order ?? Infinity }
         divAggAll[div].budget += Number(e.budgeted_amount) || 0
         if ((e.sort_order ?? Infinity) < divAggAll[div].minSort) {
           divAggAll[div].minSort = e.sort_order ?? Infinity
         }
       })
+      allExecs.forEach(e => {
+        const entry = entryMap[e.entry_id]
+        if (!entry) return
+        const div = entry.division || '(미분류)'
+        if (!divAggAll[div]) divAggAll[div] = { budget: 0, exec: 0, minSort: Infinity }
+        divAggAll[div].exec += Number(e.amount) || 0
+      })
       const divDataArr = Object.entries(divAggAll)
-        .map(([name, { budget, minSort }]) => ({ name, budget, minSort }))
+        .map(([name, { budget, exec, minSort }]) => ({ name, budget, exec: exec || 0, minSort }))
         .sort((a, b) => (a.minSort ?? Infinity) - (b.minSort ?? Infinity))
 
       // 프로그램별 최근 집행 5건
@@ -132,8 +139,8 @@ export default function BudgetDashboard() {
           date: e.execution_date
             ? String(e.execution_date).slice(0, 10)
             : (e.created_at ? String(e.created_at).slice(0, 10) : '-'),
-          itemName: entryMap[e.budget_entry_id]
-            ? `${entryMap[e.budget_entry_id].division} / ${entryMap[e.budget_entry_id].sub_item}`
+          itemName: entryMap[e.entry_id]
+            ? `${entryMap[e.entry_id].division} / ${entryMap[e.entry_id].sub_item}`
             : '(항목 미상)',
           amount: Number(e.amount) || 0,
         }))
@@ -283,19 +290,39 @@ export default function BudgetDashboard() {
           {/* 구분별 예산 현황 가로 막대 차트 */}
           {!loading && divisionData.length > 0 && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: CARD_BORDER, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <h2 style={{ fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '16px' }}>예산과목(구분)별 예산 현황</h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <h2 style={{ fontSize: '13px', fontWeight: '600', color: '#374151', margin: 0 }}>예산과목(구분)별 예산 현황</h2>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  {[['예산액', '#3b82f620', '#3b82f6'], ['집행액', '#1d4ed8', '#1d4ed8']].map(([label, bg, border]) => (
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <div style={{ width: '10px', height: '10px', borderRadius: '2px', background: bg, border: `1px solid ${border}` }} />
+                      <span style={{ fontSize: '10px', color: '#6b7280' }}>{label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {divisionData.map((item, idx) => {
-                  const pct = item.budget / maxDivBudget * 100
+                  const color = PROGRAM_COLORS[idx % PROGRAM_COLORS.length]
+                  const budgetPct = item.budget / maxDivBudget * 100
+                  const execPct = item.budget > 0 ? Math.min(item.exec / maxDivBudget * 100, budgetPct) : 0
                   return (
                     <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <div style={{ width: '120px', fontSize: '11px', color: '#4b5563', textAlign: 'right', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
-                      <div style={{ flex: 1, background: '#f3f4f6', borderRadius: '999px', height: '24px', overflow: 'hidden' }}>
-                        <div style={{ height: '24px', borderRadius: '999px', background: PROGRAM_COLORS[idx % PROGRAM_COLORS.length], width: `${Math.max(pct, 1)}%`, display: 'flex', alignItems: 'center', paddingLeft: '8px', minWidth: '4px' }}>
-                          {pct > 15 && <span style={{ fontSize: '10px', color: 'white', fontWeight: '500', whiteSpace: 'nowrap' }}>{formatKorean(item.budget)}</span>}
-                        </div>
+                      <div style={{ flex: 1, position: 'relative', height: '24px', background: '#f3f4f6', borderRadius: '6px', overflow: 'hidden' }}>
+                        {/* 예산액 바 (연한 색) */}
+                        <div style={{ position: 'absolute', top: 0, left: 0, width: `${Math.max(budgetPct, 1)}%`, height: '24px', background: `${color}40`, borderRadius: '6px' }} />
+                        {/* 집행액 바 (진한 색) */}
+                        {item.exec > 0 && (
+                          <div style={{ position: 'absolute', top: 0, left: 0, width: `${Math.max(execPct, 0.5)}%`, height: '24px', background: color, borderRadius: '6px', display: 'flex', alignItems: 'center', paddingLeft: '8px' }}>
+                            {execPct > 12 && <span style={{ fontSize: '10px', color: 'white', fontWeight: '500', whiteSpace: 'nowrap' }}>{formatKorean(item.exec)}</span>}
+                          </div>
+                        )}
                       </div>
-                      <div style={{ width: '100px', fontSize: '11px', color: '#6b7280', textAlign: 'right', flexShrink: 0 }}>{formatKorean(item.budget)}</div>
+                      <div style={{ width: '110px', fontSize: '11px', color: '#6b7280', textAlign: 'right', flexShrink: 0, lineHeight: '1.5' }}>
+                        <div>{formatKorean(item.budget)}</div>
+                        {item.exec > 0 && <div style={{ color: color, fontWeight: '600' }}>{formatKorean(item.exec)}</div>}
+                      </div>
                     </div>
                   )
                 })}
