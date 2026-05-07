@@ -49,6 +49,8 @@ const navGroups = [
     label: '사업비 관리',
     items: [
       { to: '/budget', icon: Wallet, label: '사업비 관리' },
+      { to: '/budget/dashboard', icon: BarChart3, label: '전체 대시보드' },
+      { to: '/budget/report', icon: FileText, label: '집행현황 보고서' },
     ]
   },
   {
