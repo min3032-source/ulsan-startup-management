@@ -20,7 +20,6 @@ const TD_R = { ...TD, textAlign: 'right' }
 const TH = { ...TD, fontWeight: 'bold', textAlign: 'center', background: '#374151', color: 'white' }
 const TH_R = { ...TH, textAlign: 'right' }
 
-// 구분별 그룹 생성 (순서 유지)
 function groupByDivision(entries) {
   const groups = []
   const map = new Map()
@@ -35,7 +34,7 @@ function groupByDivision(entries) {
   return groups
 }
 
-function ReportRows({ entries, execMap, mode }) {
+function ReportRows({ entries, execMap }) {
   const groups = groupByDivision(entries)
   const rows = []
 
@@ -54,22 +53,17 @@ function ReportRows({ entries, execMap, mode }) {
     const SS = { ...TD, background: '#1e3a5f', color: 'white', fontWeight: 'bold' }
     const SSR = { ...SS, textAlign: 'right' }
 
-    // 소계 행
-    const colSpanCount = mode === 'budget' ? 3 : 3
     rows.push(
       <tr key={`sub-${division}`}>
-        <td colSpan={colSpanCount} style={SS}>{division} 소계</td>
+        <td colSpan={3} style={SS}>{division} 소계</td>
         <td style={SSR}>{fmtK(dOrig)}</td>
         <td style={SSR}>{fmtK(dBdg)}</td>
-        {mode === 'exec' && <>
-          <td style={SSR}>{fmtK(dExec)}</td>
-          <td style={SSR}>{fmtK(dRemain)}</td>
-          <td style={SSR}>{dRate.toFixed(1)}%</td>
-        </>}
+        <td style={SSR}>{fmtK(dExec)}</td>
+        <td style={SSR}>{fmtK(dRemain)}</td>
+        <td style={SSR}>{dRate.toFixed(1)}%</td>
       </tr>
     )
 
-    // 항목 행 (division rowspan)
     items.forEach((entry, idx) => {
       const exec = execMap[entry.id] || 0
       const bdg = Number(entry.budgeted_amount) || 0
@@ -87,17 +81,14 @@ function ReportRows({ entries, execMap, mode }) {
           <td style={TD}>{entry.calculation}</td>
           <td style={TD_R}>{fmtK(orig)}</td>
           <td style={TD_R}>{fmtK(bdg)}</td>
-          {mode === 'exec' && <>
-            <td style={TD_R}>{fmtK(exec)}</td>
-            <td style={TD_R}>{fmtK(remain)}</td>
-            <td style={{ ...TD_R, color: rateColor(rate) }}>{rate.toFixed(1)}%</td>
-          </>}
+          <td style={TD_R}>{fmtK(exec)}</td>
+          <td style={TD_R}>{fmtK(remain)}</td>
+          <td style={{ ...TD_R, color: rateColor(rate) }}>{rate.toFixed(1)}%</td>
         </tr>
       )
     })
   })
 
-  // 합계 행
   const TS = { ...TD, background: '#374151', color: 'white', fontWeight: 'bold' }
   const TSR = { ...TS, textAlign: 'right' }
   rows.push(
@@ -105,11 +96,9 @@ function ReportRows({ entries, execMap, mode }) {
       <td colSpan={3} style={TS}>합 계</td>
       <td style={TSR}>{fmtK(totOrig)}</td>
       <td style={TSR}>{fmtK(totBdg)}</td>
-      {mode === 'exec' && <>
-        <td style={TSR}>{fmtK(totExec)}</td>
-        <td style={TSR}>{fmtK(totRemain)}</td>
-        <td style={TSR}>{totRate.toFixed(1)}%</td>
-      </>}
+      <td style={TSR}>{fmtK(totExec)}</td>
+      <td style={TSR}>{fmtK(totRemain)}</td>
+      <td style={{ ...TSR, color: rateColor(totRate) }}>{totRate.toFixed(1)}%</td>
     </tr>
   )
 
@@ -142,7 +131,7 @@ export default function BudgetReport() {
   }, [selectedProgramId])
 
   useEffect(() => {
-    if (!selectedProgramId || mode !== 'exec') { setExecMap({}); return }
+    if (!selectedProgramId) { setExecMap({}); return }
     supabase.from('budget_entry_executions')
       .select('budget_entry_id, amount')
       .eq('program_id', selectedProgramId)
@@ -154,7 +143,7 @@ export default function BudgetReport() {
         })
         setExecMap(em)
       })
-  }, [selectedProgramId, mode])
+  }, [selectedProgramId])
 
   const selectedProgram = programs.find(p => String(p.id) === selectedProgramId)
   const totalOriginal = entries.reduce((s, e) => s + (Number(e.original_amount) || 0), 0)
@@ -163,13 +152,21 @@ export default function BudgetReport() {
   const totalRemain = totalBudget - totalExec
   const totalRate = totalBudget > 0 ? totalExec / totalBudget * 100 : 0
 
+  const summaryBoxes = [
+    { label: '당초예산 (천원)', value: fmtK(totalOriginal) },
+    { label: '현재예산 (천원)', value: fmtK(totalBudget) },
+    { label: '집행액 (천원)', value: fmtK(totalExec) },
+    { label: '잔액 (천원)', value: fmtK(totalRemain) },
+    { label: '집행률', value: totalRate.toFixed(1) + '%', color: rateColor(totalRate) },
+  ]
+
   return (
     <div style={{ fontFamily: '"Malgun Gothic", sans-serif', minHeight: '100vh', background: '#f8fafc' }}>
       <style>{`
         @media print {
           .no-print { display: none !important; }
           body, * { font-size: 9pt !important; }
-          @page { size: A4 portrait; margin: 15mm 10mm; }
+          @page { size: A4 landscape; margin: 15mm 10mm; }
           table { border-collapse: collapse; width: 100%; }
           td, th { border: 1px solid #000 !important; padding: 3px 5px; }
           .print-body { background: white !important; padding: 0 !important; box-shadow: none !important; }
@@ -213,7 +210,7 @@ export default function BudgetReport() {
 
       {/* 보고서 본문 */}
       <div className="print-body" style={{
-        maxWidth: '210mm', margin: '24px auto', padding: '20mm',
+        maxWidth: '297mm', margin: '24px auto', padding: '20mm',
         background: 'white', boxShadow: '0 2px 12px rgba(0,0,0,0.08)'
       }}>
         <div style={{ marginBottom: '20px' }}>
@@ -233,33 +230,14 @@ export default function BudgetReport() {
         )}
 
         {selectedProgramId && <>
-          {/* 요약 박스 */}
+          {/* 요약 박스 - 항상 5개 */}
           <div style={{ border: B, marginBottom: '20px', display: 'flex' }}>
-            {mode === 'budget' ? (
-              <>
-                <div style={{ flex: 1, padding: '10px', textAlign: 'center', borderRight: B }}>
-                  <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '4px' }}>당초예산 (천원)</div>
-                  <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#111827' }}>{fmtK(totalOriginal)}</div>
-                </div>
-                <div style={{ flex: 1, padding: '10px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '4px' }}>현재예산 (천원)</div>
-                  <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#111827' }}>{fmtK(totalBudget)}</div>
-                </div>
-              </>
-            ) : (
-              [
-                { label: '당초예산 (천원)', value: fmtK(totalOriginal) },
-                { label: '현재예산 (천원)', value: fmtK(totalBudget) },
-                { label: '집행액 (천원)', value: fmtK(totalExec) },
-                { label: '잔액 (천원)', value: fmtK(totalRemain) },
-                { label: '집행률', value: totalRate.toFixed(1) + '%', color: rateColor(totalRate) },
-              ].map(({ label, value, color }, i, arr) => (
-                <div key={label} style={{ flex: 1, padding: '10px', textAlign: 'center', borderRight: i < arr.length - 1 ? B : 'none' }}>
-                  <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '4px' }}>{label}</div>
-                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: color || '#111827' }}>{value}</div>
-                </div>
-              ))
-            )}
+            {summaryBoxes.map(({ label, value, color }, i, arr) => (
+              <div key={label} style={{ flex: 1, padding: '10px', textAlign: 'center', borderRight: i < arr.length - 1 ? B : 'none' }}>
+                <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '4px' }}>{label}</div>
+                <div style={{ fontSize: '13px', fontWeight: 'bold', color: color || '#111827' }}>{value}</div>
+              </div>
+            ))}
           </div>
 
           {loading ? (
@@ -273,15 +251,13 @@ export default function BudgetReport() {
                   <th style={TH}>산출내역</th>
                   <th style={TH_R}>당초예산(천원)</th>
                   <th style={TH_R}>현재예산(천원)</th>
-                  {mode === 'exec' && <>
-                    <th style={TH_R}>집행액(천원)</th>
-                    <th style={TH_R}>잔액(천원)</th>
-                    <th style={TH_R}>집행률</th>
-                  </>}
+                  <th style={TH_R}>집행액(천원)</th>
+                  <th style={TH_R}>잔액(천원)</th>
+                  <th style={TH_R}>집행률</th>
                 </tr>
               </thead>
               <tbody>
-                <ReportRows entries={entries} execMap={execMap} mode={mode} />
+                <ReportRows entries={entries} execMap={execMap} />
               </tbody>
             </table>
           )}
