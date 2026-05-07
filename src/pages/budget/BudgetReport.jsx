@@ -14,132 +14,106 @@ function rateColor(rate) {
   return '#dc2626'
 }
 
-function buildTree(flatItems) {
-  const map = {}
-  flatItems.forEach(i => { map[i.id] = { ...i, children: [] } })
-  const roots = []
-  ;[...flatItems]
-    .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
-    .forEach(item => {
-      if (item.parent_id && map[item.parent_id]) map[item.parent_id].children.push(map[item.id])
-      else if (!item.parent_id) roots.push(map[item.id])
-    })
-  return roots
-}
-
-function collectL4(node) {
-  if (node.level === 4) return [node]
-  return (node.children || []).flatMap(collectL4)
-}
-
-function buildSimpleRows(tree, execMap) {
-  const allL4 = tree.flatMap(collectL4)
-  const totalBudget = allL4.reduce((s, i) => s + (Number(i.budgeted_amount) || 0), 0)
-  const totalExec = allL4.reduce((s, i) => s + (execMap[i.id] || 0), 0)
-  const rows = []
-
-  tree.forEach(l1 => {
-    const l1L4 = collectL4(l1)
-    const l1Budget = l1L4.reduce((s, i) => s + (Number(i.budgeted_amount) || 0), 0)
-    const l1Exec = l1L4.reduce((s, i) => s + (execMap[i.id] || 0), 0)
-    rows.push({ type: 'l1', name: l1.name, budget: l1Budget, exec: l1Exec })
-
-    ;(l1.children || []).forEach(l2 => {
-      const l2L4 = collectL4(l2)
-      const l2Budget = l2L4.reduce((s, i) => s + (Number(i.budgeted_amount) || 0), 0)
-      const l2Exec = l2L4.reduce((s, i) => s + (execMap[i.id] || 0), 0)
-      rows.push({ type: 'l2', l1Name: l1.name, l2Name: l2.name, budget: l2Budget, exec: l2Exec })
-
-      l2L4.forEach(l4 => {
-        rows.push({ type: 'l4', name: l4.name, budget: Number(l4.budgeted_amount) || 0, exec: execMap[l4.id] || 0 })
-      })
-    })
-  })
-
-  rows.push({ type: 'total', budget: totalBudget, exec: totalExec })
-  return rows
-}
-
 const B = '1px solid #000'
 const TD = { padding: '4px 8px', border: B, fontSize: '11px', verticalAlign: 'middle' }
 const TD_R = { ...TD, textAlign: 'right' }
 const TH = { ...TD, fontWeight: 'bold', textAlign: 'center', background: '#374151', color: 'white' }
 const TH_R = { ...TH, textAlign: 'right' }
 
-function SimpleRow({ row, mode }) {
-  if (row.type === 'l1') {
-    const remain = row.budget - row.exec
-    const rate = row.budget > 0 ? row.exec / row.budget * 100 : 0
-    const s = { ...TD, background: '#1e3a5f', color: 'white', fontWeight: 'bold' }
-    const sr = { ...s, textAlign: 'right' }
-    return (
-      <tr>
-        <td colSpan={2} style={s}>{row.name} 소계</td>
-        <td style={sr}>{fmtK(row.budget)}</td>
+// 구분별 그룹 생성 (순서 유지)
+function groupByDivision(entries) {
+  const groups = []
+  const map = new Map()
+  entries.forEach(e => {
+    if (!map.has(e.division)) {
+      const g = { division: e.division, items: [] }
+      map.set(e.division, g)
+      groups.push(g)
+    }
+    map.get(e.division).items.push(e)
+  })
+  return groups
+}
+
+function ReportRows({ entries, execMap, mode }) {
+  const groups = groupByDivision(entries)
+  const rows = []
+
+  const totOrig = entries.reduce((s, e) => s + (Number(e.original_amount) || 0), 0)
+  const totBdg = entries.reduce((s, e) => s + (Number(e.budgeted_amount) || 0), 0)
+  const totExec = entries.reduce((s, e) => s + (execMap[e.id] || 0), 0)
+  const totRemain = totBdg - totExec
+  const totRate = totBdg > 0 ? totExec / totBdg * 100 : 0
+
+  groups.forEach(({ division, items }) => {
+    const dOrig = items.reduce((s, e) => s + (Number(e.original_amount) || 0), 0)
+    const dBdg = items.reduce((s, e) => s + (Number(e.budgeted_amount) || 0), 0)
+    const dExec = items.reduce((s, e) => s + (execMap[e.id] || 0), 0)
+    const dRemain = dBdg - dExec
+    const dRate = dBdg > 0 ? dExec / dBdg * 100 : 0
+    const SS = { ...TD, background: '#1e3a5f', color: 'white', fontWeight: 'bold' }
+    const SSR = { ...SS, textAlign: 'right' }
+
+    // 소계 행
+    const colSpanCount = mode === 'budget' ? 3 : 3
+    rows.push(
+      <tr key={`sub-${division}`}>
+        <td colSpan={colSpanCount} style={SS}>{division} 소계</td>
+        <td style={SSR}>{fmtK(dOrig)}</td>
+        <td style={SSR}>{fmtK(dBdg)}</td>
         {mode === 'exec' && <>
-          <td style={sr}>{fmtK(row.exec)}</td>
-          <td style={sr}>{fmtK(remain)}</td>
-          <td style={sr}>{rate.toFixed(1)}%</td>
+          <td style={SSR}>{fmtK(dExec)}</td>
+          <td style={SSR}>{fmtK(dRemain)}</td>
+          <td style={SSR}>{dRate.toFixed(1)}%</td>
         </>}
       </tr>
     )
-  }
 
-  if (row.type === 'l2') {
-    const remain = row.budget - row.exec
-    const rate = row.budget > 0 ? row.exec / row.budget * 100 : 0
-    const s = { ...TD, background: '#dbeafe' }
-    const sr = { ...s, textAlign: 'right' }
-    return (
-      <tr>
-        <td style={s}>{row.l1Name}</td>
-        <td style={s}>{row.l2Name}</td>
-        <td style={sr}>{fmtK(row.budget)}</td>
-        {mode === 'exec' && <>
-          <td style={sr}>{fmtK(row.exec)}</td>
-          <td style={sr}>{fmtK(remain)}</td>
-          <td style={{ ...sr, color: rateColor(rate), fontWeight: '600' }}>{rate.toFixed(1)}%</td>
-        </>}
-      </tr>
-    )
-  }
+    // 항목 행 (division rowspan)
+    items.forEach((entry, idx) => {
+      const exec = execMap[entry.id] || 0
+      const bdg = Number(entry.budgeted_amount) || 0
+      const orig = Number(entry.original_amount) || 0
+      const remain = bdg - exec
+      const rate = bdg > 0 ? exec / bdg * 100 : 0
+      rows.push(
+        <tr key={entry.id}>
+          {idx === 0 && (
+            <td rowSpan={items.length} style={{ ...TD, verticalAlign: 'middle', textAlign: 'center', fontWeight: '600', background: '#f8fafc' }}>
+              {entry.division}
+            </td>
+          )}
+          <td style={TD}>{entry.sub_item}</td>
+          <td style={TD}>{entry.calculation}</td>
+          <td style={TD_R}>{fmtK(orig)}</td>
+          <td style={TD_R}>{fmtK(bdg)}</td>
+          {mode === 'exec' && <>
+            <td style={TD_R}>{fmtK(exec)}</td>
+            <td style={TD_R}>{fmtK(remain)}</td>
+            <td style={{ ...TD_R, color: rateColor(rate) }}>{rate.toFixed(1)}%</td>
+          </>}
+        </tr>
+      )
+    })
+  })
 
-  if (row.type === 'l4') {
-    const remain = row.budget - row.exec
-    const rate = row.budget > 0 ? row.exec / row.budget * 100 : 0
-    return (
-      <tr>
-        <td style={TD} />
-        <td style={{ ...TD, paddingLeft: '20px', color: '#4b5563' }}>└ {row.name}</td>
-        <td style={TD_R}>{fmtK(row.budget)}</td>
-        {mode === 'exec' && <>
-          <td style={TD_R}>{fmtK(row.exec)}</td>
-          <td style={TD_R}>{fmtK(remain)}</td>
-          <td style={{ ...TD_R, color: rateColor(rate) }}>{rate.toFixed(1)}%</td>
-        </>}
-      </tr>
-    )
-  }
+  // 합계 행
+  const TS = { ...TD, background: '#374151', color: 'white', fontWeight: 'bold' }
+  const TSR = { ...TS, textAlign: 'right' }
+  rows.push(
+    <tr key="total">
+      <td colSpan={3} style={TS}>합 계</td>
+      <td style={TSR}>{fmtK(totOrig)}</td>
+      <td style={TSR}>{fmtK(totBdg)}</td>
+      {mode === 'exec' && <>
+        <td style={TSR}>{fmtK(totExec)}</td>
+        <td style={TSR}>{fmtK(totRemain)}</td>
+        <td style={TSR}>{totRate.toFixed(1)}%</td>
+      </>}
+    </tr>
+  )
 
-  if (row.type === 'total') {
-    const remain = row.budget - row.exec
-    const rate = row.budget > 0 ? row.exec / row.budget * 100 : 0
-    const s = { ...TD, background: '#374151', color: 'white', fontWeight: 'bold' }
-    const sr = { ...s, textAlign: 'right' }
-    return (
-      <tr>
-        <td colSpan={2} style={s}>합 계</td>
-        <td style={sr}>{fmtK(row.budget)}</td>
-        {mode === 'exec' && <>
-          <td style={sr}>{fmtK(row.exec)}</td>
-          <td style={sr}>{fmtK(remain)}</td>
-          <td style={sr}>{rate.toFixed(1)}%</td>
-        </>}
-      </tr>
-    )
-  }
-
-  return null
+  return rows
 }
 
 export default function BudgetReport() {
@@ -147,7 +121,7 @@ export default function BudgetReport() {
   const [selectedProgramId, setSelectedProgramId] = useState('')
   const [baseDate, setBaseDate] = useState(todayStr())
   const [mode, setMode] = useState('budget')
-  const [items, setItems] = useState([])
+  const [entries, setEntries] = useState([])
   const [execMap, setExecMap] = useState({})
   const [loading, setLoading] = useState(false)
 
@@ -161,33 +135,31 @@ export default function BudgetReport() {
   }, [])
 
   useEffect(() => {
-    if (!selectedProgramId) { setItems([]); return }
+    if (!selectedProgramId) { setEntries([]); return }
     setLoading(true)
-    supabase.from('budget_items').select('*').eq('program_id', selectedProgramId).limit(100000)
-      .then(({ data }) => { setItems(data || []); setLoading(false) })
+    supabase.from('budget_entries').select('*').eq('program_id', selectedProgramId).order('sort_order')
+      .then(({ data }) => { setEntries(data || []); setLoading(false) })
   }, [selectedProgramId])
 
   useEffect(() => {
     if (!selectedProgramId || mode !== 'exec') { setExecMap({}); return }
-    supabase.from('budget_executions')
-      .select('budget_item_id, amount')
+    supabase.from('budget_entry_executions')
+      .select('budget_entry_id, amount')
       .eq('program_id', selectedProgramId)
       .limit(100000)
       .then(({ data }) => {
         const em = {}
         ;(data || []).forEach(e => {
-          em[e.budget_item_id] = (em[e.budget_item_id] || 0) + (Number(e.amount) || 0)
+          em[e.budget_entry_id] = (em[e.budget_entry_id] || 0) + (Number(e.amount) || 0)
         })
         setExecMap(em)
       })
   }, [selectedProgramId, mode])
 
   const selectedProgram = programs.find(p => String(p.id) === selectedProgramId)
-  const tree = buildTree(items)
-  const rows = buildSimpleRows(tree, execMap)
-  const totalRow = rows.find(r => r.type === 'total')
-  const totalBudget = totalRow?.budget || 0
-  const totalExec = totalRow?.exec || 0
+  const totalOriginal = entries.reduce((s, e) => s + (Number(e.original_amount) || 0), 0)
+  const totalBudget = entries.reduce((s, e) => s + (Number(e.budgeted_amount) || 0), 0)
+  const totalExec = entries.reduce((s, e) => s + (execMap[e.id] || 0), 0)
   const totalRemain = totalBudget - totalExec
   const totalRate = totalBudget > 0 ? totalExec / totalBudget * 100 : 0
 
@@ -264,21 +236,25 @@ export default function BudgetReport() {
           {/* 요약 박스 */}
           <div style={{ border: B, marginBottom: '20px', display: 'flex' }}>
             {mode === 'budget' ? (
-              <div style={{ flex: 1, padding: '14px', textAlign: 'center' }}>
-                <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '6px' }}>총 예 산 (천원)</div>
-                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#111827' }}>{fmtK(totalBudget)}</div>
-              </div>
+              <>
+                <div style={{ flex: 1, padding: '10px', textAlign: 'center', borderRight: B }}>
+                  <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '4px' }}>당초예산 (천원)</div>
+                  <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#111827' }}>{fmtK(totalOriginal)}</div>
+                </div>
+                <div style={{ flex: 1, padding: '10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '4px' }}>현재예산 (천원)</div>
+                  <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#111827' }}>{fmtK(totalBudget)}</div>
+                </div>
+              </>
             ) : (
               [
+                { label: '당초예산 (천원)', value: fmtK(totalOriginal) },
                 { label: '현재예산 (천원)', value: fmtK(totalBudget) },
                 { label: '집행액 (천원)', value: fmtK(totalExec) },
                 { label: '잔액 (천원)', value: fmtK(totalRemain) },
                 { label: '집행률', value: totalRate.toFixed(1) + '%', color: rateColor(totalRate) },
               ].map(({ label, value, color }, i, arr) => (
-                <div key={label} style={{
-                  flex: 1, padding: '10px', textAlign: 'center',
-                  borderRight: i < arr.length - 1 ? B : 'none',
-                }}>
+                <div key={label} style={{ flex: 1, padding: '10px', textAlign: 'center', borderRight: i < arr.length - 1 ? B : 'none' }}>
                   <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '4px' }}>{label}</div>
                   <div style={{ fontSize: '13px', fontWeight: 'bold', color: color || '#111827' }}>{value}</div>
                 </div>
@@ -294,7 +270,9 @@ export default function BudgetReport() {
                 <tr>
                   <th style={TH}>구분</th>
                   <th style={TH}>세목</th>
-                  <th style={TH_R}>예산액(천원)</th>
+                  <th style={TH}>산출내역</th>
+                  <th style={TH_R}>당초예산(천원)</th>
+                  <th style={TH_R}>현재예산(천원)</th>
                   {mode === 'exec' && <>
                     <th style={TH_R}>집행액(천원)</th>
                     <th style={TH_R}>잔액(천원)</th>
@@ -303,7 +281,7 @@ export default function BudgetReport() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, idx) => <SimpleRow key={idx} row={row} mode={mode} />)}
+                <ReportRows entries={entries} execMap={execMap} mode={mode} />
               </tbody>
             </table>
           )}

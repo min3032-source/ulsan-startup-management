@@ -36,8 +36,8 @@ export default function BudgetDashboard() {
   const [programs, setPrograms] = useState([])
   const [budgetByProgram, setBudgetByProgram] = useState({})
   const [execByProgram, setExecByProgram] = useState({})
-  const [l1StatsByProgram, setL1StatsByProgram] = useState({})
-  const [level1Data, setLevel1Data] = useState([])
+  const [divStatsByProgram, setDivStatsByProgram] = useState({})
+  const [divisionData, setDivisionData] = useState([])
   const [recentExecs, setRecentExecs] = useState({})
   const [loading, setLoading] = useState(true)
 
@@ -46,83 +46,72 @@ export default function BudgetDashboard() {
   async function loadData() {
     setLoading(true)
     try {
-      const [{ data: progs }, { data: items }, { data: execs }] = await Promise.all([
+      const [{ data: progs }, { data: entries }, { data: execs }] = await Promise.all([
         supabase.from('budget_programs').select('*').order('year', { ascending: false }),
-        supabase.from('budget_items')
-          .select('id, program_id, level, name, budgeted_amount, parent_id, sort_order')
+        supabase.from('budget_entries')
+          .select('id, program_id, division, budgeted_amount, original_amount')
           .limit(100000),
-        supabase.from('budget_executions')
-          .select('id, program_id, budget_item_id, amount, execution_date, created_at')
+        supabase.from('budget_entry_executions')
+          .select('id, program_id, budget_entry_id, amount, execution_date, created_at')
           .order('id', { ascending: false })
           .limit(100000),
       ])
 
       const allPrograms = progs || []
-      const allItems = items || []
+      const allEntries = entries || []
       const allExecs = execs || []
 
-      const itemMap = {}
-      allItems.forEach(i => { itemMap[i.id] = i })
+      // 엔트리 맵 (id → entry)
+      const entryMap = {}
+      allEntries.forEach(e => { entryMap[e.id] = e })
 
-      function findL1(item) {
-        let cur = item
-        while (cur && cur.level > 1) cur = itemMap[cur.parent_id]
-        return cur?.level === 1 ? cur : null
-      }
-
-      // 프로그램별 예산 (level4 합계)
+      // 프로그램별 예산
       const budgetMap = {}
-      allItems.filter(i => i.level === 4).forEach(i => {
-        const key = String(i.program_id)
-        budgetMap[key] = (budgetMap[key] || 0) + (Number(i.budgeted_amount) || 0)
+      allEntries.forEach(e => {
+        const k = String(e.program_id)
+        budgetMap[k] = (budgetMap[k] || 0) + (Number(e.budgeted_amount) || 0)
       })
 
       // 프로그램별 집행액
       const execMap = {}
       allExecs.forEach(e => {
-        const key = String(e.program_id)
-        execMap[key] = (execMap[key] || 0) + (Number(e.amount) || 0)
+        const k = String(e.program_id)
+        execMap[k] = (execMap[k] || 0) + (Number(e.amount) || 0)
       })
 
-      // 프로그램별 관(level1) 통계
-      const l1StatMap = {}
-      allItems.filter(i => i.level === 4).forEach(i => {
-        const l1 = findL1(i)
-        if (!l1) return
-        const pid = String(i.program_id)
-        if (!l1StatMap[pid]) l1StatMap[pid] = {}
-        if (!l1StatMap[pid][l1.id]) {
-          l1StatMap[pid][l1.id] = { id: l1.id, name: l1.name, budget: 0, exec: 0, sortOrder: l1.sort_order || 0 }
-        }
-        l1StatMap[pid][l1.id].budget += Number(i.budgeted_amount) || 0
+      // 프로그램별 구분(division)별 통계
+      const divStatMap = {} // {pid: {division: {name, budget, exec}}}
+
+      allEntries.forEach(e => {
+        const pid = String(e.program_id)
+        const div = e.division || '(미분류)'
+        if (!divStatMap[pid]) divStatMap[pid] = {}
+        if (!divStatMap[pid][div]) divStatMap[pid][div] = { name: div, budget: 0, exec: 0 }
+        divStatMap[pid][div].budget += Number(e.budgeted_amount) || 0
       })
 
       allExecs.forEach(e => {
-        const item = itemMap[e.budget_item_id]
-        if (!item) return
-        const l1 = findL1(item)
-        if (!l1) return
+        const entry = entryMap[e.budget_entry_id]
+        if (!entry) return
         const pid = String(e.program_id)
-        if (!l1StatMap[pid]) l1StatMap[pid] = {}
-        if (!l1StatMap[pid][l1.id]) {
-          l1StatMap[pid][l1.id] = { id: l1.id, name: l1.name, budget: 0, exec: 0, sortOrder: l1.sort_order || 0 }
-        }
-        l1StatMap[pid][l1.id].exec += Number(e.amount) || 0
+        const div = entry.division || '(미분류)'
+        if (!divStatMap[pid]) divStatMap[pid] = {}
+        if (!divStatMap[pid][div]) divStatMap[pid][div] = { name: div, budget: 0, exec: 0 }
+        divStatMap[pid][div].exec += Number(e.amount) || 0
       })
 
-      const l1Arrays = {}
-      Object.entries(l1StatMap).forEach(([pid, map]) => {
-        l1Arrays[pid] = Object.values(map).sort((a, b) => a.sortOrder - b.sortOrder)
+      const divArrays = {}
+      Object.entries(divStatMap).forEach(([pid, map]) => {
+        divArrays[pid] = Object.values(map).sort((a, b) => b.budget - a.budget)
       })
 
-      // 전체 현황 탭용 관별 집계
-      const l1AggAll = {}
-      allItems.filter(i => i.level === 4).forEach(i => {
-        const l1 = findL1(i)
-        if (!l1) return
-        l1AggAll[l1.name] = (l1AggAll[l1.name] || 0) + (Number(i.budgeted_amount) || 0)
+      // 전체 현황 탭용 구분별 집계
+      const divAggAll = {}
+      allEntries.forEach(e => {
+        const div = e.division || '(미분류)'
+        divAggAll[div] = (divAggAll[div] || 0) + (Number(e.budgeted_amount) || 0)
       })
-      const l1DataArr = Object.entries(l1AggAll)
+      const divDataArr = Object.entries(divAggAll)
         .map(([name, budget]) => ({ name, budget }))
         .sort((a, b) => b.budget - a.budget)
 
@@ -135,7 +124,9 @@ export default function BudgetDashboard() {
           date: e.execution_date
             ? String(e.execution_date).slice(0, 10)
             : (e.created_at ? String(e.created_at).slice(0, 10) : '-'),
-          itemName: itemMap[e.budget_item_id]?.name || '(항목 미상)',
+          itemName: entryMap[e.budget_entry_id]
+            ? `${entryMap[e.budget_entry_id].division} / ${entryMap[e.budget_entry_id].sub_item}`
+            : '(항목 미상)',
           amount: Number(e.amount) || 0,
         }))
       })
@@ -143,8 +134,8 @@ export default function BudgetDashboard() {
       setPrograms(allPrograms)
       setBudgetByProgram(budgetMap)
       setExecByProgram(execMap)
-      setL1StatsByProgram(l1Arrays)
-      setLevel1Data(l1DataArr)
+      setDivStatsByProgram(divArrays)
+      setDivisionData(divDataArr)
       setRecentExecs(recentMap)
     } catch (e) {
       console.error(e)
@@ -156,10 +147,10 @@ export default function BudgetDashboard() {
   const totalBudget = Object.values(budgetByProgram).reduce((s, v) => s + v, 0)
   const totalExec = Object.values(execByProgram).reduce((s, v) => s + v, 0)
   const avgRate = totalBudget > 0 ? totalExec / totalBudget * 100 : 0
-  const maxL1Budget = Math.max(...level1Data.map(d => d.budget), 1)
+  const maxDivBudget = Math.max(...divisionData.map(d => d.budget), 1)
 
   const activeProgram = programs.find(p => String(p.id) === activeTab)
-  const activeL1Stats = l1StatsByProgram[activeTab] || []
+  const activeDivStats = divStatsByProgram[activeTab] || []
   const activeBudget = budgetByProgram[activeTab] || 0
   const activeExec = execByProgram[activeTab] || 0
   const activeRemain = activeBudget - activeExec
@@ -177,7 +168,6 @@ export default function BudgetDashboard() {
           @page { size: A4 portrait; margin: 15mm 10mm; }
           table { border-collapse: collapse !important; width: 100% !important; }
           td, th { border: 1px solid #000 !important; padding: 3px 6px !important; }
-          .print-grid { display: block !important; }
           .print-card { border: 1px solid #ccc !important; margin-bottom: 8px; }
         }
       `}</style>
@@ -215,8 +205,7 @@ export default function BudgetDashboard() {
       {/* ===== 전체 현황 탭 ===== */}
       {activeTab === 'all' && (
         <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
-
-          {/* KPI 카드 4개 */}
+          {/* KPI 카드 */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
             {loading
               ? Array.from({ length: 4 }).map((_, i) => (
@@ -228,10 +217,7 @@ export default function BudgetDashboard() {
                 { label: '전체 집행액', value: formatKorean(totalExec), color: '#059669' },
                 { label: '평균 집행률', value: `${avgRate.toFixed(1)}%`, color: barColor(avgRate) },
               ].map(({ label, value, color }) => (
-                <div key={label} style={{
-                  background: 'white', borderRadius: '12px', padding: '16px',
-                  border: CARD_BORDER, boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-                }}>
+                <div key={label} style={{ background: 'white', borderRadius: '12px', padding: '16px', border: CARD_BORDER, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                   <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '6px' }}>{label}</div>
                   <div style={{ fontSize: '18px', fontWeight: 'bold', color }}>{value}</div>
                 </div>
@@ -239,7 +225,7 @@ export default function BudgetDashboard() {
             }
           </div>
 
-          {/* 사업별 비교 카드 그리드 */}
+          {/* 사업별 카드 그리드 */}
           <div style={{ marginBottom: '24px' }}>
             <h2 style={{ fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '12px' }}>사업별 현황</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
@@ -255,15 +241,10 @@ export default function BudgetDashboard() {
                   const rate = budget > 0 ? exec / budget * 100 : 0
                   const color = PROGRAM_COLORS[idx % PROGRAM_COLORS.length]
                   return (
-                    <div key={prog.id}
-                      onClick={() => setActiveTab(pid)}
+                    <div key={prog.id} onClick={() => setActiveTab(pid)}
                       onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.12)'}
                       onMouseLeave={e => e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)'}
-                      style={{
-                        background: 'white', borderRadius: '12px', padding: '16px',
-                        border: CARD_BORDER, cursor: 'pointer',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)', transition: 'box-shadow 0.15s'
-                      }}>
+                      style={{ background: 'white', borderRadius: '12px', padding: '16px', border: CARD_BORDER, cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', transition: 'box-shadow 0.15s' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -278,10 +259,7 @@ export default function BudgetDashboard() {
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', textAlign: 'center', marginBottom: '10px' }}>
                         {[['총예산', formatKorean(budget), '#374151'], ['집행액', formatKorean(exec), '#059669'], ['잔액', formatKorean(remain), '#1d4ed8']].map(([l, v, c]) => (
-                          <div key={l}>
-                            <div style={{ fontSize: '10px', color: '#9ca3af' }}>{l}</div>
-                            <div style={{ fontSize: '11px', fontWeight: '600', color: c }}>{v}</div>
-                          </div>
+                          <div key={l}><div style={{ fontSize: '10px', color: '#9ca3af' }}>{l}</div><div style={{ fontSize: '11px', fontWeight: '600', color: c }}>{v}</div></div>
                         ))}
                       </div>
                       <div style={{ background: '#f3f4f6', borderRadius: '999px', height: '6px', overflow: 'hidden' }}>
@@ -294,35 +272,22 @@ export default function BudgetDashboard() {
             </div>
           </div>
 
-          {/* 관별 예산 현황 가로 막대 차트 */}
-          {!loading && level1Data.length > 0 && (
+          {/* 구분별 예산 현황 가로 막대 차트 */}
+          {!loading && divisionData.length > 0 && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '20px', border: CARD_BORDER, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <h2 style={{ fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '16px' }}>예산과목(관)별 예산 현황</h2>
+              <h2 style={{ fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '16px' }}>예산과목(구분)별 예산 현황</h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {level1Data.map((item, idx) => {
-                  const pct = item.budget / maxL1Budget * 100
+                {divisionData.map((item, idx) => {
+                  const pct = item.budget / maxDivBudget * 100
                   return (
                     <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ width: '120px', fontSize: '11px', color: '#4b5563', textAlign: 'right', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {item.name}
-                      </div>
+                      <div style={{ width: '120px', fontSize: '11px', color: '#4b5563', textAlign: 'right', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
                       <div style={{ flex: 1, background: '#f3f4f6', borderRadius: '999px', height: '24px', overflow: 'hidden' }}>
-                        <div style={{
-                          height: '24px', borderRadius: '999px',
-                          background: PROGRAM_COLORS[idx % PROGRAM_COLORS.length],
-                          width: `${Math.max(pct, 1)}%`,
-                          display: 'flex', alignItems: 'center', paddingLeft: '8px', minWidth: '4px'
-                        }}>
-                          {pct > 15 && (
-                            <span style={{ fontSize: '10px', color: 'white', fontWeight: '500', whiteSpace: 'nowrap' }}>
-                              {formatKorean(item.budget)}
-                            </span>
-                          )}
+                        <div style={{ height: '24px', borderRadius: '999px', background: PROGRAM_COLORS[idx % PROGRAM_COLORS.length], width: `${Math.max(pct, 1)}%`, display: 'flex', alignItems: 'center', paddingLeft: '8px', minWidth: '4px' }}>
+                          {pct > 15 && <span style={{ fontSize: '10px', color: 'white', fontWeight: '500', whiteSpace: 'nowrap' }}>{formatKorean(item.budget)}</span>}
                         </div>
                       </div>
-                      <div style={{ width: '100px', fontSize: '11px', color: '#6b7280', textAlign: 'right', flexShrink: 0 }}>
-                        {formatKorean(item.budget)}
-                      </div>
+                      <div style={{ width: '100px', fontSize: '11px', color: '#6b7280', textAlign: 'right', flexShrink: 0 }}>{formatKorean(item.budget)}</div>
                     </div>
                   )
                 })}
@@ -335,15 +300,12 @@ export default function BudgetDashboard() {
       {/* ===== 사업별 탭 ===== */}
       {activeTab !== 'all' && activeProgram && (
         <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
-
-          {/* 인쇄용 헤더 (화면에서 숨김) */}
           <div className="print-header">
             <div style={{ fontSize: '12pt', color: '#555', marginBottom: '4px' }}>울산경제일자리진흥원</div>
             <div style={{ fontSize: '18pt', fontWeight: 'bold', marginBottom: '6px' }}>{activeProgram.name} 집행현황</div>
             <div style={{ fontSize: '10pt', color: '#555' }}>기준일: {todayStr()}</div>
           </div>
 
-          {/* 사업명 */}
           <div className="no-print" style={{ marginBottom: '20px' }}>
             <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: '#111827', margin: 0 }}>{activeProgram.name}</h1>
             <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
@@ -352,17 +314,14 @@ export default function BudgetDashboard() {
           </div>
 
           {/* KPI 4개 */}
-          <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px' }}>
             {[
               { label: '총 예산', value: formatKorean(activeBudget), sub: `${fmtK(activeBudget)}천원`, color: '#1e3a5f' },
               { label: '집행액', value: formatKorean(activeExec), sub: `${fmtK(activeExec)}천원`, color: '#059669' },
               { label: '잔액', value: formatKorean(activeRemain), sub: `${fmtK(activeRemain)}천원`, color: '#1d4ed8' },
               { label: '집행률', value: `${activeRate.toFixed(1)}%`, sub: `${fmtK(activeExec)} / ${fmtK(activeBudget)}`, color: barColor(activeRate) },
             ].map(({ label, value, sub, color }) => (
-              <div key={label} className="print-card" style={{
-                background: 'white', borderRadius: '10px', padding: '14px',
-                border: CARD_BORDER, boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-              }}>
+              <div key={label} className="print-card" style={{ background: 'white', borderRadius: '10px', padding: '14px', border: CARD_BORDER, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                 <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>{label}</div>
                 <div style={{ fontSize: '16px', fontWeight: 'bold', color, marginBottom: '2px' }}>{value}</div>
                 <div style={{ fontSize: '10px', color: '#9ca3af' }}>{sub}</div>
@@ -372,28 +331,23 @@ export default function BudgetDashboard() {
 
           {/* 2컬럼 레이아웃 */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-
-            {/* 왼쪽: 관별 현황 테이블 */}
+            {/* 왼쪽: 구분별 현황 테이블 */}
             <div>
-              <h3 style={{ fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '10px' }}>관별 예산·집행 현황</h3>
+              <h3 style={{ fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '10px' }}>구분별 예산·집행 현황</h3>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                 <thead>
                   <tr style={{ background: '#1e3a5f', color: 'white' }}>
-                    {['구분(관)', '예산액(천원)', '집행액(천원)', '잔액(천원)', '집행률'].map((h, i) => (
-                      <th key={h} style={{
-                        padding: '7px 8px', border: '1px solid #374151',
-                        textAlign: i === 0 ? 'left' : 'right', fontWeight: '600', fontSize: '11px'
-                      }}>{h}</th>
+                    {['구분(Division)', '예산액(천원)', '집행액(천원)', '잔액(천원)', '집행률'].map((h, i) => (
+                      <th key={h} style={{ padding: '7px 8px', border: '1px solid #374151', textAlign: i === 0 ? 'left' : 'right', fontWeight: '600', fontSize: '11px' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {activeL1Stats.map((stat, idx) => {
+                  {activeDivStats.map((stat, idx) => {
                     const remain = stat.budget - stat.exec
                     const rate = stat.budget > 0 ? stat.exec / stat.budget * 100 : 0
-                    const bg = idx % 2 === 0 ? 'white' : '#f9fafb'
                     return (
-                      <tr key={stat.id} style={{ background: bg }}>
+                      <tr key={stat.name} style={{ background: idx % 2 === 0 ? 'white' : '#f9fafb' }}>
                         <td style={{ padding: '6px 8px', border: '1px solid #e5e7eb', fontSize: '11px' }}>{stat.name}</td>
                         <td style={{ padding: '6px 8px', border: '1px solid #e5e7eb', textAlign: 'right', fontSize: '11px' }}>{fmtK(stat.budget)}</td>
                         <td style={{ padding: '6px 8px', border: '1px solid #e5e7eb', textAlign: 'right', fontSize: '11px' }}>{fmtK(stat.exec)}</td>
@@ -415,22 +369,17 @@ export default function BudgetDashboard() {
 
             {/* 오른쪽: 시각화 + 최근 집행 */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-              {/* 집행률 시각화 */}
               <div style={{ background: 'white', borderRadius: '10px', padding: '16px', border: CARD_BORDER }}>
-                <h3 style={{ fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '12px' }}>관별 집행률</h3>
-                {activeL1Stats.length === 0 ? (
-                  <div style={{ fontSize: '12px', color: '#9ca3af', textAlign: 'center', padding: '16px 0' }}>데이터 없음</div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {activeL1Stats.map(stat => {
+                <h3 style={{ fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '12px' }}>구분별 집행률</h3>
+                {activeDivStats.length === 0
+                  ? <div style={{ fontSize: '12px', color: '#9ca3af', textAlign: 'center', padding: '16px 0' }}>데이터 없음</div>
+                  : <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {activeDivStats.map(stat => {
                       const rate = stat.budget > 0 ? stat.exec / stat.budget * 100 : 0
                       return (
-                        <div key={stat.id}>
+                        <div key={stat.name}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                            <span style={{ fontSize: '11px', color: '#4b5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '75%' }}>
-                              {stat.name}
-                            </span>
+                            <span style={{ fontSize: '11px', color: '#4b5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '75%' }}>{stat.name}</span>
                             <span style={{ fontSize: '11px', fontWeight: '600', color: barColor(rate), flexShrink: 0 }}>{rate.toFixed(1)}%</span>
                           </div>
                           <div style={{ background: '#f3f4f6', borderRadius: '999px', height: '10px', overflow: 'hidden' }}>
@@ -440,35 +389,25 @@ export default function BudgetDashboard() {
                       )
                     })}
                   </div>
-                )}
+                }
               </div>
 
-              {/* 최근 집행 내역 5건 */}
               <div style={{ background: 'white', borderRadius: '10px', padding: '16px', border: CARD_BORDER }}>
                 <h3 style={{ fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '12px' }}>최근 집행 내역</h3>
-                {activeRecent.length === 0 ? (
-                  <div style={{ fontSize: '12px', color: '#9ca3af', textAlign: 'center', padding: '20px 0' }}>집행 내역이 없습니다</div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {activeRecent.length === 0
+                  ? <div style={{ fontSize: '12px', color: '#9ca3af', textAlign: 'center', padding: '20px 0' }}>집행 내역이 없습니다</div>
+                  : <div style={{ display: 'flex', flexDirection: 'column' }}>
                     {activeRecent.map((e, idx) => (
-                      <div key={idx} style={{
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        padding: '8px 0',
-                        borderBottom: idx < activeRecent.length - 1 ? '1px solid #f3f4f6' : 'none'
-                      }}>
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: idx < activeRecent.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
                         <div style={{ overflow: 'hidden' }}>
-                          <div style={{ fontSize: '12px', color: '#1f2937', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {e.itemName}
-                          </div>
+                          <div style={{ fontSize: '12px', color: '#1f2937', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.itemName}</div>
                           <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '1px' }}>{e.date}</div>
                         </div>
-                        <div style={{ fontSize: '12px', fontWeight: '600', color: '#059669', flexShrink: 0, marginLeft: '8px' }}>
-                          {formatKorean(e.amount)}
-                        </div>
+                        <div style={{ fontSize: '12px', fontWeight: '600', color: '#059669', flexShrink: 0, marginLeft: '8px' }}>{formatKorean(e.amount)}</div>
                       </div>
                     ))}
                   </div>
-                )}
+                }
               </div>
             </div>
           </div>
@@ -476,9 +415,7 @@ export default function BudgetDashboard() {
       )}
 
       {loading && (
-        <div style={{ textAlign: 'center', padding: '80px', color: '#9ca3af', fontSize: '14px' }}>
-          데이터 로딩 중...
-        </div>
+        <div style={{ textAlign: 'center', padding: '80px', color: '#9ca3af', fontSize: '14px' }}>데이터 로딩 중...</div>
       )}
     </div>
   )
