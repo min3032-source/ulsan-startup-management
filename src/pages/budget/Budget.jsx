@@ -560,18 +560,52 @@ export default function Budget() {
 
   function downloadExcel() {
     if (!selectedProgramId) { alert('사업을 먼저 선택해주세요'); return }
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+    const todayFmt = new Date().toISOString().slice(0, 10)
+    const todayCompact = todayFmt.replace(/-/g, '')
     const progName = selectedProgram?.name || '사업'
     const totalAmt = entries.reduce((s, e) => s + (Number(e.budgeted_amount) || 0), 0)
+
     const wsData = [
+      ['사업명:', progName, '', '', ''],
+      ['기준일:', todayFmt, '', '', ''],
+      ['', '', '', '', ''],
       ['순번', '구분', '세목', '산출내역', '예산액(원)'],
       ...entries.map(e => [e.sort_order, e.division, e.sub_item, e.calculation, Number(e.budgeted_amount) || 0]),
       ['', '합 계', '', '', totalAmt],
     ]
+
     const ws = XLSX.utils.aoa_to_sheet(wsData)
+
+    // 열 너비
+    ws['!cols'] = [{ wch: 6 }, { wch: 14 }, { wch: 14 }, { wch: 45 }, { wch: 18 }]
+
+    // 행 높이 (헤더 행)
+    ws['!rows'] = [{}, {}, {}, { hpt: 20 }]
+
+    const HEADER_ROW = 4          // 1-indexed
+    const DATA_START = 5
+    const TOTAL_ROW = wsData.length
+
+    // 예산액(E열) 숫자 포맷
+    for (let r = DATA_START; r <= TOTAL_ROW; r++) {
+      if (ws[`E${r}`]) ws[`E${r}`].z = '#,##0'
+    }
+
+    // 셀 스타일 (xlsx-style 미사용 시 무시됨, 있을 경우 적용)
+    const COLS = ['A', 'B', 'C', 'D', 'E']
+    COLS.forEach(c => {
+      if (ws[`${c}${HEADER_ROW}`]) ws[`${c}${HEADER_ROW}`].s = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '1E3A5F' } }, alignment: { horizontal: 'center' } }
+      if (ws[`${c}${TOTAL_ROW}`]) ws[`${c}${TOTAL_ROW}`].s = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '374151' } } }
+    })
+    for (let r = DATA_START; r < TOTAL_ROW; r++) {
+      if ((r - DATA_START) % 2 === 1) {
+        COLS.forEach(c => { if (ws[`${c}${r}`]) ws[`${c}${r}`].s = { fill: { fgColor: { rgb: 'F8FAFC' } } } })
+      }
+    }
+
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, '사업비')
-    XLSX.writeFile(wb, `사업비_${progName}_${today}.xlsx`)
+    XLSX.writeFile(wb, `사업비_${progName}_${todayCompact}.xlsx`)
   }
 
 
