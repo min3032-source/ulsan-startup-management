@@ -433,6 +433,14 @@ export default function Budget() {
     await loadDetail(selectedProgramId)
   }
 
+  async function deleteProgram(pid, e) {
+    e.stopPropagation()
+    if (!window.confirm('이 사업을 삭제하시겠습니까? 모든 예산 항목과 집행내역이 함께 삭제됩니다.')) return
+    await supabase.from('budget_programs').delete().eq('id', pid)
+    setSelectedProgramId(null)
+    await loadPrograms()
+  }
+
   async function deleteExec(id) {
     await supabase.from('budget_entry_executions').delete().eq('id', id)
     await loadDetail(selectedProgramId)
@@ -600,8 +608,17 @@ export default function Budget() {
             const isSel = selectedProgramId === pid
             return (
               <div key={prog.id} onClick={() => setSelectedProgramId(pid)}
-                style={{ minWidth: '190px', border: isSel ? '2px solid #2563eb' : '2px solid #e5e7eb', background: isSel ? '#eff6ff' : 'white', borderRadius: '12px', padding: '14px', cursor: 'pointer', flexShrink: 0 }}>
-                <div style={{ fontWeight: '600', fontSize: '13px', color: '#111827', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prog.name}</div>
+                style={{ minWidth: '190px', border: isSel ? '2px solid #2563eb' : '2px solid #e5e7eb', background: isSel ? '#eff6ff' : 'white', borderRadius: '12px', padding: '14px', cursor: 'pointer', flexShrink: 0, position: 'relative' }}>
+                {!isViewer && (
+                  <button onClick={e => deleteProgram(prog.id, e)}
+                    title="사업 삭제"
+                    style={{ position: 'absolute', top: '8px', right: '8px', width: '22px', height: '22px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#9ca3af', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', lineHeight: 1 }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                    onMouseLeave={e => e.currentTarget.style.color = '#9ca3af'}>
+                    🗑
+                  </button>
+                )}
+                <div style={{ fontWeight: '600', fontSize: '13px', color: '#111827', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: isViewer ? '0' : '20px' }}>{prog.name}</div>
                 <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '8px' }}>{prog.year}년{prog.manager ? ` · ${prog.manager}` : ''}</div>
                 <div style={{ fontSize: '13px', fontWeight: '500', color: '#1d4ed8', marginBottom: '8px' }}>{formatKorean(sm.budget)}</div>
                 <div style={{ background: '#e5e7eb', borderRadius: '999px', height: '5px', overflow: 'hidden' }}>
