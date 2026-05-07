@@ -163,7 +163,7 @@ function EntryModal({ mode, entry, entries, programId, onClose, onSaved }) {
 }
 
 // 집행 추가 모달 (잔액 초과 방지)
-function ExecAddModal({ entries, programId, defaultEntryId, execMap, onClose, onSaved }) {
+function ExecAddModal({ entries, programId, defaultEntryId, executions, onClose, onSaved }) {
   const [form, setForm] = useState({
     entry_id: String(defaultEntryId || entries[0]?.id || ''),
     execution_date: new Date().toISOString().slice(0, 10),
@@ -173,7 +173,9 @@ function ExecAddModal({ entries, programId, defaultEntryId, execMap, onClose, on
   const [saving, setSaving] = useState(false)
 
   const selectedEntry = entries.find(e => String(e.id) === form.entry_id)
-  const currentExec = selectedEntry ? (execMap[selectedEntry.id] || 0) : 0
+  const currentExec = selectedEntry
+    ? executions.filter(ex => ex.entry_id === selectedEntry.id).reduce((s, ex) => s + (Number(ex.amount) || 0), 0)
+    : 0
   const remaining = selectedEntry ? (Number(selectedEntry.budgeted_amount) || 0) - currentExec : 0
   const inputAmt = parseAmount(form.amount)
   const isOverBudget = inputAmt > 0 && inputAmt > remaining
@@ -553,13 +555,16 @@ export default function Budget() {
   }
 
 
-  // Derived
-  const execMap = {}
-  executions.forEach(e => {
-    if (e.entry_id) {
-      execMap[e.entry_id] = (execMap[e.entry_id] || 0) + (Number(e.amount) || 0)
-    }
-  })
+  // 항목별 집행액 계산
+  const getEntryExecAmount = (entryId) =>
+    executions
+      .filter(ex => ex.entry_id === entryId)
+      .reduce((sum, ex) => sum + (Number(ex.amount) || 0), 0)
+
+  const getDivisionExecAmount = (division) =>
+    entries
+      .filter(e => e.division === division)
+      .reduce((sum, e) => sum + getEntryExecAmount(e.id), 0)
 
   const totalBudget = entries.reduce((s, e) => s + (Number(e.budgeted_amount) || 0), 0)
   const totalExecAmt = executions.reduce((s, e) => s + (Number(e.amount) || 0), 0)
@@ -590,14 +595,14 @@ export default function Budget() {
     const rows = []
     const totOrig = entries.reduce((s, e) => s + (Number(e.original_amount) || 0), 0)
     const totBdg = entries.reduce((s, e) => s + (Number(e.budgeted_amount) || 0), 0)
-    const totExec = entries.reduce((s, e) => s + (execMap[e.id] || 0), 0)
+    const totExec = executions.reduce((sum, ex) => sum + (Number(ex.amount) || 0), 0)
     const totRemain = totBdg - totExec
     const totRate = totBdg > 0 ? totExec / totBdg * 100 : 0
 
     groups.forEach(({ division, items }) => {
       const dOrig = items.reduce((s, e) => s + (Number(e.original_amount) || 0), 0)
       const dBdg = items.reduce((s, e) => s + (Number(e.budgeted_amount) || 0), 0)
-      const dExec = items.reduce((s, e) => s + (execMap[e.id] || 0), 0)
+      const dExec = getDivisionExecAmount(division)
       const dRemain = dBdg - dExec
       const dRate = dBdg > 0 ? dExec / dBdg * 100 : 0
       const SS = { ...CS, background: '#1e3a5f', color: 'white', fontWeight: '600' }
@@ -614,7 +619,7 @@ export default function Budget() {
         </tr>
       )
       items.forEach((entry, idx) => {
-        const exec = execMap[entry.id] || 0
+        const exec = getEntryExecAmount(entry.id)
         const bdg = Number(entry.budgeted_amount) || 0
         const orig = Number(entry.original_amount) || 0
         const remain = bdg - exec
@@ -863,7 +868,7 @@ export default function Budget() {
       {execModal && (
         <ExecAddModal entries={entries} programId={selectedProgramId}
           defaultEntryId={execModal.entryId}
-          execMap={execMap}
+          executions={executions}
           onClose={() => setExecModal(null)}
           onSaved={async () => { await fetchEntries(selectedProgramId); await fetchExecutions(selectedProgramId); await loadPrograms() }} />
       )}
