@@ -49,7 +49,8 @@ export default function BudgetDashboard() {
       const [{ data: progs }, { data: entries }, { data: execs }] = await Promise.all([
         supabase.from('budget_programs').select('*').order('year', { ascending: false }),
         supabase.from('budget_entries')
-          .select('id, program_id, division, budgeted_amount, original_amount')
+          .select('id, program_id, division, budgeted_amount, original_amount, sort_order')
+          .order('sort_order', { ascending: true })
           .limit(100000),
         supabase.from('budget_entry_executions')
           .select('id, program_id, budget_entry_id, amount, execution_date, created_at')
@@ -86,8 +87,11 @@ export default function BudgetDashboard() {
         const pid = String(e.program_id)
         const div = e.division || '(미분류)'
         if (!divStatMap[pid]) divStatMap[pid] = {}
-        if (!divStatMap[pid][div]) divStatMap[pid][div] = { name: div, budget: 0, exec: 0 }
+        if (!divStatMap[pid][div]) divStatMap[pid][div] = { name: div, budget: 0, exec: 0, minSort: e.sort_order ?? Infinity }
         divStatMap[pid][div].budget += Number(e.budgeted_amount) || 0
+        if ((e.sort_order ?? Infinity) < divStatMap[pid][div].minSort) {
+          divStatMap[pid][div].minSort = e.sort_order ?? Infinity
+        }
       })
 
       allExecs.forEach(e => {
@@ -102,18 +106,22 @@ export default function BudgetDashboard() {
 
       const divArrays = {}
       Object.entries(divStatMap).forEach(([pid, map]) => {
-        divArrays[pid] = Object.values(map).sort((a, b) => b.budget - a.budget)
+        divArrays[pid] = Object.values(map).sort((a, b) => (a.minSort ?? Infinity) - (b.minSort ?? Infinity))
       })
 
       // 전체 현황 탭용 구분별 집계
       const divAggAll = {}
       allEntries.forEach(e => {
         const div = e.division || '(미분류)'
-        divAggAll[div] = (divAggAll[div] || 0) + (Number(e.budgeted_amount) || 0)
+        if (!divAggAll[div]) divAggAll[div] = { budget: 0, minSort: e.sort_order ?? Infinity }
+        divAggAll[div].budget += Number(e.budgeted_amount) || 0
+        if ((e.sort_order ?? Infinity) < divAggAll[div].minSort) {
+          divAggAll[div].minSort = e.sort_order ?? Infinity
+        }
       })
       const divDataArr = Object.entries(divAggAll)
-        .map(([name, budget]) => ({ name, budget }))
-        .sort((a, b) => b.budget - a.budget)
+        .map(([name, { budget, minSort }]) => ({ name, budget, minSort }))
+        .sort((a, b) => (a.minSort ?? Infinity) - (b.minSort ?? Infinity))
 
       // 프로그램별 최근 집행 5건
       const recentMap = {}
