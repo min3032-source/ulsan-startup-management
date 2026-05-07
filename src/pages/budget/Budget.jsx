@@ -168,7 +168,7 @@ function ExecAddModal({ entries, programId, defaultEntryId, execMap, onClose, on
     entry_id: String(defaultEntryId || entries[0]?.id || ''),
     execution_date: new Date().toISOString().slice(0, 10),
     amount: '',
-    description: '',
+    note: '',
   })
   const [saving, setSaving] = useState(false)
 
@@ -197,7 +197,7 @@ function ExecAddModal({ entries, programId, defaultEntryId, execMap, onClose, on
       program_id: programId,
       execution_date: form.execution_date,
       amount: inputAmt,
-      description: form.description,
+      note: form.note,
     })
     console.log('exec insert result:', data, error)
     setSaving(false)
@@ -238,7 +238,7 @@ function ExecAddModal({ entries, programId, defaultEntryId, execMap, onClose, on
           </div>
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">적요</label>
-            <input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className={I} placeholder="집행 내용" />
+            <input value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} className={I} placeholder="집행 내용" />
           </div>
         </div>
         <div className="flex gap-2 mt-4">
@@ -810,7 +810,7 @@ export default function Budget() {
                     {selectedEntryExecs.map(e => (
                       <div key={e.id} className="flex items-center gap-2 px-4 py-3 border-b border-gray-50 hover:bg-gray-50">
                         <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium text-gray-800 truncate">{e.description || '(적요 없음)'}</div>
+                          <div className="text-xs font-medium text-gray-800 truncate">{e.note || '(적요 없음)'}</div>
                           <div className="text-xs text-gray-400 mt-0.5">{e.execution_date}</div>
                         </div>
                         <div className="text-xs font-semibold text-emerald-600 whitespace-nowrap">{formatKorean(e.amount)}</div>
