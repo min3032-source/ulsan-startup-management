@@ -4,7 +4,7 @@ import { useAuth, ROLES } from '../../context/AuthContext'
 import { DEFAULT_SETTINGS } from '../../lib/constants'
 import Modal from '../../components/common/Modal'
 import Avatar from '../../components/common/Avatar'
-import { Save, Plus, Trash2, UserCog, Settings2, Users, PowerOff, UserX, KeyRound, Briefcase } from 'lucide-react'
+import { Save, Plus, Trash2, UserCog, Settings2, Users, UserX, KeyRound, Briefcase, ShieldCheck } from 'lucide-react'
 
 const ROLE_OPTIONS = [
   { value: 'master',  label: '마스터' },
@@ -19,6 +19,16 @@ const ROLE_BADGE = {
   manager: 'bg-teal-100 text-teal-700',
   viewer:  'bg-gray-100 text-gray-500',
 }
+
+export const MENU_PERMISSIONS = [
+  { key: 'consult',   label: '상담 관리',   desc: '상담 접수, 상담 관리, 상담일지, 창업자 DB' },
+  { key: 'expert',    label: '전문가 관리', desc: '전문가 DB, 전문가 상담·멘토링' },
+  { key: 'support',   label: '지원사업',    desc: '지원사업 연계, 선정기업 관리' },
+  { key: 'growth',    label: '성장 추적',   desc: '창업 현황, 기업 성장 지표' },
+  { key: 'education', label: '교육 관리',   desc: '교육 프로그램, 교육 대시보드' },
+  { key: 'budget',    label: '사업비 관리', desc: '사업비 관리, 전체 대시보드, 집행현황 보고서' },
+  { key: 'report',    label: '성과 보고',   desc: '성과 보고서' },
+]
 
 function ListEditor({ label, stateKey, items, canEdit, onAdd, onUpdate, onRemove }) {
   return (
@@ -82,6 +92,10 @@ export default function Settings() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
+
+  const [menuModalOpen, setMenuModalOpen] = useState(false)
+  const [menuTargetUser, setMenuTargetUser] = useState(null)
+  const [menuPerms, setMenuPerms] = useState([])
 
   // ── 팀 목록 ──────────────────────────────────────
   const [newTeamName, setNewTeamName] = useState('')
@@ -251,6 +265,32 @@ export default function Settings() {
       setUsers(prev => prev.filter(u => u.id !== deleteTarget.id))
       setDeleteModalOpen(false)
       setDeleteTarget(null)
+    }
+  }
+
+  function openMenuModal(u) {
+    setMenuTargetUser(u)
+    setMenuPerms(u.menu_permissions || [])
+    setMenuModalOpen(true)
+  }
+
+  function toggleMenuPerm(key) {
+    setMenuPerms(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    )
+  }
+
+  async function saveMenuPerms() {
+    if (!menuTargetUser) return
+    const { error } = await supabase
+      .from('profiles')
+      .update({ menu_permissions: menuPerms, updated_at: new Date().toISOString() })
+      .eq('id', menuTargetUser.id)
+    if (error) {
+      alert('메뉴 권한 저장 실패: ' + error.message)
+    } else {
+      setUsers(prev => prev.map(u => u.id === menuTargetUser.id ? { ...u, menu_permissions: menuPerms } : u))
+      setMenuModalOpen(false)
     }
   }
 
@@ -428,6 +468,7 @@ export default function Settings() {
                   <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">권한</th>
                   <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">소속 팀</th>
                   <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">직책</th>
+                  <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">메뉴 권한</th>
                   <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">상태</th>
                   <th className="px-5 py-2.5" />
                 </tr>
@@ -485,9 +526,33 @@ export default function Settings() {
                       )}
                     </td>
                     <td className="px-5 py-3">
-                      <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${u.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-500'}`}>
-                        {u.is_active ? '활성' : '비활성'}
-                      </span>
+                      {u.id !== profile?.id ? (
+                        <button
+                          onClick={() => openMenuModal(u)}
+                          className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800"
+                        >
+                          <ShieldCheck size={13} />
+                          {!u.menu_permissions || u.menu_permissions.length === 0
+                            ? '전체 허용'
+                            : `${u.menu_permissions.length}개 설정`}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
+                      {isMaster && u.id !== profile?.id ? (
+                        <button
+                          onClick={() => toggleActive(u)}
+                          className={`inline-flex px-2 py-0.5 rounded text-xs font-medium transition-colors ${u.is_active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-500 hover:bg-red-200'}`}
+                        >
+                          {u.is_active ? '활성' : '비활성'}
+                        </button>
+                      ) : (
+                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${u.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-500'}`}>
+                          {u.is_active ? '활성' : '비활성'}
+                        </span>
+                      )}
                     </td>
                     <td className="px-5 py-3 text-right">
                       {u.id !== profile?.id && (
@@ -497,14 +562,6 @@ export default function Settings() {
                             className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
                           >
                             <UserCog size={13} /> 권한 변경
-                          </button>
-                          <button
-                            onClick={() => toggleActive(u)}
-                            title={u.is_active ? '비활성화' : '활성화'}
-                            className={`flex items-center gap-1 text-xs ${u.is_active ? 'text-orange-400 hover:text-orange-600' : 'text-green-500 hover:text-green-700'}`}
-                          >
-                            <PowerOff size={13} />
-                            {u.is_active ? '비활성화' : '활성화'}
                           </button>
                           <button
                             onClick={() => openDeleteModal(u)}
@@ -520,7 +577,7 @@ export default function Settings() {
                 ))}
                 {users.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="text-center py-8 text-gray-400 text-xs">사용자가 없습니다</td>
+                    <td colSpan={8} className="text-center py-8 text-gray-400 text-xs">사용자가 없습니다</td>
                   </tr>
                 )}
               </tbody>
@@ -612,6 +669,48 @@ export default function Settings() {
               이 계정을 <strong className="text-red-600">영구 삭제</strong>합니다.<br />
               로그인 정보와 모든 계정 데이터가 삭제되며 <strong>복구할 수 없습니다.</strong>
             </p>
+          </div>
+        )}
+      </Modal>
+
+      {/* 메뉴 권한 모달 */}
+      <Modal
+        isOpen={menuModalOpen}
+        onClose={() => setMenuModalOpen(false)}
+        title="메뉴 권한 설정"
+        footer={
+          <>
+            <button onClick={() => setMenuModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
+            <button onClick={saveMenuPerms} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">저장</button>
+          </>
+        }
+      >
+        {menuTargetUser && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+              <Avatar name={menuTargetUser.name} />
+              <div>
+                <div className="font-medium text-gray-800 text-sm">{menuTargetUser.name}</div>
+                <div className="text-xs text-gray-500">{menuTargetUser.email}</div>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">체크하지 않으면 전체 메뉴 허용입니다.</p>
+            <div className="space-y-2">
+              {MENU_PERMISSIONS.map(mp => (
+                <label key={mp.key} className="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    checked={menuPerms.includes(mp.key)}
+                    onChange={() => toggleMenuPerm(mp.key)}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <div className="text-sm font-medium text-gray-800">{mp.label}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">{mp.desc}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
           </div>
         )}
       </Modal>

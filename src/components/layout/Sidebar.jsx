@@ -63,6 +63,16 @@ const navGroups = [
   },
 ]
 
+const GROUP_PERM_KEY = {
+  '상담 관리':   'consult',
+  '전문가 관리': 'expert',
+  '지원사업':    'support',
+  '성장 추적':   'growth',
+  '교육 관리':   'education',
+  '사업비 관리': 'budget',
+  '보고·설정':   null,
+}
+
 const ROLE_STYLE = {
   master:  { bg: 'rgba(168,85,247,0.25)',  text: '#D8B4FE' },
   admin:   { bg: 'rgba(59,130,246,0.25)',  text: '#93C5FD' },
@@ -130,6 +140,16 @@ export default function Sidebar({ onClose }) {
       {/* 네비게이션 */}
       <nav className="flex-1 overflow-y-auto py-2">
         {navGroups.map(group => {
+          // 그룹 표시 여부 체크
+          if (!hasRole('admin')) {
+            const permKey = GROUP_PERM_KEY[group.label]
+            if (permKey !== null) {
+              const perms = profile?.menu_permissions
+              const hasRestriction = Array.isArray(perms) && perms.length > 0
+              if (hasRestriction && !perms.includes(permKey)) return null
+            }
+          }
+
           const items = group.items.filter(item => {
             if (item.to === '/settings') return hasRole('admin')
             return true
