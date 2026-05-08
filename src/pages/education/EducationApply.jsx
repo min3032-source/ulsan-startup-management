@@ -21,7 +21,7 @@ export default function EducationApply() {
   const [programs, setPrograms] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedProgram, setSelectedProgram] = useState(null)
-  const [form, setForm] = useState({ name: '', phone: '', email: '', company_name: '', motivation: '', related_program: '', agree: false })
+  const [form, setForm] = useState({ name: '', phone: '', email: '', company_name: '', motivation: '', agree: false })
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
   const [errors, setErrors] = useState({})
@@ -64,7 +64,6 @@ export default function EducationApply() {
       email: form.email,
       company_name: form.company_name || null,
       memo: form.motivation || null,
-      related_program: form.related_program || null,
       status: '신청',
     })
     if (error) { alert('신청 실패: ' + error.message); setSubmitting(false); return }
@@ -92,7 +91,7 @@ export default function EducationApply() {
 
   function openApply(prog) {
     setSelectedProgram(prog)
-    setForm({ name: '', phone: '', email: '', company_name: '', motivation: '', related_program: prog.related_program || '', agree: false })
+    setForm({ name: '', phone: '', email: '', company_name: '', motivation: '', agree: false })
     setErrors({})
     setDone(false)
     setPrivacyOpen(false)
@@ -408,13 +407,6 @@ export default function EducationApply() {
                       className="w-full border-0 border-b border-gray-200 pb-2 text-sm focus:outline-none focus:border-blue-500 bg-transparent placeholder-gray-300 transition-colors"
                       value={form.company_name} onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))}
                       placeholder="(선택) (주)울산스타트업"
-                    />
-                  </MinimalField>
-                  <MinimalField label="참여 사업명">
-                    <input
-                      className="w-full border-0 border-b border-gray-200 pb-2 text-sm focus:outline-none focus:border-blue-500 bg-transparent placeholder-gray-300 transition-colors"
-                      value={form.related_program} onChange={e => setForm(f => ({ ...f, related_program: e.target.value }))}
-                      placeholder="(선택) 참여 중인 사업명"
                     />
                   </MinimalField>
                   <MinimalField label="신청 동기">
