@@ -468,16 +468,18 @@ export default function Settings() {
                     </td>
                     <td className="px-5 py-3">
                       {u.id !== profile?.id ? (
-                        <input
+                        <select
                           key={u.id}
-                          defaultValue={u.position || ''}
-                          onBlur={e => {
-                            const val = e.target.value.trim()
-                            if (val !== (u.position || '')) updatePosition(u.id, val)
-                          }}
-                          placeholder="직책 입력"
+                          value={u.position || ''}
+                          onChange={e => updatePosition(u.id, e.target.value)}
                           className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400 w-24"
-                        />
+                        >
+                          <option value="">직책 선택</option>
+                          <option value="부장">부장</option>
+                          <option value="팀장">팀장</option>
+                          <option value="책임">책임</option>
+                          <option value="선임">선임</option>
+                        </select>
                       ) : (
                         <span className="text-xs text-gray-500">{u.position || '-'}</span>
                       )}
