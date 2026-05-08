@@ -22,6 +22,12 @@ function fmtDateTime(date, time) {
   return t && t !== '00:00' ? `${dateStr} ${t}` : dateStr
 }
 
+const formatDateWithTime = (date, time) => {
+  if (!date) return ''
+  const timeStr = time ? ' ' + time.slice(0, 5) : ''
+  return date + timeStr
+}
+
 const CATEGORIES = ['창업기초', '마케팅', '재무', '기술', '네트워킹', '기타']
 const PROGRAM_TYPES = ['집합교육', '온라인', '혼합']
 const PROGRAM_STATUSES = ['모집중', '진행중', '완료', '취소']
@@ -202,8 +208,8 @@ export default function Education() {
       poster_url: p.poster_url || '',
       survey_questions: p.survey_questions?.length ? p.survey_questions : [...DEFAULT_SURVEY_QUESTIONS]
     })
-    setStartTime(p.start_time || '09:00')
-    setEndTime(p.end_time || '18:00')
+    setStartTime(p.start_time ? p.start_time.slice(0, 5) : '09:00')
+    setEndTime(p.end_time ? p.end_time.slice(0, 5) : '18:00')
     setPosterFile(null)
     setShowProgramModal(true)
   }
@@ -443,7 +449,7 @@ export default function Education() {
                       <td className="px-4 py-2.5 text-xs text-gray-600">{p.program_type}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">
                         {p.start_date
-                          ? `${p.start_date}${p.start_time ? ' ' + p.start_time.slice(0, 5) : ''} ~ ${p.end_date || ''}${p.end_time ? ' ' + p.end_time.slice(0, 5) : ''}`
+                          ? `${formatDateWithTime(p.start_date, p.start_time)} ~ ${formatDateWithTime(p.end_date, p.end_time)}`
                           : '-'}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">
@@ -641,7 +647,7 @@ export default function Education() {
                       <td className="px-4 py-2.5 text-xs text-gray-600">{prog?.title || '-'}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">
                         {prog?.start_date
-                          ? `${prog.start_date}${prog.start_time ? ' ' + prog.start_time.slice(0, 5) : ''} ~ ${prog.end_date || ''}${prog.end_time ? ' ' + prog.end_time.slice(0, 5) : ''}`
+                          ? `${formatDateWithTime(prog.start_date, prog.start_time)} ~ ${formatDateWithTime(prog.end_date, prog.end_time)}`
                           : '-'}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">{cert?.issued_at?.slice(0, 10) || '-'}</td>
@@ -1125,7 +1131,7 @@ export function CertificateView({ name, programTitle, startDate, startTime, endD
               <td style={{ fontWeight: 'bold', color: '#374151', paddingBottom: 10, verticalAlign: 'top' }}>교육기간</td>
               <td style={{ color: '#1f2937', paddingBottom: 10, verticalAlign: 'top' }}>
                 :&nbsp;&nbsp;{startDate
-                    ? `${startDate}${startTime ? ' ' + startTime.slice(0, 5) : ''} ~ ${endDate || ''}${endTime ? ' ' + endTime.slice(0, 5) : ''}`
+                    ? `${formatDateWithTime(startDate, startTime)} ~ ${formatDateWithTime(endDate, endTime)}`
                     : '-'}
               </td>
             </tr>
