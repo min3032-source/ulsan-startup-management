@@ -110,7 +110,6 @@ export default function Education() {
 
   const [startTime, setStartTime] = useState('09:00')
   const [endTime, setEndTime] = useState('18:00')
-  const [relatedProgram, setRelatedProgram] = useState('')
   const [relatedPrograms, setRelatedPrograms] = useState([])
   const [showRelatedProgramModal, setShowRelatedProgramModal] = useState(false)
   const [newRelatedProgram, setNewRelatedProgram] = useState({ name: '', year: new Date().getFullYear() })
@@ -262,7 +261,6 @@ export default function Education() {
     setProgramForm(defaultProgramForm())
     setStartTime('09:00')
     setEndTime('18:00')
-    setRelatedProgram('')
     setPosterFile(null)
     setShowProgramModal(true)
   }
@@ -282,7 +280,6 @@ export default function Education() {
     })
     setStartTime(p.start_time ? p.start_time.slice(0, 5) : '09:00')
     setEndTime(p.end_time ? p.end_time.slice(0, 5) : '18:00')
-    setRelatedProgram(p.related_program || '')
     setPosterFile(null)
     setShowProgramModal(true)
   }
@@ -312,7 +309,6 @@ export default function Education() {
       start_time: startTime || null,
       end_date: programForm.end_date || null,
       end_time: endTime || null,
-      related_program: relatedProgram || null,
       max_participants: programForm.max_participants ? Number(programForm.max_participants) : null,
       hours_per_session: programForm.hours_per_session || null,
       total_hours: totalHours || null,
@@ -343,8 +339,7 @@ export default function Education() {
   async function updateAppStatus(appId, status) {
     if (status === '승인') {
       const app = applications.find(a => a.id === appId)
-      const program = programs.find(p => p.id === app?.program_id)
-      setApprovalModal({ app, selectedBusiness: program?.related_program || '' })
+      setApprovalModal({ app, selectedBusiness: '' })
       return
     }
     if (status === '수료') {
@@ -509,16 +504,16 @@ export default function Education() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  {['교육명', '카테고리', '유형', '기간', '사업명', '교육시간', '수강인원/정원', '담당자', '상태', '관리'].map(h => (
+                  {['교육명', '카테고리', '유형', '기간', '교육시간', '수강인원/정원', '담당자', '상태', '관리'].map(h => (
                     <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={10} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
+                  <tr><td colSpan={9} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
                 ) : programs.length === 0 ? (
-                  <tr><td colSpan={10} className="text-center py-10 text-gray-400">등록된 프로그램이 없습니다</td></tr>
+                  <tr><td colSpan={9} className="text-center py-10 text-gray-400">등록된 프로그램이 없습니다</td></tr>
                 ) : programs.map(p => {
                   const enrolled = appsByProgram(p.id).length
                   return (
@@ -543,11 +538,6 @@ export default function Education() {
                             {p.end_date}{p.end_time ? ' ' + String(p.end_time).slice(0, 5) : ''}
                           </span>
                         )}
-                      </td>
-                      <td className="px-4 py-2.5 text-xs text-gray-500">
-                        {p.related_program
-                          ? <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded">{p.related_program}</span>
-                          : '-'}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">
                         {p.total_hours ? `${p.total_hours}시간 (${p.total_sessions}회)` : '-'}
@@ -866,14 +856,6 @@ export default function Education() {
                   <input className="input-base" value={programForm.location} onChange={e => setProgramForm(f => ({ ...f, location: e.target.value }))} />
                 </Field>
               </div>
-              <Field label="참여 사업명">
-                <select className="input-base" value={relatedProgram} onChange={e => setRelatedProgram(e.target.value)}>
-                  <option value="">-- 사업 선택 (없으면 공란) --</option>
-                  {relatedPrograms.map(rp => (
-                    <option key={rp.id} value={rp.name}>{rp.name} ({rp.year}년)</option>
-                  ))}
-                </select>
-              </Field>
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-2">
                   <Field label="시작일">
