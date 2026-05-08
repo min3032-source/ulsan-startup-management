@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { formatPhone } from '../../utils/formatPhone'
-import { BookOpen, Users, Award, Plus, X, Search, ChevronDown, Printer, Mail } from 'lucide-react'
+import { BookOpen, Users, Award, Plus, X, Search, ChevronDown, Printer, Mail, Download } from 'lucide-react'
 import StatCard from '../../components/common/StatCard'
 import PageHeader from '../../components/common/PageHeader'
+import * as XLSX from 'xlsx'
 
 const DEFAULT_SURVEY_QUESTIONS = [
   '교육 내용은 창업에 도움이 되었나요?',
@@ -256,6 +257,44 @@ export default function Education() {
     setShowStudentModal(false)
     showToast(editStudent ? '수강생 정보가 수정되었습니다.' : '수강생이 등록되었습니다.')
     loadAll()
+  }
+
+  function downloadStudentExcel() {
+    const progTitle = filterProgram
+      ? (programs.find(p => p.id === filterProgram)?.title || '전체')
+      : '전체'
+    const now = new Date()
+    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '')
+    const dateTimeStr = now.toLocaleString('ko-KR')
+
+    const rows = [
+      ['교육명:', progTitle, '', '', '', '', '', '', '', ''],
+      ['다운로드일시:', dateTimeStr, '', '', '', '', '', '', '', ''],
+      [],
+      ['번호', '이름', '연락처', '이메일', '기업명', '참여사업', '신청일', '상태', '수료여부', '설문완료'],
+      ...filteredApps.map((a, i) => [
+        i + 1,
+        a.applicant_name || '',
+        a.phone || '',
+        a.email || '',
+        a.company_name || '',
+        a.related_program || '',
+        a.applied_at ? a.applied_at.slice(0, 10) : '',
+        a.status || '',
+        a.status === '수료' ? 'O' : '',
+        a.survey_completed ? 'O' : '',
+      ]),
+      ['', '합계', `${filteredApps.length}명`, '', '', '', '', '', '', ''],
+    ]
+
+    const ws = XLSX.utils.aoa_to_sheet(rows)
+    ws['!cols'] = [
+      { wch: 6 }, { wch: 10 }, { wch: 14 }, { wch: 24 },
+      { wch: 16 }, { wch: 20 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
+    ]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '수강생목록')
+    XLSX.writeFile(wb, `수강생목록_${progTitle}_${dateStr}.xlsx`)
   }
 
   async function deleteStudent(id) {
@@ -610,15 +649,23 @@ export default function Education() {
                 />
               </div>
             </div>
-            {canWrite && (
+            <div className="flex gap-2">
               <button
-                onClick={openAddStudent}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm text-white rounded-lg font-medium"
-                style={{ background: '#2E75B6' }}
+                onClick={downloadStudentExcel}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition"
               >
-                <Plus size={15} /> 수강생 추가
+                <Download size={15} /> 엑셀 다운로드
               </button>
-            )}
+              {canWrite && (
+                <button
+                  onClick={openAddStudent}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm text-white rounded-lg font-medium"
+                  style={{ background: '#2E75B6' }}
+                >
+                  <Plus size={15} /> 수강생 추가
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
