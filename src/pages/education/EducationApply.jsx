@@ -36,6 +36,7 @@ export default function EducationApply() {
         .select('*, education_applications(count)')
         .eq('status', '모집중')
         .order('start_date', { ascending: true })
+        .order('start_time', { ascending: true })
       setPrograms(data || [])
       setLoading(false)
     }
