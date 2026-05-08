@@ -43,6 +43,7 @@ const navGroups = [
     label: '교육 관리',
     items: [
       { to: '/education', icon: BookOpen, label: '교육 프로그램' },
+      { to: '/education/dashboard', icon: BarChart3, label: '교육 대시보드' },
     ]
   },
   {

@@ -21,7 +21,7 @@ export default function EducationApply() {
   const [programs, setPrograms] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedProgram, setSelectedProgram] = useState(null)
-  const [form, setForm] = useState({ name: '', phone: '', email: '', company_name: '', motivation: '', password: '', agree: false })
+  const [form, setForm] = useState({ name: '', phone: '', email: '', company_name: '', motivation: '', related_program: '', agree: false })
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
   const [errors, setErrors] = useState({})
@@ -47,8 +47,6 @@ export default function EducationApply() {
     if (!form.name.trim()) e.name = '이름을 입력해주세요'
     if (!form.phone.trim()) e.phone = '연락처를 입력해주세요'
     if (!form.email.trim()) e.email = '이메일을 입력해주세요'
-    if (!form.password.trim()) e.password = '접속 비밀번호를 입력해주세요'
-    else if (!/^\d{4}$/.test(form.password)) e.password = '숫자 4자리를 입력해주세요'
     if (!form.agree) e.agree = '개인정보 수집·이용에 동의해주세요'
     return e
   }
@@ -65,8 +63,8 @@ export default function EducationApply() {
       email: form.email,
       company_name: form.company_name || null,
       memo: form.motivation || null,
+      related_program: form.related_program || null,
       status: '신청',
-      access_password: form.password,
     })
     if (error) { alert('신청 실패: ' + error.message); setSubmitting(false); return }
 
@@ -93,7 +91,7 @@ export default function EducationApply() {
 
   function openApply(prog) {
     setSelectedProgram(prog)
-    setForm({ name: '', phone: '', email: '', company_name: '', motivation: '', password: '', agree: false })
+    setForm({ name: '', phone: '', email: '', company_name: '', motivation: '', related_program: prog.related_program || '', agree: false })
     setErrors({})
     setDone(false)
     setPrivacyOpen(false)
@@ -228,7 +226,7 @@ export default function EducationApply() {
                     {/* 정보 아이콘 목록 */}
                     <div className="space-y-2 text-xs text-gray-500">
                       {(prog.start_date || prog.end_date) && (
-                        <InfoRow icon={<Calendar size={13} className="text-gray-400" />} text={`${prog.start_date || ''} ~ ${prog.end_date || ''}`} />
+                        <InfoRow icon={<Calendar size={13} className="text-gray-400" />} text={`${prog.start_date || ''}${prog.start_time ? ' ' + String(prog.start_time).slice(0,5) : ''} ~ ${prog.end_date || ''}${prog.end_time ? ' ' + String(prog.end_time).slice(0,5) : ''}`} />
                       )}
                       {prog.location && <InfoRow icon={<MapPin size={13} className="text-gray-400" />} text={prog.location} />}
                       {prog.instructor && <InfoRow icon={<User size={13} className="text-gray-400" />} text={`${prog.instructor} 강사`} />}
@@ -404,20 +402,18 @@ export default function EducationApply() {
                       placeholder="example@email.com"
                     />
                   </MinimalField>
-                  <MinimalField label="접속 비밀번호 설정" required error={errors.password}>
-                    <p className="text-xs text-gray-400 mb-2">수료증 발급 및 만족도 조사 시 사용할 비밀번호를 설정해주세요 (숫자 4자리)</p>
-                    <input
-                      type="password"
-                      className="w-full border-0 border-b border-gray-200 pb-2 text-sm focus:outline-none focus:border-blue-500 bg-transparent placeholder-gray-300 transition-colors"
-                      value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
-                      placeholder="숫자 4자리" maxLength={4}
-                    />
-                  </MinimalField>
                   <MinimalField label="기업명">
                     <input
                       className="w-full border-0 border-b border-gray-200 pb-2 text-sm focus:outline-none focus:border-blue-500 bg-transparent placeholder-gray-300 transition-colors"
                       value={form.company_name} onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))}
                       placeholder="(선택) (주)울산스타트업"
+                    />
+                  </MinimalField>
+                  <MinimalField label="참여 사업명">
+                    <input
+                      className="w-full border-0 border-b border-gray-200 pb-2 text-sm focus:outline-none focus:border-blue-500 bg-transparent placeholder-gray-300 transition-colors"
+                      value={form.related_program} onChange={e => setForm(f => ({ ...f, related_program: e.target.value }))}
+                      placeholder="(선택) 참여 중인 사업명"
                     />
                   </MinimalField>
                   <MinimalField label="신청 동기">

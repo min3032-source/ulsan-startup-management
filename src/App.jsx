@@ -19,6 +19,7 @@ import Apply from './pages/apply/Apply'
 import ExpertApply from './pages/expert-apply/ExpertApply'
 import Founders from './pages/founders/Founders'
 import Education from './pages/education/Education'
+import EducationDashboard from './pages/education/EducationDashboard'
 import EducationApply from './pages/education/EducationApply'
 import Certificate from './pages/education/Certificate'
 import StudentPortal from './pages/education/StudentPortal'
@@ -68,6 +69,7 @@ function AppRoutes() {
         <Route path="report" element={<Report />} />
         <Route path="settings" element={<Settings />} />
         <Route path="education" element={<Education />} />
+        <Route path="education/dashboard" element={<EducationDashboard />} />
         <Route path="budget" element={<Budget />} />
         <Route path="budget/dashboard" element={<BudgetDashboard />} />
         <Route path="budget/report" element={<BudgetReport />} />
