@@ -223,6 +223,18 @@ export default function Settings() {
     }
   }
 
+  async function updatePosition(userId, position) {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ position: position || null, updated_at: new Date().toISOString() })
+      .eq('id', userId)
+    if (error) {
+      alert('직책 변경 실패: ' + error.message)
+    } else {
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, position } : u))
+    }
+  }
+
   function openDeleteModal(u) {
     setDeleteTarget(u)
     setDeleteModalOpen(true)
@@ -415,6 +427,7 @@ export default function Settings() {
                   <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">이메일</th>
                   <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">권한</th>
                   <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">소속 팀</th>
+                  <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">직책</th>
                   <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">상태</th>
                   <th className="px-5 py-2.5" />
                 </tr>
@@ -451,6 +464,22 @@ export default function Settings() {
                         </select>
                       ) : (
                         <span className="text-xs text-gray-500">{u.department || '미지정'}</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
+                      {u.id !== profile?.id ? (
+                        <input
+                          key={u.id}
+                          defaultValue={u.position || ''}
+                          onBlur={e => {
+                            const val = e.target.value.trim()
+                            if (val !== (u.position || '')) updatePosition(u.id, val)
+                          }}
+                          placeholder="직책 입력"
+                          className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400 w-24"
+                        />
+                      ) : (
+                        <span className="text-xs text-gray-500">{u.position || '-'}</span>
                       )}
                     </td>
                     <td className="px-5 py-3">
