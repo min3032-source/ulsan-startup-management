@@ -44,6 +44,13 @@ const formatPeriod = (startDate, startTime, endDate, endTime) => {
   return { date: `${formatDateWithTime(startDate, startTime)} ~ ${formatDateWithTime(endDate, endTime)}`, time: null }
 }
 
+const formatDateTimeDisplay = (date, time) => {
+  if (!date) return ''
+  if (!time) return date
+  const t = typeof time === 'string' ? time.slice(0, 5) : ''
+  return t ? date + ' ' + t : date
+}
+
 const CATEGORIES = ['창업기초', '마케팅', '재무', '기술', '네트워킹', '기타']
 const PROGRAM_TYPES = ['집합교육', '온라인', '혼합']
 const PROGRAM_STATUSES = ['모집중', '진행중', '완료', '취소']
@@ -464,15 +471,14 @@ export default function Education() {
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">{p.program_type}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">
-                        {(() => {
-                          const { date, time } = formatPeriod(p.start_date, p.start_time, p.end_date, p.end_time)
-                          return (
-                            <div>
-                              <div>{date}</div>
-                              {time && <div className="text-gray-400 mt-0.5">{time}</div>}
-                            </div>
-                          )
-                        })()}
+                        {p.start_date === p.end_date ? (
+                          <span>📅 {formatDateTimeDisplay(p.start_date, p.start_time)} ~ {formatDateTimeDisplay(p.end_date, p.end_time)}</span>
+                        ) : (
+                          <div>
+                            <span>📅 {formatDateTimeDisplay(p.start_date, p.start_time)}</span>
+                            <div>~ {formatDateTimeDisplay(p.end_date, p.end_time)}</div>
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">
                         {p.total_hours ? `${p.total_hours}시간 (${p.total_sessions}회)` : '-'}
@@ -668,15 +674,14 @@ export default function Education() {
                       <td className="px-4 py-2.5 text-xs font-medium text-gray-800">{a.applicant_name}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">{prog?.title || '-'}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">
-                        {(() => {
-                          const { date, time } = formatPeriod(prog?.start_date, prog?.start_time, prog?.end_date, prog?.end_time)
-                          return (
-                            <div>
-                              <div>{date}</div>
-                              {time && <div className="text-gray-400 mt-0.5">{time}</div>}
-                            </div>
-                          )
-                        })()}
+                        {prog?.start_date === prog?.end_date ? (
+                          <span>📅 {formatDateTimeDisplay(prog?.start_date, prog?.start_time)} ~ {formatDateTimeDisplay(prog?.end_date, prog?.end_time)}</span>
+                        ) : (
+                          <div>
+                            <span>📅 {formatDateTimeDisplay(prog?.start_date, prog?.start_time)}</span>
+                            <div>~ {formatDateTimeDisplay(prog?.end_date, prog?.end_time)}</div>
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">{cert?.issued_at?.slice(0, 10) || '-'}</td>
                       <td className="px-4 py-2.5 text-xs font-mono text-gray-700">{cert?.certificate_number || '-'}</td>

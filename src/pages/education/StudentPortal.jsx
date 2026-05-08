@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { formatPhone } from '../../utils/formatPhone'
-import { LogIn, BookOpen, ClipboardList, Award, Star, Printer, ChevronLeft, Loader2, X } from 'lucide-react'
+import { LogIn, BookOpen, Award, ChevronLeft, Loader2, X, Printer } from 'lucide-react'
 import { CertificateView } from './Education'
 
 const DEFAULT_SURVEY_QUESTIONS = [
@@ -12,60 +12,85 @@ const DEFAULT_SURVEY_QUESTIONS = [
   '이 교육을 다른 분께 추천하시겠어요?',
 ]
 
+const formatDateTimeDisplay = (date, time) => {
+  if (!date) return ''
+  if (!time) return date
+  const t = typeof time === 'string' ? time.slice(0, 5) : ''
+  return t ? date + ' ' + t : date
+}
+
 export default function StudentPortal() {
   const [screen, setScreen] = useState('login') // login | main | survey | certificate
-  const [student, setStudent] = useState(null) // application row
-  const [cert, setCert] = useState(null)
+  const [studentName, setStudentName] = useState('')
+  const [applications, setApplications] = useState([])
+  const [certMap, setCertMap] = useState({}) // appId → cert
+  const [selectedApp, setSelectedApp] = useState(null)
 
-  // login
-  const [loginForm, setLoginForm] = useState({ name: '', phone: '', password: '' })
+  // 로그인
+  const [loginForm, setLoginForm] = useState({ name: '', phone: '' })
   const [loginError, setLoginError] = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
 
-  // survey
+  // 설문
   const [surveyQuestions, setSurveyQuestions] = useState(DEFAULT_SURVEY_QUESTIONS)
-  const [ratings, setRatings] = useState(DEFAULT_SURVEY_QUESTIONS.map(() => 0))
+  const [ratings, setRatings] = useState([])
   const [opinion, setOpinion] = useState('')
   const [submittingSurvey, setSubmittingSurvey] = useState(false)
-  const [surveyDone, setSurveyDone] = useState(false)
 
   async function handleLogin(e) {
     e.preventDefault()
     setLoginError('')
-    if (!loginForm.name.trim() || !loginForm.phone.trim() || !loginForm.password.trim()) {
-      setLoginError('모든 항목을 입력해주세요.')
+    if (!loginForm.name.trim() || !loginForm.phone.trim()) {
+      setLoginError('이름과 연락처를 모두 입력해주세요.')
       return
     }
     setLoginLoading(true)
     const { data, error } = await supabase
       .from('education_applications')
-      .select('*, education_programs(title, start_date, end_date, total_hours, completion_rate, survey_questions)')
+      .select('*, education_programs(*)')
       .eq('applicant_name', loginForm.name.trim())
       .eq('phone', loginForm.phone.trim())
-      .eq('access_password', loginForm.password.trim())
-      .limit(1)
-      .single()
+      .order('applied_at', { ascending: false })
     setLoginLoading(false)
-    if (error || !data) {
-      setLoginError('일치하는 수강생 정보를 찾을 수 없습니다.')
+    if (error || !data || data.length === 0) {
+      setLoginError('신청 내역이 없습니다. 이름과 연락처를 확인해주세요.')
       return
     }
-    // 수료증 조회
-    const { data: certData } = await supabase
+    // 수료증 일괄 조회
+    const { data: certs } = await supabase
       .from('certificates')
       .select('*')
-      .eq('application_id', data.id)
-      .maybeSingle()
-    const qs = data.education_programs?.survey_questions?.length
-      ? data.education_programs.survey_questions
+      .in('application_id', data.map(a => a.id))
+    const map = {}
+    ;(certs || []).forEach(c => { map[c.application_id] = c })
+    setStudentName(loginForm.name.trim())
+    setApplications(data)
+    setCertMap(map)
+    setScreen('main')
+  }
+
+  function openSurvey(app) {
+    const qs = app.education_programs?.survey_questions?.length
+      ? app.education_programs.survey_questions
       : DEFAULT_SURVEY_QUESTIONS
-    setStudent(data)
-    setCert(certData || null)
+    setSelectedApp(app)
     setSurveyQuestions(qs)
     setRatings(qs.map(() => 0))
     setOpinion('')
-    setSurveyDone(false)
-    setScreen('main')
+    setScreen('survey')
+  }
+
+  function openCertificate(app) {
+    setSelectedApp(app)
+    setScreen('certificate')
+  }
+
+  function logout() {
+    setApplications([])
+    setCertMap({})
+    setSelectedApp(null)
+    setLoginForm({ name: '', phone: '' })
+    setScreen('login')
   }
 
   async function handleSurveySubmit() {
@@ -74,10 +99,7 @@ export default function StudentPortal() {
       return
     }
     setSubmittingSurvey(true)
-    const surveyData = {
-      answers: ratings,
-      opinion,
-    }
+    const surveyData = { answers: ratings, opinion }
     const { error } = await supabase
       .from('education_applications')
       .update({
@@ -85,25 +107,25 @@ export default function StudentPortal() {
         survey_data: surveyData,
         survey_completed_at: new Date().toISOString(),
       })
-      .eq('id', student.id)
+      .eq('id', selectedApp.id)
     setSubmittingSurvey(false)
     if (error) { alert('제출 실패: ' + error.message); return }
-    setStudent(s => ({ ...s, survey_completed: true, survey_data: surveyData }))
-    setSurveyDone(true)
+    setApplications(prev =>
+      prev.map(a => a.id === selectedApp.id
+        ? { ...a, survey_completed: true, survey_data: surveyData }
+        : a
+      )
+    )
     setScreen('main')
   }
 
-  const prog = student?.education_programs
-  const isCompleted = student?.status === '수료'
-  const canCertificate = isCompleted && student?.survey_completed
-
-  // ── 로그인 화면 ──
+  // ── 로그인 화면 ──────────────────────────────────────────
   if (screen === 'login') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8">
           <div className="text-center mb-8">
-            <img src="/logo.gif" alt="울산경제일자리진흥원" className="h-10 w-auto mx-auto mb-3" style={{ filter: 'none' }} />
+            <img src="/logo.gif" alt="울산경제일자리진흥원" className="h-10 w-auto mx-auto mb-3" />
             <h1 className="text-2xl font-extrabold text-gray-800">수강생 포털</h1>
             <p className="text-sm text-gray-400 mt-1">수료증 발급 및 만족도 조사</p>
           </div>
@@ -127,17 +149,6 @@ export default function StudentPortal() {
                 maxLength={13}
               />
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1.5">비밀번호 (숫자 4자리)</label>
-              <input
-                type="password"
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                value={loginForm.password}
-                onChange={e => setLoginForm(f => ({ ...f, password: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
-                placeholder="••••"
-                maxLength={4}
-              />
-            </div>
             {loginError && (
               <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{loginError}</p>
             )}
@@ -148,7 +159,7 @@ export default function StudentPortal() {
               style={{ background: 'linear-gradient(135deg, #2563eb, #7c3aed)' }}
             >
               {loginLoading ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />}
-              {loginLoading ? '확인 중...' : '확인'}
+              {loginLoading ? '조회 중...' : '내 교육 조회'}
             </button>
           </form>
         </div>
@@ -156,9 +167,9 @@ export default function StudentPortal() {
     )
   }
 
-  // ── 만족도 조사 화면 ──
+  // ── 만족도 조사 화면 ─────────────────────────────────────
   if (screen === 'survey') {
-    if (surveyDone) return null
+    const prog = selectedApp?.education_programs
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-lg mx-auto px-4 py-8">
@@ -172,7 +183,9 @@ export default function StudentPortal() {
             </div>
             {surveyQuestions.map((q, idx) => (
               <div key={idx} className="space-y-2">
-                <p className="text-sm font-medium text-gray-700"><span className="text-gray-400 mr-1">Q{idx + 1}.</span>{q}</p>
+                <p className="text-sm font-medium text-gray-700">
+                  <span className="text-gray-400 mr-1">Q{idx + 1}.</span>{q}
+                </p>
                 <div className="flex gap-1">
                   {[1, 2, 3, 4, 5].map(star => (
                     <button
@@ -184,7 +197,9 @@ export default function StudentPortal() {
                       ★
                     </button>
                   ))}
-                  {ratings[idx] > 0 && <span className="self-center text-xs text-gray-400 ml-1">{ratings[idx]}점</span>}
+                  {ratings[idx] > 0 && (
+                    <span className="self-center text-xs text-gray-400 ml-1">{ratings[idx]}점</span>
+                  )}
                 </div>
               </div>
             ))}
@@ -203,7 +218,9 @@ export default function StudentPortal() {
               className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-40 transition"
               style={{ background: 'linear-gradient(135deg, #2563eb, #7c3aed)' }}
             >
-              {submittingSurvey ? <><Loader2 size={15} className="animate-spin" /> 제출 중...</> : '제출하기'}
+              {submittingSurvey
+                ? <><Loader2 size={15} className="animate-spin" /> 제출 중...</>
+                : '제출하기'}
             </button>
           </div>
         </div>
@@ -211,12 +228,10 @@ export default function StudentPortal() {
     )
   }
 
-  // ── 수료증 화면 ──
+  // ── 수료증 화면 ──────────────────────────────────────────
   if (screen === 'certificate') {
-    if (!canCertificate) {
-      setScreen('main')
-      return null
-    }
+    const prog = selectedApp?.education_programs
+    const cert = certMap[selectedApp?.id]
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-2xl mx-auto px-4 py-8">
@@ -244,10 +259,12 @@ export default function StudentPortal() {
             )}
           </div>
           <CertificateView
-            name={student?.applicant_name}
+            name={selectedApp?.applicant_name}
             programTitle={prog?.title}
             startDate={prog?.start_date}
+            startTime={prog?.start_time}
             endDate={prog?.end_date}
+            endTime={prog?.end_time}
             totalHours={prog?.total_hours}
             issuedAt={cert?.issued_at}
             certNumber={cert?.certificate_number}
@@ -258,164 +275,124 @@ export default function StudentPortal() {
     )
   }
 
-  // ── 수강생 메인 화면 ──
+  // ── 메인 화면 (교육 목록) ────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* 상단 헤더 */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-6">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
+        <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div>
             <p className="text-white/70 text-sm">안녕하세요,</p>
-            <h1 className="text-xl font-extrabold text-white">{student?.applicant_name}님!</h1>
-            <p className="text-white/80 text-sm mt-0.5">{prog?.title}</p>
+            <h1 className="text-xl font-extrabold text-white">{studentName}님!</h1>
+            <p className="text-white/70 text-sm mt-0.5">신청한 교육 {applications.length}개</p>
           </div>
           <button
-            onClick={() => { setStudent(null); setCert(null); setScreen('login') }}
-            className="p-2 rounded-full bg-white/20 hover:bg-white/30 transition"
+            onClick={logout}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white text-sm font-medium transition"
           >
-            <X size={16} className="text-white" />
+            <X size={15} /> 로그아웃
           </button>
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-        {/* 수강 정보 카드 */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <BookOpen size={18} className="text-blue-500" />
-            <h2 className="text-base font-bold text-gray-800">수강 정보</h2>
-          </div>
-          <div className="space-y-2 text-sm">
-            <InfoRow label="교육명" value={prog?.title || '-'} />
-            <InfoRow
-              label="교육 기간"
-              value={prog?.start_date && prog?.end_date ? `${prog.start_date} ~ ${prog.end_date}` : '-'}
-            />
-            <InfoRow label="출석률" value={
-              <div className="flex items-center gap-2">
-                <div className="flex-1 max-w-24 bg-gray-200 rounded-full h-1.5">
-                  <div
-                    className="h-1.5 rounded-full bg-blue-500"
-                    style={{ width: `${student?.attendance_rate || 0}%` }}
-                  />
+      <div className="max-w-3xl mx-auto px-4 py-6">
+        {applications.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">신청한 교육이 없습니다.</div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4">
+            {applications.map(app => {
+              const prog = app.education_programs
+              const cert = certMap[app.id]
+              const isCompleted = app.status === '수료'
+              const canCert = isCompleted && app.survey_completed
+              return (
+                <div key={app.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
+                  {/* 교육명 + 상태 뱃지 */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <BookOpen size={16} className="text-blue-500 shrink-0 mt-0.5" />
+                      <h3 className="font-bold text-gray-800 text-sm leading-snug">{prog?.title || '-'}</h3>
+                    </div>
+                    <StatusBadge status={app.status} />
+                  </div>
+
+                  {/* 교육 기간·장소 */}
+                  <div className="text-xs text-gray-500 space-y-1 pl-6">
+                    {prog?.start_date && (
+                      <div>
+                        {prog.start_date === prog.end_date ? (
+                          <span>📅 {formatDateTimeDisplay(prog.start_date, prog.start_time)} ~ {formatDateTimeDisplay(prog.end_date, prog.end_time)}</span>
+                        ) : (
+                          <>
+                            <span>📅 {formatDateTimeDisplay(prog.start_date, prog.start_time)}</span>
+                            <div>~ {formatDateTimeDisplay(prog.end_date, prog.end_time)}</div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                    {prog?.location && <div>📍 {prog.location}</div>}
+                  </div>
+
+                  {/* 설문 + 수료증 버튼 */}
+                  <div className="flex items-center gap-2 pt-1 flex-wrap">
+                    {app.survey_completed ? (
+                      <span className="px-2.5 py-1 text-xs font-bold bg-green-100 text-green-700 rounded-lg">
+                        ✓ 설문 완료
+                      </span>
+                    ) : (
+                      <>
+                        <span className="px-2.5 py-1 text-xs font-bold bg-orange-100 text-orange-600 rounded-lg">
+                          설문 미완료
+                        </span>
+                        <button
+                          onClick={() => openSurvey(app)}
+                          className="px-3 py-1.5 text-xs font-bold text-white rounded-lg transition hover:opacity-90"
+                          style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
+                        >
+                          설문 하기
+                        </button>
+                      </>
+                    )}
+
+                    <div className="relative group ml-auto">
+                      <button
+                        onClick={() => canCert && openCertificate(app)}
+                        disabled={!canCert}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition ${
+                          canCert
+                            ? 'text-white hover:opacity-90'
+                            : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        }`}
+                        style={canCert ? { background: '#2E75B6' } : {}}
+                      >
+                        <Award size={13} /> 수료증 발급
+                      </button>
+                      {!canCert && (
+                        <div className="absolute bottom-full right-0 mb-1 w-52 text-xs text-white bg-gray-700 rounded-lg px-2.5 py-1.5 opacity-0 group-hover:opacity-100 transition pointer-events-none z-10">
+                          수료 처리 및 설문 완료 후 발급 가능
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <span>{student?.attendance_rate || 0}%</span>
-              </div>
-            } />
-            <InfoRow label="진행 상태" value={
-              <span className={`px-2 py-0.5 text-xs rounded font-medium ${
-                student?.status === '수료' ? 'bg-green-100 text-green-700' :
-                student?.status === '진행중' || student?.status === '승인' ? 'bg-blue-100 text-blue-700' :
-                student?.status === '미수료' ? 'bg-red-100 text-red-700' :
-                'bg-gray-100 text-gray-600'
-              }`}>{student?.status}</span>
-            } />
+              )
+            })}
           </div>
-        </div>
-
-        {/* 만족도 조사 카드 */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <ClipboardList size={18} className="text-purple-500" />
-            <h2 className="text-base font-bold text-gray-800">만족도 조사</h2>
-          </div>
-          {student?.survey_completed ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-lg">조사완료</span>
-                {student.survey_data && (() => {
-                  const vals = (
-                    student.survey_data.answers
-                      ? student.survey_data.answers
-                      : [student.survey_data.q1, student.survey_data.q2, student.survey_data.q3, student.survey_data.q4, student.survey_data.q5]
-                  ).filter(v => v != null && v > 0)
-                  if (!vals.length) return null
-                  const avg = (vals.reduce((s, v) => s + v, 0) / vals.length).toFixed(1)
-                  return (
-                    <span className="text-sm text-gray-500">
-                      평균 <span className="font-bold text-yellow-500">{avg}점</span>
-                    </span>
-                  )
-                })()}
-              </div>
-              <p className="text-xs text-gray-400">만족도 조사에 참여해주셔서 감사합니다.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm text-gray-500">아직 만족도 조사를 완료하지 않으셨습니다.</p>
-              <button
-                onClick={() => setScreen('survey')}
-                className="w-full py-2.5 rounded-xl text-sm font-bold text-white transition hover:opacity-90"
-                style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
-              >
-                만족도 조사 참여하기 →
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* 수료증 카드 */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Award size={18} className="text-amber-500" />
-            <h2 className="text-base font-bold text-gray-800">수료증 발급</h2>
-          </div>
-          {canCertificate ? (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
-                <p className="text-sm text-gray-700 font-medium">수료증 발급이 가능합니다!</p>
-              </div>
-              {cert?.certificate_number && (
-                <p className="text-xs text-gray-400">수료증 번호: {cert.certificate_number}</p>
-              )}
-              <button
-                onClick={() => setScreen('certificate')}
-                className="w-full py-2.5 rounded-xl text-sm font-bold text-white transition hover:opacity-90"
-                style={{ background: 'linear-gradient(135deg, #d97706, #f59e0b)' }}
-              >
-                수료증 보기 / 인쇄 →
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <p className="text-sm text-gray-400 leading-relaxed">
-                수료증은 아래 조건을 모두 충족한 경우에만 발급됩니다:
-              </p>
-              <ul className="space-y-1.5">
-                <Condition
-                  done={isCompleted}
-                  label={`수료 처리 완료 (현재 상태: ${student?.status})`}
-                />
-                <Condition
-                  done={!!student?.survey_completed}
-                  label="만족도 조사 완료"
-                />
-              </ul>
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </div>
   )
 }
 
-function InfoRow({ label, value }) {
+function StatusBadge({ status }) {
+  const styles = {
+    '신청':   'bg-amber-100 text-amber-700',
+    '승인':   'bg-blue-100 text-blue-700',
+    '수료':   'bg-green-100 text-green-700',
+    '미수료': 'bg-red-100 text-red-700',
+  }
   return (
-    <div className="flex items-start gap-3">
-      <span className="text-gray-400 text-xs w-20 shrink-0 pt-0.5">{label}</span>
-      <span className="text-gray-800 font-medium text-xs flex-1">{value}</span>
-    </div>
-  )
-}
-
-function Condition({ done, label }) {
-  return (
-    <li className="flex items-center gap-2 text-xs">
-      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-white text-[10px] shrink-0 ${done ? 'bg-green-400' : 'bg-gray-200'}`}>
-        {done ? '✓' : ''}
-      </span>
-      <span className={done ? 'text-gray-700 line-through' : 'text-gray-500'}>{label}</span>
-    </li>
+    <span className={`px-2 py-0.5 text-xs font-bold rounded-lg whitespace-nowrap ${styles[status] || 'bg-gray-100 text-gray-500'}`}>
+      {status}
+    </span>
   )
 }
