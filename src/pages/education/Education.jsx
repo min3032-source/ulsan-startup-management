@@ -114,6 +114,7 @@ export default function Education() {
   const [relatedPrograms, setRelatedPrograms] = useState([])
   const [showRelatedProgramModal, setShowRelatedProgramModal] = useState(false)
   const [newRelatedProgram, setNewRelatedProgram] = useState({ name: '', year: new Date().getFullYear() })
+  const [approvalModal, setApprovalModal] = useState(null) // { app, selectedBusiness }
 
   const [toast, setToast] = useState('')
   const [saving, setSaving] = useState(false)
@@ -164,6 +165,24 @@ export default function Education() {
     const { error } = await supabase.from('education_related_programs').delete().eq('id', id)
     if (error) { alert('삭제 실패: ' + error.message); return }
     loadRelatedPrograms()
+  }
+
+  async function confirmApproval() {
+    const { error } = await supabase.from('education_applications')
+      .update({ status: '승인', related_program: approvalModal.selectedBusiness || null })
+      .eq('id', approvalModal.app.id)
+    if (error) { alert('승인 실패: ' + error.message); return }
+    setApprovalModal(null)
+    showToast('승인 처리되었습니다.')
+    loadAll()
+  }
+
+  async function updateAppBusiness(appId, businessName) {
+    const { error } = await supabase.from('education_applications')
+      .update({ related_program: businessName || null })
+      .eq('id', appId)
+    if (error) { alert('사업 변경 실패: ' + error.message); return }
+    setApplications(prev => prev.map(a => a.id === appId ? { ...a, related_program: businessName || null } : a))
   }
 
   function defaultStudentForm() {
@@ -322,6 +341,12 @@ export default function Education() {
   }
 
   async function updateAppStatus(appId, status) {
+    if (status === '승인') {
+      const app = applications.find(a => a.id === appId)
+      const program = programs.find(p => p.id === app?.program_id)
+      setApprovalModal({ app, selectedBusiness: program?.related_program || '' })
+      return
+    }
     if (status === '수료') {
       const app = applications.find(a => a.id === appId)
       const program = programs.find(p => p.id === app?.program_id)
@@ -591,14 +616,14 @@ export default function Education() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  {['이름', '기업명', '연락처', '이메일', '프로그램', '신청일', '상태', '출석률', '만족도조사', '관리'].map(h => (
+                  {['이름', '기업명', '연락처', '이메일', '프로그램', '신청일', '상태', '참여 사업', '출석률', '만족도조사', '관리'].map(h => (
                     <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filteredApps.length === 0 ? (
-                  <tr><td colSpan={9} className="text-center py-10 text-gray-400">수강생이 없습니다</td></tr>
+                  <tr><td colSpan={11} className="text-center py-10 text-gray-400">수강생이 없습니다</td></tr>
                 ) : filteredApps.map(a => (
                   <tr key={a.id} className="border-b border-gray-50 hover:bg-gray-50">
                     <td className="px-4 py-2.5 text-xs font-medium text-gray-800">
@@ -623,6 +648,22 @@ export default function Education() {
                         </select>
                       ) : (
                         <span className={`px-2 py-0.5 text-xs rounded font-medium ${STATUS_COLOR[a.status]}`}>{a.status}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500">
+                      {canWrite ? (
+                        <select
+                          value={a.related_program || ''}
+                          onChange={e => updateAppBusiness(a.id, e.target.value)}
+                          className="text-xs px-2 py-1 rounded border border-gray-200 text-gray-600 bg-white max-w-[140px]"
+                        >
+                          <option value="">미지정</option>
+                          {relatedPrograms.map(rp => (
+                            <option key={rp.id} value={rp.name}>{rp.name}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span>{a.related_program || '-'}</span>
                       )}
                     </td>
                     <td className="px-4 py-2.5">
@@ -1140,6 +1181,42 @@ export default function Education() {
           </div>
         </div>
       )}
+      {/* ─── 승인 모달 ─── */}
+      {approvalModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-800">수강 승인</h2>
+              <button onClick={() => setApprovalModal(null)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div className="bg-gray-50 rounded-xl p-4 space-y-1.5 text-sm">
+                <div className="flex gap-2"><span className="text-gray-400 w-16 shrink-0">신청자</span><span className="font-medium text-gray-800">{approvalModal.app.applicant_name}</span></div>
+                <div className="flex gap-2"><span className="text-gray-400 w-16 shrink-0">연락처</span><span className="text-gray-700">{approvalModal.app.phone || '-'}</span></div>
+                <div className="flex gap-2"><span className="text-gray-400 w-16 shrink-0">기업명</span><span className="text-gray-700">{approvalModal.app.company_name || '-'}</span></div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">참여 사업</label>
+                <select
+                  className="input-base"
+                  value={approvalModal.selectedBusiness}
+                  onChange={e => setApprovalModal(m => ({ ...m, selectedBusiness: e.target.value }))}
+                >
+                  <option value="">-- 사업 미지정 --</option>
+                  {relatedPrograms.map(rp => (
+                    <option key={rp.id} value={rp.name}>{rp.name} ({rp.year}년)</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setApprovalModal(null)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
+              <button onClick={confirmApproval} className="px-4 py-2 text-sm text-white rounded-lg font-bold" style={{ background: '#2E75B6' }}>승인 확정</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── 사업명 관리 모달 ─── */}
       {showRelatedProgramModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
