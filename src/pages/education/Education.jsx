@@ -1248,27 +1248,26 @@ export default function Education() {
                 <p className="text-xs font-medium text-gray-500">새 사업명 추가</p>
                 <div className="flex gap-2">
                   <input
-                    className="input-base flex-1"
+                    className="flex-1 border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                     value={newRelatedProgram.name}
                     onChange={e => setNewRelatedProgram(f => ({ ...f, name: e.target.value }))}
                     placeholder="사업명 입력"
                     onKeyDown={e => e.key === 'Enter' && addRelatedProgram()}
                   />
                   <select
-                    className="input-base w-24"
+                    className="w-28 border border-gray-200 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                     value={newRelatedProgram.year}
                     onChange={e => setNewRelatedProgram(f => ({ ...f, year: Number(e.target.value) }))}
                   >
                     {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}년</option>)}
                   </select>
+                  <button
+                    onClick={addRelatedProgram}
+                    className="w-20 bg-blue-600 text-white rounded px-3 py-2 text-sm font-bold hover:bg-blue-700 transition"
+                  >
+                    추가
+                  </button>
                 </div>
-                <button
-                  onClick={addRelatedProgram}
-                  className="w-full py-2 text-sm font-bold text-white rounded-lg transition hover:opacity-90"
-                  style={{ background: '#2E75B6' }}
-                >
-                  추가
-                </button>
               </div>
             </div>
           </div>
