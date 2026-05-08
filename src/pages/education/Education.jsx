@@ -111,7 +111,7 @@ export default function Education() {
   function defaultStudentForm() {
     return {
       program_id: '', applicant_name: '', company_name: '',
-      phone: '', email: '', status: '신청'
+      phone: '', email: '', status: '신청', motivation: ''
     }
   }
 
@@ -130,6 +130,7 @@ export default function Education() {
       phone: a.phone || '',
       email: a.email || '',
       status: a.status || '신청',
+      motivation: a.motivation || '',
     })
     setShowStudentModal(true)
   }
@@ -142,6 +143,7 @@ export default function Education() {
       program_id: studentForm.program_id,
       applicant_name: studentForm.applicant_name.trim(),
       company_name: studentForm.company_name.trim() || null,
+      motivation: studentForm.motivation.trim() || null,
       phone: studentForm.phone.trim() || null,
       email: studentForm.email.trim() || null,
       status: studentForm.status,
@@ -951,12 +953,20 @@ export default function Education() {
                   placeholder="수강생 이름"
                 />
               </Field>
-              <Field label="기업명">
+              <Field label="기업명 (선택)">
                 <input
                   className="input-base"
                   value={studentForm.company_name}
                   onChange={e => setStudentForm(f => ({ ...f, company_name: e.target.value }))}
-                  placeholder="기업명 (선택)"
+                  placeholder="(선택) 예비창업자의 경우 미기재 가능"
+                />
+              </Field>
+              <Field label="신청 동기 (선택)">
+                <textarea
+                  className="input-base resize-none h-20"
+                  value={studentForm.motivation}
+                  onChange={e => setStudentForm(f => ({ ...f, motivation: e.target.value }))}
+                  placeholder="이 교육을 신청한 동기를 간략히 적어주세요 (선택사항)"
                 />
               </Field>
               <div className="grid grid-cols-2 gap-3">
