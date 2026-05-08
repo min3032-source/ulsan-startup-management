@@ -16,8 +16,13 @@ const DEFAULT_SURVEY_QUESTIONS = [
 
 function fmtDateTime(dt) {
   if (!dt) return null
-  const [date, timePart] = dt.split('T')
-  return timePart ? `${date} ${timePart.slice(0, 5)}` : date
+  if (!dt.includes('T')) return dt
+  const d = new Date(dt)
+  if (d.getHours() === 0 && d.getMinutes() === 0) return dt.split('T')[0]
+  return d.toLocaleString('ko-KR', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  })
 }
 
 const CATEGORIES = ['창업기초', '마케팅', '재무', '기술', '네트워킹', '기타']
