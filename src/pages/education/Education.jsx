@@ -22,10 +22,26 @@ function fmtDateTime(date, time) {
   return t && t !== '00:00' ? `${dateStr} ${t}` : dateStr
 }
 
+const formatTime = (time) => {
+  if (!time) return ''
+  return time.slice(0, 5)
+}
+
 const formatDateWithTime = (date, time) => {
   if (!date) return ''
-  const timeStr = time ? ' ' + time.slice(0, 5) : ''
+  const timeStr = time ? ' ' + formatTime(time) : ''
   return date + timeStr
+}
+
+const formatPeriod = (startDate, startTime, endDate, endTime) => {
+  if (!startDate) return '-'
+  if (startDate === endDate) {
+    const timeStr = (startTime || endTime)
+      ? `⏰ ${formatTime(startTime)} ~ ${formatTime(endTime)}`
+      : null
+    return { date: startDate, time: timeStr }
+  }
+  return { date: `${formatDateWithTime(startDate, startTime)} ~ ${formatDateWithTime(endDate, endTime)}`, time: null }
 }
 
 const CATEGORIES = ['창업기초', '마케팅', '재무', '기술', '네트워킹', '기타']
@@ -448,9 +464,15 @@ export default function Education() {
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">{p.program_type}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">
-                        {p.start_date
-                          ? `${formatDateWithTime(p.start_date, p.start_time)} ~ ${formatDateWithTime(p.end_date, p.end_time)}`
-                          : '-'}
+                        {(() => {
+                          const { date, time } = formatPeriod(p.start_date, p.start_time, p.end_date, p.end_time)
+                          return (
+                            <div>
+                              <div>{date}</div>
+                              {time && <div className="text-gray-400 mt-0.5">{time}</div>}
+                            </div>
+                          )
+                        })()}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">
                         {p.total_hours ? `${p.total_hours}시간 (${p.total_sessions}회)` : '-'}
@@ -646,9 +668,15 @@ export default function Education() {
                       <td className="px-4 py-2.5 text-xs font-medium text-gray-800">{a.applicant_name}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">{prog?.title || '-'}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">
-                        {prog?.start_date
-                          ? `${formatDateWithTime(prog.start_date, prog.start_time)} ~ ${formatDateWithTime(prog.end_date, prog.end_time)}`
-                          : '-'}
+                        {(() => {
+                          const { date, time } = formatPeriod(prog?.start_date, prog?.start_time, prog?.end_date, prog?.end_time)
+                          return (
+                            <div>
+                              <div>{date}</div>
+                              {time && <div className="text-gray-400 mt-0.5">{time}</div>}
+                            </div>
+                          )
+                        })()}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">{cert?.issued_at?.slice(0, 10) || '-'}</td>
                       <td className="px-4 py-2.5 text-xs font-mono text-gray-700">{cert?.certificate_number || '-'}</td>
@@ -1131,7 +1159,10 @@ export function CertificateView({ name, programTitle, startDate, startTime, endD
               <td style={{ fontWeight: 'bold', color: '#374151', paddingBottom: 10, verticalAlign: 'top' }}>교육기간</td>
               <td style={{ color: '#1f2937', paddingBottom: 10, verticalAlign: 'top' }}>
                 :&nbsp;&nbsp;{startDate
-                    ? `${formatDateWithTime(startDate, startTime)} ~ ${formatDateWithTime(endDate, endTime)}`
+                    ? (() => {
+                        const { date, time } = formatPeriod(startDate, startTime, endDate, endTime)
+                        return time ? `${date} (${time})` : date
+                      })()
                     : '-'}
               </td>
             </tr>
