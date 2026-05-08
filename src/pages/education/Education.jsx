@@ -14,6 +14,12 @@ const DEFAULT_SURVEY_QUESTIONS = [
   '이 교육을 다른 분께 추천하시겠어요?',
 ]
 
+function fmtDateTime(dt) {
+  if (!dt) return null
+  const [date, timePart] = dt.split('T')
+  return timePart ? `${date} ${timePart.slice(0, 5)}` : date
+}
+
 const CATEGORIES = ['창업기초', '마케팅', '재무', '기술', '네트워킹', '기타']
 const PROGRAM_TYPES = ['집합교육', '온라인', '혼합']
 const PROGRAM_STATUSES = ['모집중', '진행중', '완료', '취소']
@@ -161,7 +167,7 @@ export default function Education() {
   function defaultProgramForm() {
     return {
       title: '', description: '', overview: '', category: '창업기초', program_type: '집합교육',
-      instructor: '', location: '', start_date: '', end_date: '',
+      instructor: '', location: '', start_date: '', start_time: '09:00', end_date: '', end_time: '18:00',
       total_sessions: 1, hours_per_session: 2, max_participants: '', assignee: '', status: '모집중', completion_rate: 80,
       poster_url: '', survey_questions: [...DEFAULT_SURVEY_QUESTIONS]
     }
@@ -180,7 +186,10 @@ export default function Education() {
       title: p.title || '', description: p.description || '', overview: p.overview || '',
       category: p.category || '창업기초', program_type: p.program_type || '집합교육',
       instructor: p.instructor || '', location: p.location || '',
-      start_date: p.start_date || '', end_date: p.end_date || '',
+      start_date: p.start_date ? p.start_date.split('T')[0] : '',
+      start_time: p.start_date?.includes('T') ? p.start_date.split('T')[1].slice(0, 5) : '09:00',
+      end_date: p.end_date ? p.end_date.split('T')[0] : '',
+      end_time: p.end_date?.includes('T') ? p.end_date.split('T')[1].slice(0, 5) : '18:00',
       total_sessions: p.total_sessions || 1, hours_per_session: p.hours_per_session || 2, max_participants: p.max_participants || '',
       assignee: p.assignee || '', status: p.status || '모집중', completion_rate: p.completion_rate ?? 80,
       poster_url: p.poster_url || '',
@@ -208,11 +217,12 @@ export default function Education() {
     }
 
     const totalHours = (programForm.total_sessions || 1) * (programForm.hours_per_session || 2)
+    const { start_time, end_time, ...formRest } = programForm
     const payload = {
-      ...programForm,
+      ...formRest,
       poster_url: posterUrl,
-      start_date: programForm.start_date || null,
-      end_date: programForm.end_date || null,
+      start_date: programForm.start_date ? `${programForm.start_date}T${start_time || '09:00'}` : null,
+      end_date: programForm.end_date ? `${programForm.end_date}T${end_time || '18:00'}` : null,
       max_participants: programForm.max_participants ? Number(programForm.max_participants) : null,
       hours_per_session: programForm.hours_per_session || null,
       total_hours: totalHours || null,
@@ -422,7 +432,7 @@ export default function Education() {
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">{p.program_type}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">
-                        {p.start_date && p.end_date ? `${p.start_date} ~ ${p.end_date}` : '-'}
+                        {p.start_date && p.end_date ? `${fmtDateTime(p.start_date)} ~ ${fmtDateTime(p.end_date)}` : '-'}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">
                         {p.total_hours ? `${p.total_hours}시간 (${p.total_sessions}회)` : '-'}
@@ -618,7 +628,7 @@ export default function Education() {
                       <td className="px-4 py-2.5 text-xs font-medium text-gray-800">{a.applicant_name}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">{prog?.title || '-'}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">
-                        {prog?.start_date && prog?.end_date ? `${prog.start_date} ~ ${prog.end_date}` : '-'}
+                        {prog?.start_date && prog?.end_date ? `${fmtDateTime(prog.start_date)} ~ ${fmtDateTime(prog.end_date)}` : '-'}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">{cert?.issued_at?.slice(0, 10) || '-'}</td>
                       <td className="px-4 py-2.5 text-xs font-mono text-gray-700">{cert?.certificate_number || '-'}</td>
@@ -719,12 +729,24 @@ export default function Education() {
                   <input className="input-base" value={programForm.location} onChange={e => setProgramForm(f => ({ ...f, location: e.target.value }))} />
                 </Field>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="시작일">
-                  <input type="date" className="input-base" value={programForm.start_date} onChange={e => setProgramForm(f => ({ ...f, start_date: e.target.value }))} />
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <Field label="시작일">
+                    <input type="date" className="input-base" value={programForm.start_date} onChange={e => setProgramForm(f => ({ ...f, start_date: e.target.value }))} />
+                  </Field>
+                </div>
+                <Field label="시작시간">
+                  <input type="time" className="input-base" value={programForm.start_time} onChange={e => setProgramForm(f => ({ ...f, start_time: e.target.value }))} />
                 </Field>
-                <Field label="종료일">
-                  <input type="date" className="input-base" value={programForm.end_date} onChange={e => setProgramForm(f => ({ ...f, end_date: e.target.value }))} />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <Field label="종료일">
+                    <input type="date" className="input-base" value={programForm.end_date} onChange={e => setProgramForm(f => ({ ...f, end_date: e.target.value }))} />
+                  </Field>
+                </div>
+                <Field label="종료시간">
+                  <input type="time" className="input-base" value={programForm.end_time} onChange={e => setProgramForm(f => ({ ...f, end_time: e.target.value }))} />
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -1078,7 +1100,7 @@ export function CertificateView({ name, programTitle, startDate, endDate, totalH
             <tr>
               <td style={{ fontWeight: 'bold', color: '#374151', paddingBottom: 10, verticalAlign: 'top' }}>교육기간</td>
               <td style={{ color: '#1f2937', paddingBottom: 10, verticalAlign: 'top' }}>
-                :&nbsp;&nbsp;{startDate && endDate ? `${startDate} ~ ${endDate}` : '-'}
+                :&nbsp;&nbsp;{startDate && endDate ? `${fmtDateTime(startDate)} ~ ${fmtDateTime(endDate)}` : '-'}
               </td>
             </tr>
             <tr>
