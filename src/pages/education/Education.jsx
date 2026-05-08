@@ -111,6 +111,9 @@ export default function Education() {
   const [startTime, setStartTime] = useState('09:00')
   const [endTime, setEndTime] = useState('18:00')
   const [relatedProgram, setRelatedProgram] = useState('')
+  const [relatedPrograms, setRelatedPrograms] = useState([])
+  const [showRelatedProgramModal, setShowRelatedProgramModal] = useState(false)
+  const [newRelatedProgram, setNewRelatedProgram] = useState({ name: '', year: new Date().getFullYear() })
 
   const [toast, setToast] = useState('')
   const [saving, setSaving] = useState(false)
@@ -120,22 +123,47 @@ export default function Education() {
 
   async function loadAll() {
     setLoading(true)
-    const [pRes, aRes, cRes, prRes] = await Promise.all([
+    const [pRes, aRes, cRes, prRes, rpRes] = await Promise.all([
       supabase.from('education_programs').select('*').order('start_date', { ascending: true }),
       supabase.from('education_applications').select('*, education_programs(title, start_date, start_time, end_date, end_time, total_hours), founders(name)').order('applied_at', { ascending: false }),
       supabase.from('certificates').select('*, education_applications(applicant_name, education_programs(title, start_date, start_time, end_date, end_time, total_hours))').order('issued_at', { ascending: false }),
       supabase.from('profiles').select('id, name').eq('is_active', true),
+      supabase.from('education_related_programs').select('*').order('year', { ascending: false }),
     ])
     if (!pRes.error) setPrograms(pRes.data || [])
     if (!aRes.error) setApplications(aRes.data || [])
     if (!cRes.error) setCertificates(cRes.data || [])
     if (!prRes.error) setProfiles(prRes.data || [])
+    if (!rpRes.error) setRelatedPrograms(rpRes.data || [])
     setLoading(false)
   }
 
   function showToast(msg) {
     setToast(msg)
     setTimeout(() => setToast(''), 3500)
+  }
+
+  async function loadRelatedPrograms() {
+    const { data } = await supabase.from('education_related_programs').select('*').order('year', { ascending: false })
+    setRelatedPrograms(data || [])
+  }
+
+  async function addRelatedProgram() {
+    if (!newRelatedProgram.name.trim()) { alert('사업명을 입력해주세요'); return }
+    const { error } = await supabase.from('education_related_programs').insert({
+      name: newRelatedProgram.name.trim(),
+      year: newRelatedProgram.year,
+    })
+    if (error) { alert('추가 실패: ' + error.message); return }
+    setNewRelatedProgram({ name: '', year: new Date().getFullYear() })
+    loadRelatedPrograms()
+  }
+
+  async function deleteRelatedProgram(id) {
+    if (!confirm('삭제하시겠습니까?')) return
+    const { error } = await supabase.from('education_related_programs').delete().eq('id', id)
+    if (error) { alert('삭제 실패: ' + error.message); return }
+    loadRelatedPrograms()
   }
 
   function defaultStudentForm() {
@@ -432,7 +460,15 @@ export default function Education() {
             <StatCard label="완료"           value={`${stats.done}개`}      color="green" />
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            {hasRole('admin') && (
+              <button
+                onClick={() => setShowRelatedProgramModal(true)}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition"
+              >
+                사업명 관리
+              </button>
+            )}
             {canWrite && (
               <button
                 onClick={openAddProgram}
@@ -790,7 +826,12 @@ export default function Education() {
                 </Field>
               </div>
               <Field label="참여 사업명">
-                <input className="input-base" value={relatedProgram} onChange={e => setRelatedProgram(e.target.value)} placeholder="예) 울산 창업 U-시리즈, 울산 마을기업 등 (없으면 공란)" />
+                <select className="input-base" value={relatedProgram} onChange={e => setRelatedProgram(e.target.value)}>
+                  <option value="">-- 사업 선택 (없으면 공란) --</option>
+                  {relatedPrograms.map(rp => (
+                    <option key={rp.id} value={rp.name}>{rp.name} ({rp.year}년)</option>
+                  ))}
+                </select>
               </Field>
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-2">
@@ -1095,6 +1136,63 @@ export default function Education() {
               >
                 <Printer size={14} /> 인쇄하기
               </a>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ─── 사업명 관리 모달 ─── */}
+      {showRelatedProgramModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-800">사업명 관리</h2>
+              <button onClick={() => setShowRelatedProgramModal(false)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div className="space-y-2">
+                {relatedPrograms.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-4">등록된 사업명이 없습니다.</p>
+                ) : relatedPrograms.map(rp => (
+                  <div key={rp.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2.5">
+                    <div>
+                      <span className="text-sm font-medium text-gray-800">{rp.name}</span>
+                      <span className="ml-2 text-xs text-gray-400">{rp.year}년</span>
+                    </div>
+                    <button
+                      onClick={() => deleteRelatedProgram(rp.id)}
+                      className="text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="border-t border-gray-100 pt-4 space-y-2">
+                <p className="text-xs font-medium text-gray-500">새 사업명 추가</p>
+                <div className="flex gap-2">
+                  <input
+                    className="input-base flex-1"
+                    value={newRelatedProgram.name}
+                    onChange={e => setNewRelatedProgram(f => ({ ...f, name: e.target.value }))}
+                    placeholder="사업명 입력"
+                    onKeyDown={e => e.key === 'Enter' && addRelatedProgram()}
+                  />
+                  <select
+                    className="input-base w-24"
+                    value={newRelatedProgram.year}
+                    onChange={e => setNewRelatedProgram(f => ({ ...f, year: Number(e.target.value) }))}
+                  >
+                    {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}년</option>)}
+                  </select>
+                </div>
+                <button
+                  onClick={addRelatedProgram}
+                  className="w-full py-2 text-sm font-bold text-white rounded-lg transition hover:opacity-90"
+                  style={{ background: '#2E75B6' }}
+                >
+                  추가
+                </button>
+              </div>
             </div>
           </div>
         </div>

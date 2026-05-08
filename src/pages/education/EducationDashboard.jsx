@@ -29,6 +29,7 @@ export default function EducationDashboard() {
   const [tab, setTab] = useState('education')
   const [programs, setPrograms] = useState([])
   const [applications, setApplications] = useState([])
+  const [relatedPrograms, setRelatedPrograms] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedProgramId, setSelectedProgramId] = useState('')
   const [expandedBusiness, setExpandedBusiness] = useState({})
@@ -37,12 +38,14 @@ export default function EducationDashboard() {
 
   async function loadAll() {
     setLoading(true)
-    const [pRes, aRes] = await Promise.all([
+    const [pRes, aRes, rpRes] = await Promise.all([
       supabase.from('education_programs').select('*').order('start_date', { ascending: true }),
       supabase.from('education_applications').select('*'),
+      supabase.from('education_related_programs').select('*').order('year', { ascending: false }),
     ])
     if (!pRes.error) setPrograms(pRes.data || [])
     if (!aRes.error) setApplications(aRes.data || [])
+    if (!rpRes.error) setRelatedPrograms(rpRes.data || [])
     setLoading(false)
   }
 
@@ -76,12 +79,19 @@ export default function EducationDashboard() {
     }
   })
 
-  // 사업별 그룹
+  // 사업별 그룹 - education_related_programs 기준
+  const registeredNames = new Set(relatedPrograms.map(rp => rp.name))
   const businessGroups = {}
+  relatedPrograms.forEach(rp => {
+    if (!businessGroups[rp.name]) businessGroups[rp.name] = []
+  })
   programStats.forEach(p => {
-    const key = p.related_program || '일반(사업 미지정)'
-    if (!businessGroups[key]) businessGroups[key] = []
-    businessGroups[key].push(p)
+    if (p.related_program && registeredNames.has(p.related_program)) {
+      businessGroups[p.related_program].push(p)
+    } else {
+      if (!businessGroups['기타(사업 미지정)']) businessGroups['기타(사업 미지정)'] = []
+      businessGroups['기타(사업 미지정)'].push(p)
+    }
   })
 
   // 설문 통계 (선택된 교육)
