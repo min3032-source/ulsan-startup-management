@@ -14,15 +14,12 @@ const DEFAULT_SURVEY_QUESTIONS = [
   '이 교육을 다른 분께 추천하시겠어요?',
 ]
 
-function fmtDateTime(dt) {
-  if (!dt) return null
-  if (!dt.includes('T')) return dt
-  const d = new Date(dt)
-  if (d.getHours() === 0 && d.getMinutes() === 0) return dt.split('T')[0]
-  return d.toLocaleString('ko-KR', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit',
-  })
+function fmtDateTime(date, time) {
+  if (!date) return null
+  const dateStr = date.includes('T') ? date.split('T')[0] : date
+  const fallbackTime = date.includes('T') ? date.split('T')[1]?.slice(0, 5) : null
+  const t = time?.slice(0, 5) || fallbackTime
+  return t && t !== '00:00' ? `${dateStr} ${t}` : dateStr
 }
 
 const CATEGORIES = ['창업기초', '마케팅', '재무', '기술', '네트워킹', '기타']
@@ -92,8 +89,8 @@ export default function Education() {
     setLoading(true)
     const [pRes, aRes, cRes, prRes] = await Promise.all([
       supabase.from('education_programs').select('*').order('created_at', { ascending: false }),
-      supabase.from('education_applications').select('*, education_programs(title, start_date, end_date, total_hours), founders(name)').order('applied_at', { ascending: false }),
-      supabase.from('certificates').select('*, education_applications(applicant_name, education_programs(title, start_date, end_date, total_hours))').order('issued_at', { ascending: false }),
+      supabase.from('education_applications').select('*, education_programs(title, start_date, start_time, end_date, end_time, total_hours), founders(name)').order('applied_at', { ascending: false }),
+      supabase.from('certificates').select('*, education_applications(applicant_name, education_programs(title, start_date, start_time, end_date, end_time, total_hours))').order('issued_at', { ascending: false }),
       supabase.from('profiles').select('id, name').eq('is_active', true),
     ])
     if (!pRes.error) setPrograms(pRes.data || [])
@@ -192,9 +189,9 @@ export default function Education() {
       category: p.category || '창업기초', program_type: p.program_type || '집합교육',
       instructor: p.instructor || '', location: p.location || '',
       start_date: p.start_date ? p.start_date.split('T')[0] : '',
-      start_time: p.start_date?.includes('T') ? p.start_date.split('T')[1].slice(0, 5) : '09:00',
+      start_time: p.start_time || (p.start_date?.includes('T') ? p.start_date.split('T')[1]?.slice(0, 5) : '09:00'),
       end_date: p.end_date ? p.end_date.split('T')[0] : '',
-      end_time: p.end_date?.includes('T') ? p.end_date.split('T')[1].slice(0, 5) : '18:00',
+      end_time: p.end_time || (p.end_date?.includes('T') ? p.end_date.split('T')[1]?.slice(0, 5) : '18:00'),
       total_sessions: p.total_sessions || 1, hours_per_session: p.hours_per_session || 2, max_participants: p.max_participants || '',
       assignee: p.assignee || '', status: p.status || '모집중', completion_rate: p.completion_rate ?? 80,
       poster_url: p.poster_url || '',
@@ -222,12 +219,13 @@ export default function Education() {
     }
 
     const totalHours = (programForm.total_sessions || 1) * (programForm.hours_per_session || 2)
-    const { start_time, end_time, ...formRest } = programForm
     const payload = {
-      ...formRest,
+      ...programForm,
       poster_url: posterUrl,
-      start_date: programForm.start_date ? `${programForm.start_date}T${start_time || '09:00'}` : null,
-      end_date: programForm.end_date ? `${programForm.end_date}T${end_time || '18:00'}` : null,
+      start_date: programForm.start_date || null,
+      start_time: programForm.start_time || null,
+      end_date: programForm.end_date || null,
+      end_time: programForm.end_time || null,
       max_participants: programForm.max_participants ? Number(programForm.max_participants) : null,
       hours_per_session: programForm.hours_per_session || null,
       total_hours: totalHours || null,
@@ -437,7 +435,7 @@ export default function Education() {
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">{p.program_type}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">
-                        {p.start_date && p.end_date ? `${fmtDateTime(p.start_date)} ~ ${fmtDateTime(p.end_date)}` : '-'}
+                        {p.start_date && p.end_date ? `${fmtDateTime(p.start_date, p.start_time)} ~ ${fmtDateTime(p.end_date, p.end_time)}` : '-'}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">
                         {p.total_hours ? `${p.total_hours}시간 (${p.total_sessions}회)` : '-'}
@@ -633,7 +631,7 @@ export default function Education() {
                       <td className="px-4 py-2.5 text-xs font-medium text-gray-800">{a.applicant_name}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">{prog?.title || '-'}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">
-                        {prog?.start_date && prog?.end_date ? `${fmtDateTime(prog.start_date)} ~ ${fmtDateTime(prog.end_date)}` : '-'}
+                        {prog?.start_date && prog?.end_date ? `${fmtDateTime(prog.start_date, prog.start_time)} ~ ${fmtDateTime(prog.end_date, prog.end_time)}` : '-'}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">{cert?.issued_at?.slice(0, 10) || '-'}</td>
                       <td className="px-4 py-2.5 text-xs font-mono text-gray-700">{cert?.certificate_number || '-'}</td>
@@ -1009,7 +1007,9 @@ export default function Education() {
                   name={certPreview.app.applicant_name}
                   programTitle={certPreview.prog?.title}
                   startDate={certPreview.prog?.start_date}
+                  startTime={certPreview.prog?.start_time}
                   endDate={certPreview.prog?.end_date}
+                  endTime={certPreview.prog?.end_time}
                   totalHours={certPreview.prog?.total_hours}
                   issuedAt={certPreview.cert?.issued_at}
                   certNumber={certPreview.cert?.certificate_number}
@@ -1059,7 +1059,7 @@ function formatCertNo(raw) {
   return raw
 }
 
-export function CertificateView({ name, programTitle, startDate, endDate, totalHours, issuedAt, certNumber }) {
+export function CertificateView({ name, programTitle, startDate, startTime, endDate, endTime, totalHours, issuedAt, certNumber }) {
   const issueDate = issuedAt ? new Date(issuedAt) : new Date()
   const y = issueDate.getFullYear()
   const m = String(issueDate.getMonth() + 1).padStart(2, '0')
@@ -1105,7 +1105,7 @@ export function CertificateView({ name, programTitle, startDate, endDate, totalH
             <tr>
               <td style={{ fontWeight: 'bold', color: '#374151', paddingBottom: 10, verticalAlign: 'top' }}>교육기간</td>
               <td style={{ color: '#1f2937', paddingBottom: 10, verticalAlign: 'top' }}>
-                :&nbsp;&nbsp;{startDate && endDate ? `${fmtDateTime(startDate)} ~ ${fmtDateTime(endDate)}` : '-'}
+                :&nbsp;&nbsp;{startDate && endDate ? `${fmtDateTime(startDate, startTime)} ~ ${fmtDateTime(endDate, endTime)}` : '-'}
               </td>
             </tr>
             <tr>
