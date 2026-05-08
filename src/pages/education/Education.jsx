@@ -113,6 +113,9 @@ export default function Education() {
   const [relatedPrograms, setRelatedPrograms] = useState([])
   const [showRelatedProgramModal, setShowRelatedProgramModal] = useState(false)
   const [newRelatedProgram, setNewRelatedProgram] = useState({ name: '', year: new Date().getFullYear() })
+  const [editingProgramId, setEditingProgramId] = useState(null)
+  const [editingProgramName, setEditingProgramName] = useState('')
+  const [editingProgramYear, setEditingProgramYear] = useState(new Date().getFullYear())
   const [approvalModal, setApprovalModal] = useState(null) // { app, selectedBusiness }
 
   const [toast, setToast] = useState('')
@@ -163,6 +166,22 @@ export default function Education() {
     if (!confirm('삭제하시겠습니까?')) return
     const { error } = await supabase.from('education_related_programs').delete().eq('id', id)
     if (error) { alert('삭제 실패: ' + error.message); return }
+    loadRelatedPrograms()
+  }
+
+  function startEditRelatedProgram(rp) {
+    setEditingProgramId(rp.id)
+    setEditingProgramName(rp.name)
+    setEditingProgramYear(rp.year)
+  }
+
+  async function saveEditRelatedProgram() {
+    if (!editingProgramName.trim()) { alert('사업명을 입력해주세요'); return }
+    const { error } = await supabase.from('education_related_programs')
+      .update({ name: editingProgramName.trim(), year: editingProgramYear })
+      .eq('id', editingProgramId)
+    if (error) { alert('수정 실패: ' + error.message); return }
+    setEditingProgramId(null)
     loadRelatedPrograms()
   }
 
@@ -1212,17 +1231,37 @@ export default function Education() {
                 {relatedPrograms.length === 0 ? (
                   <p className="text-xs text-gray-400 text-center py-4">등록된 사업명이 없습니다.</p>
                 ) : relatedPrograms.map(rp => (
-                  <div key={rp.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2.5">
-                    <div>
-                      <span className="text-sm font-medium text-gray-800">{rp.name}</span>
-                      <span className="ml-2 text-xs text-gray-400">{rp.year}년</span>
-                    </div>
-                    <button
-                      onClick={() => deleteRelatedProgram(rp.id)}
-                      className="text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition"
-                    >
-                      삭제
-                    </button>
+                  <div key={rp.id} className="bg-gray-50 rounded-lg px-3 py-2.5">
+                    {editingProgramId === rp.id ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          className="flex-1 border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                          value={editingProgramName}
+                          onChange={e => setEditingProgramName(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && saveEditRelatedProgram()}
+                        />
+                        <select
+                          className="w-24 border border-gray-200 rounded px-1 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                          value={editingProgramYear}
+                          onChange={e => setEditingProgramYear(Number(e.target.value))}
+                        >
+                          {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}년</option>)}
+                        </select>
+                        <button onClick={saveEditRelatedProgram} className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200">저장</button>
+                        <button onClick={() => setEditingProgramId(null)} className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">취소</button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-sm font-medium text-gray-800">{rp.name}</span>
+                          <span className="ml-2 text-xs text-gray-400">{rp.year}년</span>
+                        </div>
+                        <div className="flex gap-1">
+                          <button onClick={() => startEditRelatedProgram(rp)} className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200">수정</button>
+                          <button onClick={() => deleteRelatedProgram(rp.id)} className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200">삭제</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
