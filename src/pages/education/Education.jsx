@@ -79,6 +79,9 @@ export default function Education() {
   // 수강생 목록 모달 (프로그램 클릭)
   const [studentsModal, setStudentsModal] = useState(null) // program
 
+  const [startTime, setStartTime] = useState('09:00')
+  const [endTime, setEndTime] = useState('18:00')
+
   const [toast, setToast] = useState('')
   const [saving, setSaving] = useState(false)
   const [posterFile, setPosterFile] = useState(null)
@@ -88,7 +91,7 @@ export default function Education() {
   async function loadAll() {
     setLoading(true)
     const [pRes, aRes, cRes, prRes] = await Promise.all([
-      supabase.from('education_programs').select('*').order('created_at', { ascending: false }),
+      supabase.from('education_programs').select('*').order('start_date', { ascending: true }),
       supabase.from('education_applications').select('*, education_programs(title, start_date, start_time, end_date, end_time, total_hours), founders(name)').order('applied_at', { ascending: false }),
       supabase.from('certificates').select('*, education_applications(applicant_name, education_programs(title, start_date, start_time, end_date, end_time, total_hours))').order('issued_at', { ascending: false }),
       supabase.from('profiles').select('id, name').eq('is_active', true),
@@ -169,7 +172,7 @@ export default function Education() {
   function defaultProgramForm() {
     return {
       title: '', description: '', overview: '', category: '창업기초', program_type: '집합교육',
-      instructor: '', location: '', start_date: '', start_time: '09:00', end_date: '', end_time: '18:00',
+      instructor: '', location: '', start_date: '', end_date: '',
       total_sessions: 1, hours_per_session: 2, max_participants: '', assignee: '', status: '모집중', completion_rate: 80,
       poster_url: '', survey_questions: [...DEFAULT_SURVEY_QUESTIONS]
     }
@@ -178,6 +181,8 @@ export default function Education() {
   function openAddProgram() {
     setEditProgram(null)
     setProgramForm(defaultProgramForm())
+    setStartTime('09:00')
+    setEndTime('18:00')
     setPosterFile(null)
     setShowProgramModal(true)
   }
@@ -189,14 +194,14 @@ export default function Education() {
       category: p.category || '창업기초', program_type: p.program_type || '집합교육',
       instructor: p.instructor || '', location: p.location || '',
       start_date: p.start_date ? p.start_date.split('T')[0] : '',
-      start_time: p.start_time || (p.start_date?.includes('T') ? p.start_date.split('T')[1]?.slice(0, 5) : '09:00'),
       end_date: p.end_date ? p.end_date.split('T')[0] : '',
-      end_time: p.end_time || (p.end_date?.includes('T') ? p.end_date.split('T')[1]?.slice(0, 5) : '18:00'),
       total_sessions: p.total_sessions || 1, hours_per_session: p.hours_per_session || 2, max_participants: p.max_participants || '',
       assignee: p.assignee || '', status: p.status || '모집중', completion_rate: p.completion_rate ?? 80,
       poster_url: p.poster_url || '',
       survey_questions: p.survey_questions?.length ? p.survey_questions : [...DEFAULT_SURVEY_QUESTIONS]
     })
+    setStartTime(p.start_time || '09:00')
+    setEndTime(p.end_time || '18:00')
     setPosterFile(null)
     setShowProgramModal(true)
   }
@@ -223,9 +228,9 @@ export default function Education() {
       ...programForm,
       poster_url: posterUrl,
       start_date: programForm.start_date || null,
-      start_time: programForm.start_time || null,
+      start_time: startTime || null,
       end_date: programForm.end_date || null,
-      end_time: programForm.end_time || null,
+      end_time: endTime || null,
       max_participants: programForm.max_participants ? Number(programForm.max_participants) : null,
       hours_per_session: programForm.hours_per_session || null,
       total_hours: totalHours || null,
@@ -435,7 +440,9 @@ export default function Education() {
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">{p.program_type}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">
-                        {p.start_date && p.end_date ? `${fmtDateTime(p.start_date, p.start_time)} ~ ${fmtDateTime(p.end_date, p.end_time)}` : '-'}
+                        {p.start_date
+                          ? `${p.start_date}${p.start_time ? ' ' + p.start_time.slice(0, 5) : ''} ~ ${p.end_date || ''}${p.end_time ? ' ' + p.end_time.slice(0, 5) : ''}`
+                          : '-'}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">
                         {p.total_hours ? `${p.total_hours}시간 (${p.total_sessions}회)` : '-'}
@@ -631,7 +638,9 @@ export default function Education() {
                       <td className="px-4 py-2.5 text-xs font-medium text-gray-800">{a.applicant_name}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">{prog?.title || '-'}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">
-                        {prog?.start_date && prog?.end_date ? `${fmtDateTime(prog.start_date, prog.start_time)} ~ ${fmtDateTime(prog.end_date, prog.end_time)}` : '-'}
+                        {prog?.start_date
+                          ? `${prog.start_date}${prog.start_time ? ' ' + prog.start_time.slice(0, 5) : ''} ~ ${prog.end_date || ''}${prog.end_time ? ' ' + prog.end_time.slice(0, 5) : ''}`
+                          : '-'}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">{cert?.issued_at?.slice(0, 10) || '-'}</td>
                       <td className="px-4 py-2.5 text-xs font-mono text-gray-700">{cert?.certificate_number || '-'}</td>
@@ -739,7 +748,7 @@ export default function Education() {
                   </Field>
                 </div>
                 <Field label="시작시간">
-                  <input type="time" className="input-base" value={programForm.start_time} onChange={e => setProgramForm(f => ({ ...f, start_time: e.target.value }))} />
+                  <input type="time" className="input-base" value={startTime} onChange={e => setStartTime(e.target.value)} />
                 </Field>
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -749,7 +758,7 @@ export default function Education() {
                   </Field>
                 </div>
                 <Field label="종료시간">
-                  <input type="time" className="input-base" value={programForm.end_time} onChange={e => setProgramForm(f => ({ ...f, end_time: e.target.value }))} />
+                  <input type="time" className="input-base" value={endTime} onChange={e => setEndTime(e.target.value)} />
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -1105,7 +1114,9 @@ export function CertificateView({ name, programTitle, startDate, startTime, endD
             <tr>
               <td style={{ fontWeight: 'bold', color: '#374151', paddingBottom: 10, verticalAlign: 'top' }}>교육기간</td>
               <td style={{ color: '#1f2937', paddingBottom: 10, verticalAlign: 'top' }}>
-                :&nbsp;&nbsp;{startDate && endDate ? `${fmtDateTime(startDate, startTime)} ~ ${fmtDateTime(endDate, endTime)}` : '-'}
+                :&nbsp;&nbsp;{startDate
+                    ? `${startDate}${startTime ? ' ' + startTime.slice(0, 5) : ''} ~ ${endDate || ''}${endTime ? ' ' + endTime.slice(0, 5) : ''}`
+                    : '-'}
               </td>
             </tr>
             <tr>
