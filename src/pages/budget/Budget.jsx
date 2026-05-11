@@ -170,6 +170,7 @@ function ExecAddModal({ entries, programId, defaultEntryId, executions, editExec
     execution_date: editExec ? editExec.execution_date : new Date().toISOString().slice(0, 10),
     amount: editExec ? formatAmount(editExec.amount) : '',
     note: editExec ? (editExec.note || '') : '',
+    vendor: editExec ? (editExec.vendor || '') : '',
   })
   const [saving, setSaving] = useState(false)
 
@@ -189,7 +190,7 @@ function ExecAddModal({ entries, programId, defaultEntryId, executions, editExec
     setSaving(true)
     if (editExec) {
       await supabase.from('budget_entry_executions')
-        .update({ execution_date: form.execution_date, amount: inputAmt, note: form.note })
+        .update({ execution_date: form.execution_date, amount: inputAmt, note: form.note, vendor: form.vendor })
         .eq('id', editExec.id)
     } else {
       // 서버에서 한번 더 잔액 체크
@@ -208,6 +209,7 @@ function ExecAddModal({ entries, programId, defaultEntryId, executions, editExec
         execution_date: form.execution_date,
         amount: inputAmt,
         note: form.note,
+        vendor: form.vendor,
       })
       console.log('exec insert result:', data, error)
     }
@@ -247,6 +249,10 @@ function ExecAddModal({ entries, programId, defaultEntryId, executions, editExec
             {isOverBudget && (
               <p className="text-xs text-red-500 mt-1 pl-1">잔액({formatAmount(remaining)}원)을 초과할 수 없습니다</p>
             )}
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">거래처</label>
+            <input value={form.vendor} onChange={e => setForm({ ...form, vendor: e.target.value })} className={I} placeholder="거래처명 (선택)" />
           </div>
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">적요</label>
@@ -897,7 +903,7 @@ export default function Budget() {
                       <div key={e.id} className="flex items-center gap-2 px-4 py-3 border-b border-gray-50 hover:bg-gray-50">
                         <div className="flex-1 min-w-0">
                           <div className="text-xs font-medium text-gray-800 truncate">{e.note || '(적요 없음)'}</div>
-                          <div className="text-xs text-gray-400 mt-0.5">{e.execution_date}</div>
+                          <div className="text-xs text-gray-400 mt-0.5">{e.execution_date}{e.vendor && ` · ${e.vendor}`}</div>
                         </div>
                         <div className="text-xs font-semibold text-emerald-600 whitespace-nowrap">{formatKorean(e.amount)}</div>
                         {!isViewer && (
