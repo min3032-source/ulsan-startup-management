@@ -4,20 +4,19 @@ import { supabase } from '../../lib/supabase'
 
 const todayStr = () => new Date().toISOString().slice(0, 10)
 
+const formatAmount = n => (Number(n) || 0).toLocaleString('ko-KR')
+
 function formatKorean(num) {
   const n = Number(num) || 0
   if (n === 0) return '0원'
   const eok = Math.floor(n / 100000000)
   const man = Math.floor((n % 100000000) / 10000)
+  const won = n % 10000
   let result = ''
   if (eok > 0) result += `${eok.toLocaleString('ko-KR')}억 `
-  if (man > 0) result += `${man.toLocaleString('ko-KR')}만`
-  if (!eok && !man) result += (n % 10000).toLocaleString('ko-KR')
+  if (man > 0) result += `${man.toLocaleString('ko-KR')}만 `
+  if (won > 0) result += `${won.toLocaleString('ko-KR')}`
   return result.trim() + '원'
-}
-
-function fmtK(num) {
-  return Math.round((Number(num) || 0) / 1000).toLocaleString('ko-KR')
 }
 
 function barColor(rate) {
@@ -38,7 +37,6 @@ export default function BudgetDashboard() {
   const [execByProgram, setExecByProgram] = useState({})
   const [divStatsByProgram, setDivStatsByProgram] = useState({})
   const [divisionData, setDivisionData] = useState([])
-  const [recentExecs, setRecentExecs] = useState({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { loadData() }, [])
@@ -130,28 +128,11 @@ export default function BudgetDashboard() {
         .map(([name, { budget, exec, minSort }]) => ({ name, budget, exec: exec || 0, minSort }))
         .sort((a, b) => (a.minSort ?? Infinity) - (b.minSort ?? Infinity))
 
-      // 프로그램별 최근 집행 5건
-      const recentMap = {}
-      allPrograms.forEach(p => {
-        const pid = String(p.id)
-        const progExecs = allExecs.filter(e => String(e.program_id) === pid).slice(0, 5)
-        recentMap[pid] = progExecs.map(e => ({
-          date: e.execution_date
-            ? String(e.execution_date).slice(0, 10)
-            : (e.created_at ? String(e.created_at).slice(0, 10) : '-'),
-          itemName: entryMap[e.entry_id]
-            ? `${entryMap[e.entry_id].division} / ${entryMap[e.entry_id].sub_item}`
-            : '(항목 미상)',
-          amount: Number(e.amount) || 0,
-        }))
-      })
-
       setPrograms(allPrograms)
       setBudgetByProgram(budgetMap)
       setExecByProgram(execMap)
       setDivStatsByProgram(divArrays)
       setDivisionData(divDataArr)
-      setRecentExecs(recentMap)
     } catch (e) {
       console.error(e)
     } finally {
@@ -170,7 +151,6 @@ export default function BudgetDashboard() {
   const activeExec = execByProgram[activeTab] || 0
   const activeRemain = activeBudget - activeExec
   const activeRate = activeBudget > 0 ? activeExec / activeBudget * 100 : 0
-  const activeRecent = recentExecs[activeTab] || []
 
   return (
     <div style={{ fontFamily: '"Malgun Gothic", sans-serif', minHeight: '100vh', background: '#f8fafc' }}>
@@ -351,10 +331,10 @@ export default function BudgetDashboard() {
           {/* KPI 4개 */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px' }}>
             {[
-              { label: '총 예산', value: formatKorean(activeBudget), sub: `${fmtK(activeBudget)}천원`, color: '#1e3a5f' },
-              { label: '집행액', value: formatKorean(activeExec), sub: `${fmtK(activeExec)}천원`, color: '#059669' },
-              { label: '잔액', value: formatKorean(activeRemain), sub: `${fmtK(activeRemain)}천원`, color: '#1d4ed8' },
-              { label: '집행률', value: `${activeRate.toFixed(1)}%`, sub: `${fmtK(activeExec)} / ${fmtK(activeBudget)}`, color: barColor(activeRate) },
+              { label: '총 예산', value: formatKorean(activeBudget), sub: `${formatAmount(activeBudget)}원`, color: '#1e3a5f' },
+              { label: '집행액', value: formatKorean(activeExec), sub: `${formatAmount(activeExec)}원`, color: '#059669' },
+              { label: '잔액', value: formatKorean(activeRemain), sub: `${formatAmount(activeRemain)}원`, color: '#1d4ed8' },
+              { label: '집행률', value: `${activeRate.toFixed(1)}%`, sub: `${formatAmount(activeExec)} / ${formatAmount(activeBudget)}`, color: barColor(activeRate) },
             ].map(({ label, value, sub, color }) => (
               <div key={label} className="print-card" style={{ background: 'white', borderRadius: '10px', padding: '14px', border: CARD_BORDER, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                 <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>{label}</div>
@@ -372,7 +352,7 @@ export default function BudgetDashboard() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                 <thead>
                   <tr style={{ background: '#1e3a5f', color: 'white' }}>
-                    {['구분(Division)', '예산액(천원)', '집행액(천원)', '잔액(천원)', '집행률'].map((h, i) => (
+                    {['구분(Division)', '예산액(원)', '집행액(원)', '잔액(원)', '집행률'].map((h, i) => (
                       <th key={h} style={{ padding: '7px 8px', border: '1px solid #374151', textAlign: i === 0 ? 'left' : 'right', fontWeight: '600', fontSize: '11px' }}>{h}</th>
                     ))}
                   </tr>
@@ -384,31 +364,31 @@ export default function BudgetDashboard() {
                     return (
                       <tr key={stat.name} style={{ background: idx % 2 === 0 ? 'white' : '#f9fafb' }}>
                         <td style={{ padding: '6px 8px', border: '1px solid #e5e7eb', fontSize: '11px' }}>{stat.name}</td>
-                        <td style={{ padding: '6px 8px', border: '1px solid #e5e7eb', textAlign: 'right', fontSize: '11px' }}>{fmtK(stat.budget)}</td>
-                        <td style={{ padding: '6px 8px', border: '1px solid #e5e7eb', textAlign: 'right', fontSize: '11px' }}>{fmtK(stat.exec)}</td>
-                        <td style={{ padding: '6px 8px', border: '1px solid #e5e7eb', textAlign: 'right', fontSize: '11px' }}>{fmtK(remain)}</td>
+                        <td style={{ padding: '6px 8px', border: '1px solid #e5e7eb', textAlign: 'right', fontSize: '11px' }}>{formatAmount(stat.budget)}</td>
+                        <td style={{ padding: '6px 8px', border: '1px solid #e5e7eb', textAlign: 'right', fontSize: '11px' }}>{formatAmount(stat.exec)}</td>
+                        <td style={{ padding: '6px 8px', border: '1px solid #e5e7eb', textAlign: 'right', fontSize: '11px' }}>{formatAmount(remain)}</td>
                         <td style={{ padding: '6px 8px', border: '1px solid #e5e7eb', textAlign: 'right', fontSize: '11px', color: barColor(rate), fontWeight: '600' }}>{rate.toFixed(1)}%</td>
                       </tr>
                     )
                   })}
                   <tr style={{ background: '#374151', color: 'white', fontWeight: 'bold' }}>
                     <td style={{ padding: '6px 8px', border: '1px solid #4b5563', fontSize: '11px' }}>합 계</td>
-                    <td style={{ padding: '6px 8px', border: '1px solid #4b5563', textAlign: 'right', fontSize: '11px' }}>{fmtK(activeBudget)}</td>
-                    <td style={{ padding: '6px 8px', border: '1px solid #4b5563', textAlign: 'right', fontSize: '11px' }}>{fmtK(activeExec)}</td>
-                    <td style={{ padding: '6px 8px', border: '1px solid #4b5563', textAlign: 'right', fontSize: '11px' }}>{fmtK(activeRemain)}</td>
+                    <td style={{ padding: '6px 8px', border: '1px solid #4b5563', textAlign: 'right', fontSize: '11px' }}>{formatAmount(activeBudget)}</td>
+                    <td style={{ padding: '6px 8px', border: '1px solid #4b5563', textAlign: 'right', fontSize: '11px' }}>{formatAmount(activeExec)}</td>
+                    <td style={{ padding: '6px 8px', border: '1px solid #4b5563', textAlign: 'right', fontSize: '11px' }}>{formatAmount(activeRemain)}</td>
                     <td style={{ padding: '6px 8px', border: '1px solid #4b5563', textAlign: 'right', fontSize: '11px' }}>{activeRate.toFixed(1)}%</td>
                   </tr>
                 </tbody>
               </table>
             </div>
 
-            {/* 오른쪽: 시각화 + 최근 집행 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* 오른쪽: 구분별 집행률 */}
+            <div>
               <div style={{ background: 'white', borderRadius: '10px', padding: '16px', border: CARD_BORDER }}>
                 <h3 style={{ fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '12px' }}>구분별 집행률</h3>
                 {activeDivStats.length === 0
                   ? <div style={{ fontSize: '12px', color: '#9ca3af', textAlign: 'center', padding: '16px 0' }}>데이터 없음</div>
-                  : <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  : <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {activeDivStats.map(stat => {
                       const rate = stat.budget > 0 ? stat.exec / stat.budget * 100 : 0
                       return (
@@ -417,30 +397,18 @@ export default function BudgetDashboard() {
                             <span style={{ fontSize: '11px', color: '#4b5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '75%' }}>{stat.name}</span>
                             <span style={{ fontSize: '11px', fontWeight: '600', color: barColor(rate), flexShrink: 0 }}>{rate.toFixed(1)}%</span>
                           </div>
-                          <div style={{ background: '#f3f4f6', borderRadius: '999px', height: '10px', overflow: 'hidden' }}>
-                            <div style={{ height: '10px', borderRadius: '999px', background: barColor(rate), width: `${Math.min(rate, 100)}%` }} />
+                          <div style={{ background: '#f3f4f6', borderRadius: '999px', height: '8px', overflow: 'hidden' }}>
+                            <div style={{ height: '8px', borderRadius: '999px', background: barColor(rate), width: `${Math.min(rate, 100)}%` }} />
                           </div>
+                          {stat.exec > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '3px' }}>
+                              <span style={{ fontSize: '10px', color: '#9ca3af' }}>{formatKorean(stat.budget)}</span>
+                              <span style={{ fontSize: '10px', fontWeight: '600', color: barColor(rate) }}>{formatKorean(stat.exec)}</span>
+                            </div>
+                          )}
                         </div>
                       )
                     })}
-                  </div>
-                }
-              </div>
-
-              <div style={{ background: 'white', borderRadius: '10px', padding: '16px', border: CARD_BORDER }}>
-                <h3 style={{ fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '12px' }}>최근 집행 내역</h3>
-                {activeRecent.length === 0
-                  ? <div style={{ fontSize: '12px', color: '#9ca3af', textAlign: 'center', padding: '20px 0' }}>집행 내역이 없습니다</div>
-                  : <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    {activeRecent.map((e, idx) => (
-                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: idx < activeRecent.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
-                        <div style={{ overflow: 'hidden' }}>
-                          <div style={{ fontSize: '12px', color: '#1f2937', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.itemName}</div>
-                          <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '1px' }}>{e.date}</div>
-                        </div>
-                        <div style={{ fontSize: '12px', fontWeight: '600', color: '#059669', flexShrink: 0, marginLeft: '8px' }}>{formatKorean(e.amount)}</div>
-                      </div>
-                    ))}
                   </div>
                 }
               </div>
