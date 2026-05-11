@@ -11,10 +11,11 @@ function formatKorean(num) {
   if (n === 0) return '0원'
   const eok = Math.floor(n / 100000000)
   const man = Math.floor((n % 100000000) / 10000)
+  const won = n % 10000
   let r = ''
   if (eok > 0) r += `${eok.toLocaleString('ko-KR')}억 `
-  if (man > 0) r += `${man.toLocaleString('ko-KR')}만`
-  if (!eok && !man) r += (n % 10000).toLocaleString('ko-KR')
+  if (man > 0) r += `${man.toLocaleString('ko-KR')}만 `
+  if (won > 0) r += `${won.toLocaleString('ko-KR')}`
   return r.trim() + '원'
 }
 
