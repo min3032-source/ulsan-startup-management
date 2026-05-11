@@ -495,6 +495,8 @@ export default function Budget() {
   const [loading, setLoading] = useState(true)
   const [loadingDetail, setLoadingDetail] = useState(false)
 
+  const [selectedYear, setSelectedYear] = useState(null)
+
   const [entryModal, setEntryModal] = useState(null)
   const [execModal, setExecModal] = useState(null)
   const [progModal, setProgModal] = useState(false)
@@ -509,6 +511,13 @@ export default function Budget() {
       fetchExecutions(selectedProgramId)
     }
   }, [selectedProgramId])
+  useEffect(() => {
+    if (selectedYear !== null) {
+      const first = programs.find(p => p.year === selectedYear)
+      if (first) setSelectedProgramId(String(first.id))
+      else setSelectedProgramId(null)
+    }
+  }, [selectedYear])
 
   async function fetchEntries(pid) {
     setLoadingDetail(true)
@@ -544,9 +553,18 @@ export default function Budget() {
       if (!summary[k]) summary[k] = { budget: 0, exec: 0 }
       summary[k].exec += Number(e.amount) || 0
     })
-    setPrograms(progs || [])
+    const allProgs = progs || []
+    const years = [...new Set(allProgs.map(p => p.year))].sort((a, b) => b - a)
+    setPrograms(allProgs)
     setProgramSummary(summary)
-    if ((progs || []).length > 0 && !selectedProgramId) setSelectedProgramId(String(progs[0].id))
+    setSelectedYear(prev => {
+      const initYear = prev ?? (years[0] ?? null)
+      if (!prev && allProgs.length > 0) {
+        const first = allProgs.find(p => p.year === initYear)
+        if (first) setSelectedProgramId(String(first.id))
+      }
+      return initYear
+    })
     setLoading(false)
   }
 
@@ -753,14 +771,29 @@ export default function Budget() {
     return rows
   }
 
+  const years = [...new Set(programs.map(p => p.year))].sort((a, b) => b - a)
+  const filteredPrograms = programs.filter(p => p.year === selectedYear)
+
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* 사업 카드 가로 스크롤 */}
+      {/* 연도별 사업 카드 */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
+        {/* 연도 탭 */}
+        <div className="flex gap-2 mb-4 border-b border-gray-100 pb-3">
+          {loading ? (
+            <div className="text-sm text-gray-400">로딩 중...</div>
+          ) : years.map(year => (
+            <button key={year} onClick={() => { setSelectedYear(year); setSelectedProgramId(null) }}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium ${selectedYear === year ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-700'}`}>
+              {year}년
+            </button>
+          ))}
+        </div>
+        {/* 선택된 연도의 사업 카드 가로 스크롤 */}
         <div className="flex gap-3 overflow-x-auto pb-1">
           {loading ? (
             <div className="text-sm text-gray-400 py-4">로딩 중...</div>
-          ) : programs.map((prog) => {
+          ) : filteredPrograms.map((prog) => {
             const pid = String(prog.id)
             const sm = programSummary[pid] || { budget: 0, exec: 0 }
             const rate = sm.budget > 0 ? sm.exec / sm.budget * 100 : 0
@@ -789,7 +822,7 @@ export default function Budget() {
                   </div>
                 )}
                 <div style={{ fontWeight: '600', fontSize: '13px', color: '#111827', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: isViewer ? '0' : '50px' }}>{prog.name}</div>
-                <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '8px' }}>{prog.year}년{prog.manager ? ` · ${prog.manager}` : ''}</div>
+                <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '8px' }}>{prog.manager ? `${prog.manager}` : ''}</div>
                 <div style={{ fontSize: '13px', fontWeight: '500', color: '#1d4ed8', marginBottom: '8px' }}>{formatKorean(sm.budget)}</div>
                 <div style={{ background: '#e5e7eb', borderRadius: '999px', height: '5px', overflow: 'hidden' }}>
                   <div style={{ height: '5px', borderRadius: '999px', background: barColor(rate), width: `${Math.min(rate, 100)}%` }} />
