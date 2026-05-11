@@ -163,19 +163,21 @@ function EntryModal({ mode, entry, entries, programId, onClose, onSaved }) {
   )
 }
 
-// 집행 추가 모달 (잔액 초과 방지)
-function ExecAddModal({ entries, programId, defaultEntryId, executions, onClose, onSaved }) {
+// 집행 추가/수정 모달 (잔액 초과 방지)
+function ExecAddModal({ entries, programId, defaultEntryId, executions, editExec, onClose, onSaved }) {
   const [form, setForm] = useState({
-    entry_id: String(defaultEntryId || entries[0]?.id || ''),
-    execution_date: new Date().toISOString().slice(0, 10),
-    amount: '',
-    note: '',
+    entry_id: editExec ? String(editExec.entry_id) : String(defaultEntryId || entries[0]?.id || ''),
+    execution_date: editExec ? editExec.execution_date : new Date().toISOString().slice(0, 10),
+    amount: editExec ? formatAmount(editExec.amount) : '',
+    note: editExec ? (editExec.note || '') : '',
   })
   const [saving, setSaving] = useState(false)
 
   const selectedEntry = entries.find(e => String(e.id) === form.entry_id)
   const currentExec = selectedEntry
-    ? executions.filter(ex => ex.entry_id === selectedEntry.id).reduce((s, ex) => s + (Number(ex.amount) || 0), 0)
+    ? executions
+        .filter(ex => ex.entry_id === selectedEntry.id && (!editExec || ex.id !== editExec.id))
+        .reduce((s, ex) => s + (Number(ex.amount) || 0), 0)
     : 0
   const remaining = selectedEntry ? (Number(selectedEntry.budgeted_amount) || 0) - currentExec : 0
   const inputAmt = parseAmount(form.amount)
@@ -185,24 +187,30 @@ function ExecAddModal({ entries, programId, defaultEntryId, executions, onClose,
     if (!form.amount || !form.entry_id) return
     if (isOverBudget) return
     setSaving(true)
-    // 서버에서 한번 더 잔액 체크
-    const { data: serverExecs } = await supabase.from('budget_entry_executions')
-      .select('amount').eq('entry_id', form.entry_id)
-    const serverTotal = (serverExecs || []).reduce((s, e) => s + (Number(e.amount) || 0), 0)
-    const entryBdg = Number(selectedEntry?.budgeted_amount || 0)
-    if (serverTotal + inputAmt > entryBdg) {
-      alert('잔액을 초과합니다')
-      setSaving(false)
-      return
+    if (editExec) {
+      await supabase.from('budget_entry_executions')
+        .update({ execution_date: form.execution_date, amount: inputAmt, note: form.note })
+        .eq('id', editExec.id)
+    } else {
+      // 서버에서 한번 더 잔액 체크
+      const { data: serverExecs } = await supabase.from('budget_entry_executions')
+        .select('amount').eq('entry_id', form.entry_id)
+      const serverTotal = (serverExecs || []).reduce((s, e) => s + (Number(e.amount) || 0), 0)
+      const entryBdg = Number(selectedEntry?.budgeted_amount || 0)
+      if (serverTotal + inputAmt > entryBdg) {
+        alert('잔액을 초과합니다')
+        setSaving(false)
+        return
+      }
+      const { data, error } = await supabase.from('budget_entry_executions').insert({
+        entry_id: form.entry_id,
+        program_id: programId,
+        execution_date: form.execution_date,
+        amount: inputAmt,
+        note: form.note,
+      })
+      console.log('exec insert result:', data, error)
     }
-    const { data, error } = await supabase.from('budget_entry_executions').insert({
-      entry_id: form.entry_id,
-      program_id: programId,
-      execution_date: form.execution_date,
-      amount: inputAmt,
-      note: form.note,
-    })
-    console.log('exec insert result:', data, error)
     setSaving(false)
     onClose()
     await onSaved()
@@ -213,7 +221,7 @@ function ExecAddModal({ entries, programId, defaultEntryId, executions, onClose,
   return (
     <Overlay onClose={onClose}>
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
-        <h2 className="text-base font-bold text-gray-800 mb-4">집행 추가</h2>
+        <h2 className="text-base font-bold text-gray-800 mb-4">{editExec ? '집행 수정' : '집행 추가'}</h2>
         <div className="flex flex-col gap-3">
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">집행일</label>
@@ -221,7 +229,7 @@ function ExecAddModal({ entries, programId, defaultEntryId, executions, onClose,
           </div>
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">항목 선택</label>
-            <select value={form.entry_id} onChange={e => setForm({ ...form, entry_id: e.target.value, amount: '' })} className={I}>
+            <select value={form.entry_id} onChange={e => setForm({ ...form, entry_id: e.target.value, amount: '' })} className={I} disabled={!!editExec}>
               {entries.map(e => (
                 <option key={e.id} value={String(e.id)}>{e.division} — {e.sub_item} ({e.calculation?.slice(0, 22)}...)</option>
               ))}
@@ -248,7 +256,7 @@ function ExecAddModal({ entries, programId, defaultEntryId, executions, onClose,
         <div className="flex gap-2 mt-4">
           <button onClick={handleSave} disabled={saving || isOverBudget}
             className="flex-1 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-60"
-            style={{ background: '#1e3a5f' }}>{saving ? '저장 중...' : '저장'}</button>
+            style={{ background: '#1e3a5f' }}>{saving ? '저장 중...' : editExec ? '수정' : '저장'}</button>
           <button onClick={onClose} className="flex-1 py-2 text-sm border border-gray-300 rounded-lg text-gray-600">취소</button>
         </div>
       </div>
@@ -893,7 +901,10 @@ export default function Budget() {
                         </div>
                         <div className="text-xs font-semibold text-emerald-600 whitespace-nowrap">{formatKorean(e.amount)}</div>
                         {!isViewer && (
-                          <button onClick={() => deleteExec(e.id)} className="text-xs text-red-400 hover:text-red-600 px-1">✕</button>
+                          <>
+                            <button onClick={() => setExecModal({ entryId: e.entry_id, editExec: e })} className="text-xs text-blue-400 hover:text-blue-600 px-1">✎</button>
+                            <button onClick={() => deleteExec(e.id)} className="text-xs text-red-400 hover:text-red-600 px-1">✕</button>
+                          </>
                         )}
                       </div>
                     ))}
@@ -929,6 +940,7 @@ export default function Budget() {
         <ExecAddModal entries={entries} programId={selectedProgramId}
           defaultEntryId={execModal.entryId}
           executions={executions}
+          editExec={execModal.editExec}
           onClose={() => setExecModal(null)}
           onSaved={async () => { await fetchEntries(selectedProgramId); await fetchExecutions(selectedProgramId); await loadPrograms() }} />
       )}
