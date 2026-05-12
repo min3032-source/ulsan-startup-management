@@ -190,7 +190,7 @@ function ExecAddModal({ entries, programId, defaultEntryId, executions, editExec
     setSaving(true)
     if (editExec) {
       await supabase.from('budget_entry_executions')
-        .update({ execution_date: form.execution_date, amount: inputAmt, note: form.note, vendor: form.vendor })
+        .update({ execution_date: form.execution_date, amount: inputAmt, note: form.note, vendor: form.vendor, entry_id: form.entry_id })
         .eq('id', editExec.id)
     } else {
       // 서버에서 한번 더 잔액 체크
@@ -231,7 +231,7 @@ function ExecAddModal({ entries, programId, defaultEntryId, executions, editExec
           </div>
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">항목 선택</label>
-            <select value={form.entry_id} onChange={e => setForm({ ...form, entry_id: e.target.value, amount: '' })} className={I} disabled={!!editExec}>
+            <select value={form.entry_id} onChange={e => setForm({ ...form, entry_id: e.target.value, amount: '' })} className={I}>
               {entries.map(e => (
                 <option key={e.id} value={String(e.id)}>{e.division} — {e.sub_item} ({e.calculation?.slice(0, 22)}...)</option>
               ))}
