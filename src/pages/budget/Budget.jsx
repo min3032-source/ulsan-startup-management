@@ -276,6 +276,7 @@ function ProgramModal({ program, onClose, onSaved }) {
     name: program?.name || '',
     year: program?.year || new Date().getFullYear(),
     manager: program?.manager || '',
+    department: program?.department || '',
   })
   const [saving, setSaving] = useState(false)
 
@@ -283,9 +284,9 @@ function ProgramModal({ program, onClose, onSaved }) {
     if (!form.name) return
     setSaving(true)
     if (program) {
-      await supabase.from('budget_programs').update({ name: form.name, year: Number(form.year), manager: form.manager }).eq('id', program.id)
+      await supabase.from('budget_programs').update({ name: form.name, year: Number(form.year), manager: form.manager, department: form.department }).eq('id', program.id)
     } else {
-      await supabase.from('budget_programs').insert({ name: form.name, year: Number(form.year), manager: form.manager })
+      await supabase.from('budget_programs').insert({ name: form.name, year: Number(form.year), manager: form.manager, department: form.department })
     }
     setSaving(false)
     onSaved(); onClose()
@@ -303,6 +304,7 @@ function ProgramModal({ program, onClose, onSaved }) {
               {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}년</option>)}
             </select></div>
           <div><label className="text-xs font-medium text-gray-600 block mb-1">담당자</label><input value={form.manager} onChange={e => setForm({ ...form, manager: e.target.value })} className={I} placeholder="홍길동" /></div>
+          <div><label className="text-xs font-medium text-gray-600 block mb-1">부서</label><input value={form.department} onChange={e => setForm({ ...form, department: e.target.value })} className={I} placeholder="예: 창업육성팀" /></div>
         </div>
         <div className="flex gap-2 mt-4">
           <button onClick={handleSave} disabled={saving} className="flex-1 py-2 text-sm font-semibold text-white rounded-lg" style={{ background: '#1e3a5f' }}>{saving ? '저장 중...' : program ? '수정' : '등록'}</button>
@@ -496,6 +498,7 @@ export default function Budget() {
   const [loadingDetail, setLoadingDetail] = useState(false)
 
   const [selectedYear, setSelectedYear] = useState(null)
+  const [selectedDept, setSelectedDept] = useState('전체')
 
   const [entryModal, setEntryModal] = useState(null)
   const [execModal, setExecModal] = useState(null)
@@ -772,12 +775,24 @@ export default function Budget() {
   }
 
   const years = [...new Set(programs.map(p => p.year))].sort((a, b) => b - a)
-  const filteredPrograms = programs.filter(p => p.year === selectedYear)
+  const depts = ['전체', ...[...new Set(programs.map(p => p.department).filter(Boolean))]]
+  const filteredPrograms = programs.filter(p => p.year === selectedYear && (selectedDept === '전체' || p.department === selectedDept))
 
   return (
     <div className="min-h-screen bg-slate-50">
       {/* 연도별 사업 카드 */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
+        {/* 부서 필터 */}
+        {depts.length > 1 && (
+          <div className="flex gap-2 mb-3 flex-wrap">
+            {depts.map(dept => (
+              <button key={dept} onClick={() => setSelectedDept(dept)}
+                className={`px-3 py-1 rounded-full text-xs font-medium ${selectedDept === dept ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-700 border border-gray-200'}`}>
+                {dept}
+              </button>
+            ))}
+          </div>
+        )}
         {/* 연도 탭 */}
         <div className="flex gap-2 mb-4 border-b border-gray-100 pb-3">
           {loading ? (
@@ -822,7 +837,8 @@ export default function Budget() {
                   </div>
                 )}
                 <div style={{ fontWeight: '600', fontSize: '13px', color: '#111827', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: isViewer ? '0' : '50px' }}>{prog.name}</div>
-                <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '8px' }}>{prog.manager ? `${prog.manager}` : ''}</div>
+                <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: prog.department ? '2px' : '8px' }}>{prog.manager ? `${prog.manager}` : ''}</div>
+                {prog.department && <div className="text-xs text-gray-400" style={{ marginBottom: '8px' }}>{prog.department}</div>}
                 <div style={{ fontSize: '13px', fontWeight: '500', color: '#1d4ed8', marginBottom: '8px' }}>{formatKorean(sm.budget)}</div>
                 <div style={{ background: '#e5e7eb', borderRadius: '999px', height: '5px', overflow: 'hidden' }}>
                   <div style={{ height: '5px', borderRadius: '999px', background: barColor(rate), width: `${Math.min(rate, 100)}%` }} />

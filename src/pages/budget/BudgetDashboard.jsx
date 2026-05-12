@@ -32,6 +32,7 @@ const CARD_BORDER = '1px solid #e5e7eb'
 export default function BudgetDashboard() {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('all')
+  const [selectedDept, setSelectedDept] = useState('전체')
   const [programs, setPrograms] = useState([])
   const [budgetByProgram, setBudgetByProgram] = useState({})
   const [execByProgram, setExecByProgram] = useState({})
@@ -140,8 +141,10 @@ export default function BudgetDashboard() {
     }
   }
 
-  const totalBudget = Object.values(budgetByProgram).reduce((s, v) => s + v, 0)
-  const totalExec = Object.values(execByProgram).reduce((s, v) => s + v, 0)
+  const depts = ['전체', ...[...new Set(programs.map(p => p.department).filter(Boolean))]]
+  const filteredPrograms = programs.filter(p => selectedDept === '전체' || p.department === selectedDept)
+  const totalBudget = filteredPrograms.reduce((s, p) => s + (budgetByProgram[String(p.id)] || 0), 0)
+  const totalExec = filteredPrograms.reduce((s, p) => s + (execByProgram[String(p.id)] || 0), 0)
   const avgRate = totalBudget > 0 ? totalExec / totalBudget * 100 : 0
   const maxDivBudget = Math.max(...divisionData.map(d => d.budget), 1)
 
@@ -173,7 +176,7 @@ export default function BudgetDashboard() {
         padding: '0 20px', display: 'flex', alignItems: 'center',
         boxShadow: '0 1px 4px rgba(0,0,0,0.06)', overflowX: 'auto', gap: 0
       }}>
-        {[{ id: 'all', label: '전체 현황' }, ...programs.map(p => ({ id: String(p.id), label: p.name }))].map(tab => (
+        {[{ id: 'all', label: '전체 현황' }, ...filteredPrograms.map(p => ({ id: String(p.id), label: p.name }))].map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
             padding: '12px 18px', fontSize: '13px', border: 'none', cursor: 'pointer',
             background: 'none', whiteSpace: 'nowrap',
@@ -183,6 +186,16 @@ export default function BudgetDashboard() {
           }}>{tab.label}</button>
         ))}
         <div style={{ flex: 1 }} />
+        {depts.length > 1 && depts.map(dept => (
+          <button key={dept} onClick={() => setSelectedDept(dept)} style={{
+            padding: '4px 12px', fontSize: '12px', borderRadius: '999px', border: '1px solid',
+            cursor: 'pointer', flexShrink: 0, margin: '6px 2px',
+            background: selectedDept === dept ? '#4f46e5' : 'white',
+            borderColor: selectedDept === dept ? '#4f46e5' : '#d1d5db',
+            color: selectedDept === dept ? 'white' : '#6b7280',
+            fontWeight: selectedDept === dept ? '600' : '400',
+          }}>{dept}</button>
+        ))}
         {activeTab !== 'all' && (
           <button onClick={() => window.print()} style={{
             padding: '7px 14px', fontSize: '12px', background: '#1e3a5f',
@@ -207,7 +220,7 @@ export default function BudgetDashboard() {
                 <div key={i} style={{ background: 'white', borderRadius: '12px', padding: '16px', border: CARD_BORDER, height: '80px' }} />
               ))
               : [
-                { label: '전체 사업수', value: `${programs.length}개`, color: '#1e3a5f' },
+                { label: '전체 사업수', value: `${filteredPrograms.length}개`, color: '#1e3a5f' },
                 { label: '전체 예산합계', value: formatKorean(totalBudget), color: '#1d4ed8' },
                 { label: '전체 집행액', value: formatKorean(totalExec), color: '#059669' },
                 { label: '평균 집행률', value: `${avgRate.toFixed(1)}%`, color: barColor(avgRate) },
@@ -228,7 +241,7 @@ export default function BudgetDashboard() {
                 ? Array.from({ length: 3 }).map((_, i) => (
                   <div key={i} style={{ background: 'white', borderRadius: '12px', padding: '16px', border: CARD_BORDER, height: '130px' }} />
                 ))
-                : programs.map((prog, idx) => {
+                : filteredPrograms.map((prog, idx) => {
                   const pid = String(prog.id)
                   const budget = budgetByProgram[pid] || 0
                   const exec = execByProgram[pid] || 0
