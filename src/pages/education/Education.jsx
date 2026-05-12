@@ -411,7 +411,7 @@ export default function Education() {
   async function updateAppStatus(appId, status) {
     if (status === '승인') {
       const app = applications.find(a => a.id === appId)
-      setApprovalModal({ app, selectedBusiness: '' })
+      setApprovalModal({ app, selectedBusiness: app.related_program || '' })
       return
     }
     if (status === '수료') {
