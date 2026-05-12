@@ -93,6 +93,7 @@ export default function Education() {
   // 수강생 탭
   const [filterProgram, setFilterProgram] = useState('')
   const [searchStudent, setSearchStudent] = useState('')
+  const [filterBusiness, setFilterBusiness] = useState('전체')
 
   // 수강생 직접 입력 모달
   const [showStudentModal, setShowStudentModal] = useState(false)
@@ -496,13 +497,16 @@ export default function Education() {
 
   const appsByProgram = (pid) => applications.filter(a => a.program_id === pid)
 
+  const businessList = ['전체', ...[...new Set(applications.filter(a => a.related_program).map(a => a.related_program))]]
+
   const filteredApps = applications.filter(a => {
     const matchProg = !filterProgram || a.program_id === filterProgram
     const matchSearch = !searchStudent ||
       a.applicant_name?.includes(searchStudent) ||
       a.company_name?.includes(searchStudent) ||
       a.phone?.includes(searchStudent)
-    return matchProg && matchSearch
+    const matchBusiness = filterBusiness === '전체' || a.related_program === filterBusiness
+    return matchProg && matchSearch && matchBusiness
   })
 
   const completedApps = applications.filter(a => a.status === '수료')
@@ -652,6 +656,13 @@ export default function Education() {
               >
                 <option value="">전체 프로그램</option>
                 {programs.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+              </select>
+              <select
+                value={filterBusiness}
+                onChange={e => setFilterBusiness(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white"
+              >
+                {businessList.map(b => <option key={b} value={b}>{b}</option>)}
               </select>
               <div className="relative">
                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
