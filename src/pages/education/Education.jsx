@@ -425,10 +425,11 @@ export default function Education() {
     }
     const { error } = await supabase.from('education_applications').update({ status }).eq('id', appId)
     if (error) { alert('상태 변경 실패: ' + error.message); return }
+    setApplications(prev => prev.map(a => a.id === appId ? { ...a, status } : a))
     if (status === '수료') {
       await issueCertificate(appId)
+      loadAll()
     }
-    loadAll()
   }
 
   async function issueCertificate(appId) {
