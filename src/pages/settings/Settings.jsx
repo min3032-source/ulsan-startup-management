@@ -468,7 +468,6 @@ export default function Settings() {
                   <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">권한</th>
                   <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">소속 팀</th>
                   <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">직책</th>
-                  <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">메뉴 권한</th>
                   <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">상태</th>
                   <th className="px-5 py-2.5" />
                 </tr>
@@ -496,7 +495,7 @@ export default function Settings() {
                         <select
                           value={u.department || ''}
                           onChange={e => updateDepartment(u.id, e.target.value)}
-                          className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+                          className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white w-32"
                         >
                           <option value="">미지정</option>
                           {settings.teams.filter(t => t.trim()).map(t => (
@@ -513,7 +512,7 @@ export default function Settings() {
                           key={u.id}
                           value={u.position || ''}
                           onChange={e => updatePosition(u.id, e.target.value)}
-                          className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400 w-24"
+                          className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400 w-20"
                         >
                           <option value="">직책 선택</option>
                           <option value="부장">부장</option>
@@ -523,21 +522,6 @@ export default function Settings() {
                         </select>
                       ) : (
                         <span className="text-xs text-gray-500">{u.position || '-'}</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3">
-                      {u.id !== profile?.id ? (
-                        <button
-                          onClick={() => openMenuModal(u)}
-                          className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800"
-                        >
-                          <ShieldCheck size={13} />
-                          {!u.menu_permissions || u.menu_permissions.length === 0
-                            ? '전체 허용'
-                            : `${u.menu_permissions.length}개 설정`}
-                        </button>
-                      ) : (
-                        <span className="text-xs text-gray-400">-</span>
                       )}
                     </td>
                     <td className="px-5 py-3">
@@ -557,17 +541,13 @@ export default function Settings() {
                     <td className="px-5 py-3 text-right">
                       {u.id !== profile?.id && (
                         <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => openRoleModal(u)}
-                            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
-                          >
-                            <UserCog size={13} /> 권한 변경
+                          <button onClick={() => openMenuModal(u)} className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 border border-indigo-200 rounded-lg px-2 py-1">
+                            <ShieldCheck size={12} /> {(u.menu_permissions?.length > 0) ? `${u.menu_permissions.length}개` : '전체'}
                           </button>
-                          <button
-                            onClick={() => openDeleteModal(u)}
-                            title="계정 삭제"
-                            className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600"
-                          >
+                          <button onClick={() => openRoleModal(u)} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800">
+                            <UserCog size={13} /> 권한
+                          </button>
+                          <button onClick={() => openDeleteModal(u)} className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600">
                             <UserX size={13} /> 삭제
                           </button>
                         </div>
@@ -577,7 +557,7 @@ export default function Settings() {
                 ))}
                 {users.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="text-center py-8 text-gray-400 text-xs">사용자가 없습니다</td>
+                    <td colSpan={7} className="text-center py-8 text-gray-400 text-xs">사용자가 없습니다</td>
                   </tr>
                 )}
               </tbody>
