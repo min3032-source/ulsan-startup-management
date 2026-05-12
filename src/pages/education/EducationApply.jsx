@@ -170,21 +170,15 @@ export default function EducationApply() {
                 >
                   {/* 카드 상단 - 포스터 이미지 또는 그라디언트 배너 (높이 200px 통일) */}
                   {prog.poster_url ? (
-                    <div className="relative overflow-hidden shrink-0" style={{ height: 200 }}>
+                    <div className="relative overflow-hidden rounded-xl shrink-0" style={{ height: 200 }}>
                       <img
                         src={prog.poster_url}
                         alt={prog.title}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center', display: 'block' }}
+                        onClick={() => window.open(prog.poster_url, '_blank')}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center', display: 'block', cursor: 'pointer' }}
                       />
-                      <button
-                        onClick={() => setPosterModal(prog.poster_url)}
-                        className="absolute top-2 right-2 p-1.5 bg-black/40 rounded-full hover:bg-black/60 transition"
-                        title="원본 이미지 보기"
-                      >
-                        <ZoomIn size={14} className="text-white" />
-                      </button>
                       {/* 카테고리·유형·마감 오버레이 */}
-                      <div className="absolute bottom-0 left-0 right-0 px-3 py-2.5 flex items-center justify-between" style={{ background: 'linear-gradient(transparent, rgba(0,0,0,0.6))' }}>
+                      <div className="absolute bottom-10 left-0 right-0 px-3 py-2.5 flex items-center justify-between" style={{ background: 'linear-gradient(transparent, rgba(0,0,0,0.6))' }}>
                         <div className="flex items-center gap-1.5">
                           <span className="text-base">{icon}</span>
                           <span className="text-white text-xs font-semibold drop-shadow">{prog.category}</span>
@@ -193,6 +187,13 @@ export default function EducationApply() {
                           <span className="px-2 py-0.5 bg-white/20 text-white text-xs font-medium rounded-full backdrop-blur-sm border border-white/20">{prog.program_type}</span>
                           {isFull && <span className="px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full">마감</span>}
                         </div>
+                      </div>
+                      {/* 원본 크게 보기 오버레이 버튼 */}
+                      <div
+                        onClick={() => window.open(prog.poster_url, '_blank')}
+                        className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white text-center py-2 text-sm font-medium cursor-pointer hover:bg-opacity-80 transition-all flex items-center justify-center gap-1"
+                      >
+                        🔍 원본 크게 보기
                       </div>
                     </div>
                   ) : (
