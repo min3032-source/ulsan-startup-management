@@ -460,108 +460,110 @@ export default function Settings() {
           {usersLoading ? (
             <div className="py-12 text-center text-gray-400 text-sm">로딩 중...</div>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">이름</th>
-                  <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">이메일</th>
-                  <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">권한</th>
-                  <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">소속 팀</th>
-                  <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">직책</th>
-                  <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">상태</th>
-                  <th className="px-5 py-2.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {users.map(u => (
-                  <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50">
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-2">
-                        <Avatar name={u.name} />
-                        <span className="font-medium text-gray-800">{u.name}</span>
-                        {u.id === profile?.id && (
-                          <span className="text-xs text-blue-500">(나)</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-5 py-3 text-gray-500">{u.email}</td>
-                    <td className="px-5 py-3">
-                      <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${ROLE_BADGE[u.role] || 'bg-gray-100 text-gray-500'}`}>
-                        {ROLES[u.role]?.label || u.role}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      {u.id !== profile?.id ? (
-                        <select
-                          value={u.department || ''}
-                          onChange={e => updateDepartment(u.id, e.target.value)}
-                          className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white w-32"
-                        >
-                          <option value="">미지정</option>
-                          {settings.teams.filter(t => t.trim()).map(t => (
-                            <option key={t} value={t}>{t}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="text-xs text-gray-500">{u.department || '미지정'}</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3">
-                      {u.id !== profile?.id ? (
-                        <select
-                          key={u.id}
-                          value={u.position || ''}
-                          onChange={e => updatePosition(u.id, e.target.value)}
-                          className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400 w-20"
-                        >
-                          <option value="">직책 선택</option>
-                          <option value="부장">부장</option>
-                          <option value="팀장">팀장</option>
-                          <option value="책임">책임</option>
-                          <option value="선임">선임</option>
-                        </select>
-                      ) : (
-                        <span className="text-xs text-gray-500">{u.position || '-'}</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3">
-                      {isMaster && u.id !== profile?.id ? (
-                        <button
-                          onClick={() => toggleActive(u)}
-                          className={`inline-flex px-2 py-0.5 rounded text-xs font-medium transition-colors ${u.is_active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-500 hover:bg-red-200'}`}
-                        >
-                          {u.is_active ? '활성' : '비활성'}
-                        </button>
-                      ) : (
-                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${u.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-500'}`}>
-                          {u.is_active ? '활성' : '비활성'}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      {u.id !== profile?.id && (
-                        <div className="flex items-center justify-end gap-2">
-                          <button onClick={() => openMenuModal(u)} className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 border border-indigo-200 rounded-lg px-2 py-1">
-                            <ShieldCheck size={12} /> {(u.menu_permissions?.length > 0) ? `${u.menu_permissions.length}개` : '전체'}
-                          </button>
-                          <button onClick={() => openRoleModal(u)} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800">
-                            <UserCog size={13} /> 권한
-                          </button>
-                          <button onClick={() => openDeleteModal(u)} className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600">
-                            <UserX size={13} /> 삭제
-                          </button>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="text-left px-3 py-2.5 text-xs font-medium text-gray-500 w-24 min-w-[80px]">이름</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-medium text-gray-500 w-40 min-w-[140px]">이메일</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-medium text-gray-500 w-20 min-w-[70px]">권한</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-medium text-gray-500 w-44 min-w-[160px]">소속 팀</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-medium text-gray-500 w-24 min-w-[90px]">직책</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-medium text-gray-500 w-16 min-w-[60px]">상태</th>
+                    <th className="px-3 py-2.5 w-32 min-w-[120px]" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map(u => (
+                    <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="px-3 py-3 w-24 min-w-[80px]">
+                        <div className="flex items-center gap-2">
+                          <Avatar name={u.name} />
+                          <span className="font-medium text-gray-800">{u.name}</span>
+                          {u.id === profile?.id && (
+                            <span className="text-xs text-blue-500">(나)</span>
+                          )}
                         </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {users.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="text-center py-8 text-gray-400 text-xs">사용자가 없습니다</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                      </td>
+                      <td className="px-3 py-3 text-gray-500 w-40 min-w-[140px]">{u.email}</td>
+                      <td className="px-3 py-3 w-20 min-w-[70px]">
+                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${ROLE_BADGE[u.role] || 'bg-gray-100 text-gray-500'}`}>
+                          {ROLES[u.role]?.label || u.role}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 w-44 min-w-[160px]">
+                        {u.id !== profile?.id ? (
+                          <select
+                            value={u.department || ''}
+                            onChange={e => updateDepartment(u.id, e.target.value)}
+                            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white w-full"
+                          >
+                            <option value="">미지정</option>
+                            {settings.teams.filter(t => t.trim()).map(t => (
+                              <option key={t} value={t}>{t}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-xs text-gray-500">{u.department || '미지정'}</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 w-24 min-w-[90px]">
+                        {u.id !== profile?.id ? (
+                          <select
+                            key={u.id}
+                            value={u.position || ''}
+                            onChange={e => updatePosition(u.id, e.target.value)}
+                            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400 w-full"
+                          >
+                            <option value="">직책 선택</option>
+                            <option value="부장">부장</option>
+                            <option value="팀장">팀장</option>
+                            <option value="책임">책임</option>
+                            <option value="선임">선임</option>
+                          </select>
+                        ) : (
+                          <span className="text-xs text-gray-500">{u.position || '-'}</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 w-16 min-w-[60px]">
+                        {isMaster && u.id !== profile?.id ? (
+                          <button
+                            onClick={() => toggleActive(u)}
+                            className={`inline-flex px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap transition-colors ${u.is_active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-500 hover:bg-red-200'}`}
+                          >
+                            {u.is_active ? '활성' : '비활성'}
+                          </button>
+                        ) : (
+                          <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${u.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-500'}`}>
+                            {u.is_active ? '활성' : '비활성'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-right w-32 min-w-[120px]">
+                        {u.id !== profile?.id && (
+                          <div className="flex items-center justify-end gap-2">
+                            <button onClick={() => openMenuModal(u)} className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 border border-indigo-200 rounded-lg px-2 py-1 whitespace-nowrap">
+                              <ShieldCheck size={12} /> {(u.menu_permissions?.length > 0) ? `${u.menu_permissions.length}개` : '메뉴'}
+                            </button>
+                            <button onClick={() => openRoleModal(u)} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 whitespace-nowrap">
+                              <UserCog size={13} /> 권한
+                            </button>
+                            <button onClick={() => openDeleteModal(u)} className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600 whitespace-nowrap">
+                              <UserX size={13} /> 삭제
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {users.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="text-center py-8 text-gray-400 text-xs">사용자가 없습니다</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           )}
 
           {/* 계정 생성 안내 */}
