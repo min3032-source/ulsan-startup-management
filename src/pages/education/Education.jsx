@@ -394,6 +394,19 @@ export default function Education() {
     loadAll()
   }
 
+  async function handleDeletePoster(programId) {
+    const { error } = await supabase
+      .from('education_programs')
+      .update({ poster_url: null })
+      .eq('id', programId)
+    if (error) {
+      alert('삭제 실패: ' + error.message)
+    } else {
+      setPrograms(prev => prev.map(p => p.id === programId ? { ...p, poster_url: null } : p))
+      setProgramForm(prev => ({ ...prev, poster_url: null }))
+    }
+  }
+
   async function updateAppStatus(appId, status) {
     if (status === '승인') {
       const app = applications.find(a => a.id === appId)
@@ -891,7 +904,15 @@ export default function Education() {
               <Field label="교육 포스터 이미지">
                 {programForm.poster_url && !posterFile && (
                   <div className="mb-2">
-                    <img src={programForm.poster_url} alt="현재 포스터" className="h-24 rounded-lg object-cover border border-gray-200" />
+                    <div className="flex items-start gap-2">
+                      <img src={programForm.poster_url} alt="현재 포스터" className="w-20 h-20 object-cover rounded border border-gray-200" />
+                      <button
+                        onClick={() => handleDeletePoster(editProgram?.id)}
+                        className="text-xs text-red-400 hover:text-red-600 border border-red-200 rounded px-2 py-1 mt-1"
+                      >
+                        🗑 포스터 삭제
+                      </button>
+                    </div>
                     <p className="text-xs text-gray-400 mt-1">현재 포스터 (새 파일 선택 시 교체됩니다)</p>
                   </div>
                 )}
