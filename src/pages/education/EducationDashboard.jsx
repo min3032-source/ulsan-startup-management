@@ -91,16 +91,25 @@ export default function EducationDashboard() {
     }
   })
 
-  // 사업별 그룹
+  // 사업별 그룹 (applications의 related_program 기준)
   const registeredNames = new Set(relatedPrograms.map(rp => rp.name))
   const businessGroups = {}
-  relatedPrograms.forEach(rp => { if (!businessGroups[rp.name]) businessGroups[rp.name] = [] })
-  programStats.forEach(p => {
-    if (p.related_program && registeredNames.has(p.related_program)) {
-      businessGroups[p.related_program].push(p)
+  relatedPrograms.forEach(rp => { businessGroups[rp.name] = [] })
+  programs.forEach(prog => {
+    const progApps = applications.filter(a => a.program_id === prog.id)
+    const progBusiness = progApps.length > 0
+      ? progApps.find(a => a.related_program)?.related_program
+      : prog.related_program
+    if (progBusiness && registeredNames.has(progBusiness)) {
+      if (!businessGroups[progBusiness]) businessGroups[progBusiness] = []
+      if (!businessGroups[progBusiness].find(p => p.id === prog.id)) {
+        businessGroups[progBusiness].push(programStats.find(ps => ps.id === prog.id) || prog)
+      }
     } else {
       if (!businessGroups['기타(사업 미지정)']) businessGroups['기타(사업 미지정)'] = []
-      businessGroups['기타(사업 미지정)'].push(p)
+      if (!businessGroups['기타(사업 미지정)'].find(p => p.id === prog.id)) {
+        businessGroups['기타(사업 미지정)'].push(programStats.find(ps => ps.id === prog.id) || prog)
+      }
     }
   })
 
@@ -275,8 +284,11 @@ export default function EducationDashboard() {
       {tab === 'business' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {Object.entries(businessGroups).map(([name, progs]) => {
-            const totalApps = progs.reduce((s, p) => s + p.applicants, 0)
-            const totalComp = progs.reduce((s, p) => s + p.completedCount, 0)
+            const bizApps = name === '기타(사업 미지정)'
+              ? applications.filter(a => !a.related_program || !registeredNames.has(a.related_program))
+              : applications.filter(a => a.related_program === name)
+            const totalApps = bizApps.length
+            const totalComp = bizApps.filter(a => a.status === '수료').length
             const allR = progs.flatMap(p =>
               applications
                 .filter(a => a.program_id === p.id && a.survey_completed && a.survey_data?.answers?.length)
@@ -314,12 +326,19 @@ export default function EducationDashboard() {
                 </button>
                 {isExpanded && (
                   <div className="space-y-1.5">
-                    {progs.map(p => (
-                      <div key={p.id} className="flex items-center justify-between text-xs px-2 py-1.5 bg-gray-50 rounded-lg">
-                        <span className="text-gray-700 font-medium truncate flex-1 mr-2">{p.title}</span>
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${STATUS_COLOR[p.status] || 'bg-gray-100 text-gray-500'}`}>{p.status}</span>
-                      </div>
-                    ))}
+                    {progs.map(p => {
+                      const progApplicants = applications.filter(a => a.program_id === p.id).length
+                      const progCompleted = applications.filter(a => a.program_id === p.id && a.status === '수료').length
+                      return (
+                        <div key={p.id} className="flex items-center justify-between text-xs px-2 py-1.5 bg-gray-50 rounded-lg">
+                          <span className="text-gray-700 font-medium truncate flex-1 mr-2">{p.title}</span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] text-gray-400">신청 {progApplicants}명 / 수료 {progCompleted}명</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${STATUS_COLOR[p.status] || 'bg-gray-100 text-gray-500'}`}>{p.status}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
