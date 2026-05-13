@@ -63,7 +63,7 @@ export default function EducationDashboard() {
 
   // KPI
   const totalPrograms = programs.length
-  const totalApplicants = applications.length
+  const totalApplicants = applications.filter(a => a.status === '승인' || a.status === '수료').length
   const totalCompleted = applications.filter(a => a.status === '수료').length
   const allRatings = applications
     .filter(a => a.survey_completed && a.survey_data?.answers?.length)
@@ -287,7 +287,7 @@ export default function EducationDashboard() {
             const bizApps = name === '기타(사업 미지정)'
               ? applications.filter(a => !a.related_program || !registeredNames.has(a.related_program))
               : applications.filter(a => a.related_program === name)
-            const totalApps = bizApps.length
+            const totalApps = bizApps.filter(a => a.status === '승인' || a.status === '수료').length
             const totalComp = bizApps.filter(a => a.status === '수료').length
             const allR = progs.flatMap(p =>
               applications
@@ -327,7 +327,7 @@ export default function EducationDashboard() {
                 {isExpanded && (
                   <div className="space-y-1.5">
                     {progs.map(p => {
-                      const progApplicants = applications.filter(a => a.program_id === p.id).length
+                      const progApplicants = applications.filter(a => a.program_id === p.id && (a.status === '승인' || a.status === '수료')).length
                       const progCompleted = applications.filter(a => a.program_id === p.id && a.status === '수료').length
                       return (
                         <div key={p.id} className="flex items-center justify-between text-xs px-2 py-1.5 bg-gray-50 rounded-lg">
