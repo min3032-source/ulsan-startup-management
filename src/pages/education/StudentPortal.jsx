@@ -5,11 +5,11 @@ import { LogIn, BookOpen, Award, ChevronLeft, Loader2, X, Printer } from 'lucide
 import { CertificateView } from './Education'
 
 const DEFAULT_SURVEY_QUESTIONS = [
-  '교육 내용은 창업에 도움이 되었나요?',
-  '강사의 강의 전달력은 어땠나요?',
-  '교육 환경(장소, 시설)은 만족스러웠나요?',
-  '교육 일정과 시간은 적절했나요?',
-  '이 교육을 다른 분께 추천하시겠어요?',
+  { text: '교육 내용은 창업에 도움이 되었나요?', type: 'rating' },
+  { text: '강사의 강의 전달력은 어땠나요?', type: 'rating' },
+  { text: '교육 환경(장소, 시설)은 만족스러웠나요?', type: 'rating' },
+  { text: '교육 일정과 시간은 적절했나요?', type: 'rating' },
+  { text: '이 교육을 다른 분께 추천하시겠어요?', type: 'rating' },
 ]
 
 const formatDateTimeDisplay = (date, time) => {
@@ -70,12 +70,13 @@ export default function StudentPortal() {
   }
 
   function openSurvey(app) {
-    const qs = app.education_programs?.survey_questions?.length
+    const rawQs = app.education_programs?.survey_questions?.length
       ? app.education_programs.survey_questions
       : DEFAULT_SURVEY_QUESTIONS
+    const qs = rawQs.map(q => typeof q === 'string' ? { text: q, type: 'rating' } : q)
     setSelectedApp(app)
     setSurveyQuestions(qs)
-    setRatings(qs.map(() => 0))
+    setRatings(qs.map(q => q.type === 'text' ? '' : 0))
     setOpinion('')
     setScreen('survey')
   }
@@ -94,8 +95,8 @@ export default function StudentPortal() {
   }
 
   async function handleSurveySubmit() {
-    if (ratings.some(r => r === 0)) {
-      alert('모든 질문에 별점을 선택해주세요.')
+    if (surveyQuestions.some((q, idx) => q.type !== 'text' && ratings[idx] === 0)) {
+      alert('모든 객관식 질문에 별점을 선택해주세요.')
       return
     }
     setSubmittingSurvey(true)
@@ -184,23 +185,32 @@ export default function StudentPortal() {
             {surveyQuestions.map((q, idx) => (
               <div key={idx} className="space-y-2">
                 <p className="text-sm font-medium text-gray-700">
-                  <span className="text-gray-400 mr-1">Q{idx + 1}.</span>{q}
+                  <span className="text-gray-400 mr-1">Q{idx + 1}.</span>{q.text}
                 </p>
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map(star => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => setRatings(r => r.map((v, i) => i === idx ? star : v))}
-                      className={`text-2xl transition-transform hover:scale-110 ${star <= ratings[idx] ? 'text-yellow-400' : 'text-gray-200'}`}
-                    >
-                      ★
-                    </button>
-                  ))}
-                  {ratings[idx] > 0 && (
-                    <span className="self-center text-xs text-gray-400 ml-1">{ratings[idx]}점</span>
-                  )}
-                </div>
+                {q.type === 'text' ? (
+                  <textarea
+                    className="w-full border border-gray-200 rounded-lg p-3 text-sm resize-none h-20"
+                    value={typeof ratings[idx] === 'string' ? ratings[idx] : ''}
+                    onChange={e => setRatings(r => r.map((v, i) => i === idx ? e.target.value : v))}
+                    placeholder="의견을 자유롭게 입력해 주세요."
+                  />
+                ) : (
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setRatings(r => r.map((v, i) => i === idx ? star : v))}
+                        className={`text-2xl transition-transform hover:scale-110 ${star <= ratings[idx] ? 'text-yellow-400' : 'text-gray-200'}`}
+                      >
+                        ★
+                      </button>
+                    ))}
+                    {ratings[idx] > 0 && (
+                      <span className="self-center text-xs text-gray-400 ml-1">{ratings[idx]}점</span>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
             <div>
@@ -214,7 +224,7 @@ export default function StudentPortal() {
             </div>
             <button
               onClick={handleSurveySubmit}
-              disabled={submittingSurvey || ratings.some(r => r === 0)}
+              disabled={submittingSurvey || surveyQuestions.some((q, idx) => q.type !== 'text' && ratings[idx] === 0)}
               className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-40 transition"
               style={{ background: 'linear-gradient(135deg, #2563eb, #7c3aed)' }}
             >

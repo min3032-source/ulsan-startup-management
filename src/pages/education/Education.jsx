@@ -8,11 +8,11 @@ import PageHeader from '../../components/common/PageHeader'
 import * as XLSX from 'xlsx'
 
 const DEFAULT_SURVEY_QUESTIONS = [
-  '교육 내용은 창업에 도움이 되었나요?',
-  '강사의 강의 전달력은 어땠나요?',
-  '교육 환경(장소, 시설)은 만족스러웠나요?',
-  '교육 일정과 시간은 적절했나요?',
-  '이 교육을 다른 분께 추천하시겠어요?',
+  { text: '교육 내용은 창업에 도움이 되었나요?', type: 'rating' },
+  { text: '강사의 강의 전달력은 어땠나요?', type: 'rating' },
+  { text: '교육 환경(장소, 시설)은 만족스러웠나요?', type: 'rating' },
+  { text: '교육 일정과 시간은 적절했나요?', type: 'rating' },
+  { text: '이 교육을 다른 분께 추천하시겠어요?', type: 'rating' },
 ]
 
 function fmtDateTime(date, time) {
@@ -335,7 +335,9 @@ export default function Education() {
       total_sessions: p.total_sessions || 1, hours_per_session: p.hours_per_session || 2, max_participants: p.max_participants || '',
       assignee: p.assignee || '', status: p.status || '모집중', completion_rate: p.completion_rate ?? 80,
       poster_url: p.poster_url || '',
-      survey_questions: p.survey_questions?.length ? p.survey_questions : [...DEFAULT_SURVEY_QUESTIONS]
+      survey_questions: p.survey_questions?.length
+        ? p.survey_questions.map(q => typeof q === 'string' ? { text: q, type: 'rating' } : q)
+        : [...DEFAULT_SURVEY_QUESTIONS]
     })
     setStartTime(p.start_time ? p.start_time.slice(0, 5) : '09:00')
     setEndTime(p.end_time ? p.end_time.slice(0, 5) : '18:00')
@@ -372,7 +374,9 @@ export default function Education() {
       hours_per_session: programForm.hours_per_session || null,
       total_hours: totalHours || null,
       overview: programForm.overview || null,
-      survey_questions: programForm.survey_questions?.filter(q => q.trim()) || null,
+      survey_questions: programForm.survey_questions
+        ?.map(q => typeof q === 'string' ? { text: q, type: 'rating' } : q)
+        .filter(q => q.text.trim()) || null,
     }
     let error
     if (editProgram) {
@@ -1014,40 +1018,62 @@ export default function Education() {
               <Field label="만족도 조사 문항">
                 <p className="text-xs text-gray-400 mb-2">수강생 포털 만족도 조사에 사용될 문항입니다. 비워두면 기본 5개 문항이 사용됩니다.</p>
                 <div className="space-y-2">
-                  {(programForm.survey_questions || []).map((q, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400 w-5 shrink-0 text-right">{idx + 1}.</span>
-                      <input
-                        className="input-base flex-1"
-                        value={q}
-                        onChange={e => setProgramForm(f => ({
-                          ...f,
-                          survey_questions: f.survey_questions.map((v, i) => i === idx ? e.target.value : v)
-                        }))}
-                        placeholder={`문항 ${idx + 1}`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setProgramForm(f => ({
-                          ...f,
-                          survey_questions: f.survey_questions.filter((_, i) => i !== idx)
-                        }))}
-                        className="p-1 text-gray-300 hover:text-red-400 transition shrink-0"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setProgramForm(f => ({
-                      ...f,
-                      survey_questions: [...(f.survey_questions || []), '']
-                    }))}
-                    className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 transition mt-1"
-                  >
-                    <Plus size={13} /> 문항 추가
-                  </button>
+                  {(programForm.survey_questions || []).map((q, idx) => {
+                    const qObj = typeof q === 'string' ? { text: q, type: 'rating' } : q
+                    return (
+                      <div key={idx} className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400 w-5 shrink-0 text-right">{idx + 1}.</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 ${qObj.type === 'text' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                          {qObj.type === 'text' ? '주관식' : '객관식'}
+                        </span>
+                        <input
+                          className="input-base flex-1"
+                          value={qObj.text}
+                          onChange={e => setProgramForm(f => ({
+                            ...f,
+                            survey_questions: f.survey_questions.map((v, i) => {
+                              if (i !== idx) return v
+                              const vObj = typeof v === 'string' ? { text: v, type: 'rating' } : v
+                              return { ...vObj, text: e.target.value }
+                            })
+                          }))}
+                          placeholder={`문항 ${idx + 1}`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setProgramForm(f => ({
+                            ...f,
+                            survey_questions: f.survey_questions.filter((_, i) => i !== idx)
+                          }))}
+                          className="p-1 text-gray-300 hover:text-red-400 transition shrink-0"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    )
+                  })}
+                  <div className="flex gap-3 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => setProgramForm(f => ({
+                        ...f,
+                        survey_questions: [...(f.survey_questions || []), { text: '', type: 'rating' }]
+                      }))}
+                      className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 transition"
+                    >
+                      <Plus size={13} /> 객관식 문항 추가
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProgramForm(f => ({
+                        ...f,
+                        survey_questions: [...(f.survey_questions || []), { text: '', type: 'text' }]
+                      }))}
+                      className="flex items-center gap-1 text-xs text-green-500 hover:text-green-700 transition"
+                    >
+                      <Plus size={13} /> 주관식 문항 추가
+                    </button>
+                  </div>
                 </div>
               </Field>
             </div>
