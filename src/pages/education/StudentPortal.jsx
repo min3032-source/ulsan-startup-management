@@ -34,8 +34,7 @@ export default function StudentPortal() {
   // 설문
   const [surveyQuestions, setSurveyQuestions] = useState(DEFAULT_SURVEY_QUESTIONS)
   const [ratings, setRatings] = useState([])
-  const [opinion, setOpinion] = useState('')
-  const [submittingSurvey, setSubmittingSurvey] = useState(false)
+const [submittingSurvey, setSubmittingSurvey] = useState(false)
 
   async function handleLogin(e) {
     e.preventDefault()
@@ -77,7 +76,6 @@ export default function StudentPortal() {
     setSelectedApp(app)
     setSurveyQuestions(qs)
     setRatings(qs.map(q => q.type === 'text' ? '' : 0))
-    setOpinion('')
     setScreen('survey')
   }
 
@@ -100,7 +98,7 @@ export default function StudentPortal() {
       return
     }
     setSubmittingSurvey(true)
-    const surveyData = { answers: ratings, opinion }
+    const surveyData = { answers: ratings }
     const { error } = await supabase
       .from('education_applications')
       .update({
@@ -213,15 +211,6 @@ export default function StudentPortal() {
                 )}
               </div>
             ))}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">자유 의견 (선택)</label>
-              <textarea
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none h-24"
-                value={opinion}
-                onChange={e => setOpinion(e.target.value)}
-                placeholder="교육에 대한 자유로운 의견을 남겨주세요"
-              />
-            </div>
             <button
               onClick={handleSurveySubmit}
               disabled={submittingSurvey || surveyQuestions.some((q, idx) => q.type !== 'text' && ratings[idx] === 0)}
