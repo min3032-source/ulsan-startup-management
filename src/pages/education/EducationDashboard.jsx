@@ -98,26 +98,14 @@ export default function EducationDashboard() {
   programStats.forEach(p => {
     const progApps = applications.filter(a => a.program_id === p.id)
     const bizNames = [...new Set(progApps.map(a => a.related_program).filter(Boolean))]
-    if (bizNames.length > 0) {
-      bizNames.forEach(bizName => {
-        if (registeredNames.has(bizName)) {
-          if (!businessGroups[bizName]) businessGroups[bizName] = []
-          if (!businessGroups[bizName].find(x => x.id === p.id)) {
-            businessGroups[bizName].push(p)
-          }
-        } else {
-          if (!businessGroups['기타(사업 미지정)']) businessGroups['기타(사업 미지정)'] = []
-          if (!businessGroups['기타(사업 미지정)'].find(x => x.id === p.id)) {
-            businessGroups['기타(사업 미지정)'].push(p)
-          }
+    bizNames.forEach(bizName => {
+      if (registeredNames.has(bizName)) {
+        if (!businessGroups[bizName]) businessGroups[bizName] = []
+        if (!businessGroups[bizName].find(x => x.id === p.id)) {
+          businessGroups[bizName].push(p)
         }
-      })
-    } else {
-      if (!businessGroups['기타(사업 미지정)']) businessGroups['기타(사업 미지정)'] = []
-      if (!businessGroups['기타(사업 미지정)'].find(x => x.id === p.id)) {
-        businessGroups['기타(사업 미지정)'].push(p)
       }
-    }
+    })
   })
 
   // ── 설문 통계 계산 ──
@@ -290,7 +278,7 @@ export default function EducationDashboard() {
       {/* 사업별 현황 */}
       {tab === 'business' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {Object.entries(businessGroups).map(([name, progs]) => {
+          {Object.entries(businessGroups).filter(([name]) => name !== '기타(사업 미지정)').map(([name, progs]) => {
             const bizApps = name === '기타(사업 미지정)'
               ? applications.filter(a => !a.related_program || !registeredNames.has(a.related_program))
               : applications.filter(a => a.related_program === name)
