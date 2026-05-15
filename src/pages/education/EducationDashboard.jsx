@@ -327,8 +327,11 @@ export default function EducationDashboard() {
                 {isExpanded && (
                   <div className="space-y-1.5">
                     {progs.map(p => {
-                      const progApplicants = applications.filter(a => a.program_id === p.id && (a.status === '승인' || a.status === '수료')).length
-                      const progCompleted = applications.filter(a => a.program_id === p.id && a.status === '수료').length
+                      const progBizApps = name === '기타(사업 미지정)'
+                        ? applications.filter(a => a.program_id === p.id && (!a.related_program || !registeredNames.has(a.related_program)))
+                        : applications.filter(a => a.program_id === p.id && a.related_program === name)
+                      const progApplicants = progBizApps.filter(a => a.status === '승인' || a.status === '수료').length
+                      const progCompleted = progBizApps.filter(a => a.status === '수료').length
                       return (
                         <div key={p.id} className="flex items-center justify-between text-xs px-2 py-1.5 bg-gray-50 rounded-lg">
                           <span className="text-gray-700 font-medium truncate flex-1 mr-2">{p.title}</span>
