@@ -91,24 +91,31 @@ export default function EducationDashboard() {
     }
   })
 
-  // 사업별 그룹 (applications의 related_program 기준)
+  // 사업별 그룹 (수강생 related_program 기준으로 교육 프로그램 분류)
   const registeredNames = new Set(relatedPrograms.map(rp => rp.name))
   const businessGroups = {}
   relatedPrograms.forEach(rp => { businessGroups[rp.name] = [] })
-  programs.forEach(prog => {
-    const progApps = applications.filter(a => a.program_id === prog.id)
-    const progBusiness = progApps.length > 0
-      ? progApps.find(a => a.related_program)?.related_program
-      : prog.related_program
-    if (progBusiness && registeredNames.has(progBusiness)) {
-      if (!businessGroups[progBusiness]) businessGroups[progBusiness] = []
-      if (!businessGroups[progBusiness].find(p => p.id === prog.id)) {
-        businessGroups[progBusiness].push(programStats.find(ps => ps.id === prog.id) || prog)
-      }
+  programStats.forEach(p => {
+    const progApps = applications.filter(a => a.program_id === p.id)
+    const bizNames = [...new Set(progApps.map(a => a.related_program).filter(Boolean))]
+    if (bizNames.length > 0) {
+      bizNames.forEach(bizName => {
+        if (registeredNames.has(bizName)) {
+          if (!businessGroups[bizName]) businessGroups[bizName] = []
+          if (!businessGroups[bizName].find(x => x.id === p.id)) {
+            businessGroups[bizName].push(p)
+          }
+        } else {
+          if (!businessGroups['기타(사업 미지정)']) businessGroups['기타(사업 미지정)'] = []
+          if (!businessGroups['기타(사업 미지정)'].find(x => x.id === p.id)) {
+            businessGroups['기타(사업 미지정)'].push(p)
+          }
+        }
+      })
     } else {
       if (!businessGroups['기타(사업 미지정)']) businessGroups['기타(사업 미지정)'] = []
-      if (!businessGroups['기타(사업 미지정)'].find(p => p.id === prog.id)) {
-        businessGroups['기타(사업 미지정)'].push(programStats.find(ps => ps.id === prog.id) || prog)
+      if (!businessGroups['기타(사업 미지정)'].find(x => x.id === p.id)) {
+        businessGroups['기타(사업 미지정)'].push(p)
       }
     }
   })
