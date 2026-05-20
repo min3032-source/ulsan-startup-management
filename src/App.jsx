@@ -39,12 +39,28 @@ function PrivateRoute({ children }) {
 
 function AppRoutes() {
   const { user, profile, loading } = useAuth()
+  const hostname = window.location.hostname
+  const isStudyDomain = hostname === 'study.ubpi.or.kr'
+
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="text-gray-400">로딩 중...</div>
     </div>
   )
 
+  // study.ubpi.or.kr: 교육신청 전용 도메인
+  if (isStudyDomain) {
+    return (
+      <Routes>
+        <Route path="/education-apply" element={<EducationApply />} />
+        <Route path="/certificate/:id" element={<Certificate />} />
+        <Route path="/student-portal" element={<StudentPortal />} />
+        <Route path="*" element={<Navigate to="/education-apply" replace />} />
+      </Routes>
+    )
+  }
+
+  // manage.ubpi.or.kr 및 기타 도메인: 관리자 라우팅
   return (
     <Routes>
       <Route path="/login" element={(user && profile) ? <Navigate to="/" replace /> : <Login />} />
