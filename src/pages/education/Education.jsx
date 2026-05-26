@@ -309,7 +309,7 @@ export default function Education() {
   function defaultProgramForm() {
     return {
       title: '', description: '', overview: '', category: '창업기초', program_type: '집합교육',
-      instructor: '', location: '', start_date: '', end_date: '',
+      instructor_name: '', instructor_organization: '', location: '', start_date: '', end_date: '',
       total_sessions: 1, hours_per_session: 2, max_participants: '', assignee: '', status: '모집중', completion_rate: 80,
       poster_url: '', survey_questions: [...DEFAULT_SURVEY_QUESTIONS]
     }
@@ -329,7 +329,7 @@ export default function Education() {
     setProgramForm({
       title: p.title || '', description: p.description || '', overview: p.overview || '',
       category: p.category || '창업기초', program_type: p.program_type || '집합교육',
-      instructor: p.instructor || '', location: p.location || '',
+      instructor_name: p.instructor_name || p.instructor || '', instructor_organization: p.instructor_organization || '', location: p.location || '',
       start_date: p.start_date ? p.start_date.split('T')[0] : '',
       end_date: p.end_date ? p.end_date.split('T')[0] : '',
       total_sessions: p.total_sessions || 1, hours_per_session: p.hours_per_session || 2, max_participants: p.max_participants || '',
@@ -952,13 +952,16 @@ export default function Education() {
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="강사명">
-                  <input className="input-base" value={programForm.instructor} onChange={e => setProgramForm(f => ({ ...f, instructor: e.target.value }))} />
+                <Field label="강사 소속">
+                  <input className="input-base" value={programForm.instructor_organization} onChange={e => setProgramForm(f => ({ ...f, instructor_organization: e.target.value }))} placeholder="예: 울산대학교" />
                 </Field>
-                <Field label="교육 장소">
-                  <input className="input-base" value={programForm.location} onChange={e => setProgramForm(f => ({ ...f, location: e.target.value }))} />
+                <Field label="강사명">
+                  <input className="input-base" value={programForm.instructor_name} onChange={e => setProgramForm(f => ({ ...f, instructor_name: e.target.value }))} placeholder="예: 홍길동" />
                 </Field>
               </div>
+              <Field label="교육 장소">
+                <input className="input-base" value={programForm.location} onChange={e => setProgramForm(f => ({ ...f, location: e.target.value }))} placeholder="예: 울산경제일자리진흥원 3층 교육장" />
+              </Field>
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-2">
                   <Field label="시작일">

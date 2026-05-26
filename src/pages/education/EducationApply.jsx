@@ -230,7 +230,12 @@ export default function EducationApply() {
                         <InfoRow icon={<Calendar size={13} className="text-gray-400" />} text={`${prog.start_date || ''}${prog.start_time ? ' ' + String(prog.start_time).slice(0,5) : ''} ~ ${prog.end_date || ''}${prog.end_time ? ' ' + String(prog.end_time).slice(0,5) : ''}`} />
                       )}
                       {prog.location && <InfoRow icon={<MapPin size={13} className="text-gray-400" />} text={prog.location} />}
-                      {prog.instructor && <InfoRow icon={<User size={13} className="text-gray-400" />} text={`${prog.instructor} 강사`} />}
+                      {(prog.instructor_name || prog.instructor || prog.instructor_organization) && (
+                        <InfoRow
+                          icon={<User size={13} className="text-gray-400" />}
+                          text={[prog.instructor_organization, prog.instructor_name || prog.instructor].filter(Boolean).join(' ') + ' 강사'}
+                        />
+                      )}
                       {prog.total_hours && <InfoRow icon={<Clock size={13} className="text-gray-400" />} text={`총 교육시간 ${prog.total_hours}시간`} />}
                       <InfoRow icon={<Award size={13} className="text-gray-400" />} text={`수료 기준 출석률 ${prog.completion_rate ?? 80}% 이상`} />
                     </div>
