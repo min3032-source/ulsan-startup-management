@@ -26,6 +26,12 @@ import StudentPortal from './pages/education/StudentPortal'
 import Budget from './pages/budget/Budget'
 import BudgetDashboard from './pages/budget/BudgetDashboard'
 import BudgetReport from './pages/budget/BudgetReport'
+import MentoringLogin from './pages/mentor-portal/MentoringLogin'
+import MentoringDashboard from './pages/mentor-portal/MentoringDashboard'
+import MentoringPlan from './pages/mentor-portal/MentoringPlan'
+import MentoringLog from './pages/mentor-portal/MentoringLog'
+import MentoringReport from './pages/mentor-portal/MentoringReport'
+import MentoringAdmin from './pages/mentor-portal/MentoringAdmin'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -63,6 +69,14 @@ function AppRoutes() {
   // manage.ubpi.or.kr 및 기타 도메인: 관리자 라우팅
   return (
     <Routes>
+      {/* 멘토 포털 (공개) */}
+      <Route path="/mentoring" element={<MentoringLogin />} />
+      <Route path="/mentoring/dashboard" element={<MentoringDashboard />} />
+      <Route path="/mentoring/plan" element={<MentoringPlan />} />
+      <Route path="/mentoring/log" element={<MentoringLog />} />
+      <Route path="/mentoring/report" element={<MentoringReport />} />
+      <Route path="/mentoring/admin" element={<MentoringAdmin />} />
+
       <Route path="/login" element={(user && profile) ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/apply" element={<Apply />} />
       <Route path="/expert-apply" element={<ExpertApply />} />
@@ -77,7 +91,7 @@ function AppRoutes() {
         <Route path="consult" element={<Consult />} />
         <Route path="founderdb" element={<FounderDB />} />
         <Route path="experts" element={<Experts />} />
-        <Route path="mentoring" element={<Mentoring />} />
+        <Route path="mentoring-manage" element={<Mentoring />} />
         <Route path="support" element={<Support />} />
         <Route path="selected" element={<Selected />} />
         <Route path="startup" element={<Startup />} />

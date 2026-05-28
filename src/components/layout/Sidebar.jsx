@@ -22,7 +22,7 @@ const navGroups = [
     label: '전문가 관리',
     items: [
       { to: '/experts',   icon: Users,     label: '전문가 DB' },
-      { to: '/mentoring', icon: UserCheck, label: '전문가 상담·멘토링' },
+      { to: '/mentoring-manage', icon: UserCheck, label: '전문가 상담·멘토링' },
     ]
   },
   {
