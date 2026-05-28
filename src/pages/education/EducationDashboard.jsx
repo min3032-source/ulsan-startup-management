@@ -119,6 +119,7 @@ export default function EducationDashboard() {
   })
 
   const inScopeApplicants = applications.filter(a => {
+    if (a.status !== '수료') return false
     if (surveyFilterProgram && a.program_id !== surveyFilterProgram) return false
     if (surveyFilterBusiness && a.related_program !== surveyFilterBusiness) return false
     return true
