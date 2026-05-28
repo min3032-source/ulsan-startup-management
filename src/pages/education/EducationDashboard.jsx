@@ -68,6 +68,7 @@ export default function EducationDashboard() {
   const allRatings = applications
     .filter(a => a.survey_completed && a.survey_data?.answers?.length)
     .flatMap(a => a.survey_data.answers)
+    .filter(v => typeof v === 'number' && v > 0)
   const avgSatisfaction = allRatings.length > 0
     ? (allRatings.reduce((s, v) => s + v, 0) / allRatings.length).toFixed(1)
     : null
@@ -77,7 +78,7 @@ export default function EducationDashboard() {
     const apps = applications.filter(a => a.program_id === p.id)
     const completed = apps.filter(a => a.status === '수료')
     const surveyed = apps.filter(a => a.survey_completed && a.survey_data?.answers?.length)
-    const ratings = surveyed.flatMap(a => a.survey_data.answers)
+    const ratings = surveyed.flatMap(a => a.survey_data.answers).filter(v => typeof v === 'number' && v > 0)
     const avg = ratings.length > 0
       ? (ratings.reduce((s, v) => s + v, 0) / ratings.length).toFixed(1)
       : null
@@ -125,8 +126,12 @@ export default function EducationDashboard() {
   const surveyQuestions = (() => {
     if (!surveyFilterProgram) return DEFAULT_SURVEY_QUESTIONS
     const prog = programs.find(p => p.id === surveyFilterProgram)
-    const qs = prog?.survey_questions?.filter(q => q.trim())
-    return qs?.length ? qs : DEFAULT_SURVEY_QUESTIONS
+    const rawQs = prog?.survey_questions
+    if (!rawQs?.length) return DEFAULT_SURVEY_QUESTIONS
+    const qs = rawQs
+      .map(q => (typeof q === 'string' ? q : q?.text ?? ''))
+      .filter(q => typeof q === 'string' && q.trim())
+    return qs.length ? qs : DEFAULT_SURVEY_QUESTIONS
   })()
 
   const questionStats = surveyQuestions.map((q, idx) => {
@@ -288,6 +293,7 @@ export default function EducationDashboard() {
               applications
                 .filter(a => a.program_id === p.id && a.survey_completed && a.survey_data?.answers?.length)
                 .flatMap(a => a.survey_data.answers)
+            .filter(v => typeof v === 'number' && v > 0)
             )
             const avg = allR.length > 0 ? (allR.reduce((s, v) => s + v, 0) / allR.length).toFixed(1) : null
             const isExpanded = expandedBusiness[name]
