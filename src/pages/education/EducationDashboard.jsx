@@ -67,7 +67,7 @@ export default function EducationDashboard() {
   const totalApplicants = applications.filter(a => a.status === '승인' || a.status === '수료').length
   const totalCompleted = applications.filter(a => a.status === '수료').length
   const allRatings = applications
-    .filter(a => a.survey_completed && a.survey_data?.answers?.length)
+    .filter(a => a.status === '수료' && a.survey_completed && a.survey_data?.answers?.length)
     .flatMap(a => a.survey_data.answers)
     .filter(v => typeof v === 'number' && v > 0)
   const avgSatisfaction = allRatings.length > 0
@@ -78,7 +78,7 @@ export default function EducationDashboard() {
   const programStats = programs.map(p => {
     const apps = applications.filter(a => a.program_id === p.id)
     const completed = apps.filter(a => a.status === '수료')
-    const surveyed = apps.filter(a => a.survey_completed && a.survey_data?.answers?.length)
+    const surveyed = apps.filter(a => a.status === '수료' && a.survey_completed && a.survey_data?.answers?.length)
     const ratings = surveyed.flatMap(a => a.survey_data.answers).filter(v => typeof v === 'number' && v > 0)
     const avg = ratings.length > 0
       ? (ratings.reduce((s, v) => s + v, 0) / ratings.length).toFixed(1)
