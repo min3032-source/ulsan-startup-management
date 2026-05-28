@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { formatPhone } from '../../utils/formatPhone'
-import { BookOpen, Users, Award, Plus, X, Search, ChevronDown, Printer, Mail, Download } from 'lucide-react'
+import { BookOpen, Users, Award, Plus, X, Search, ChevronDown, ChevronUp, Printer, Mail, Download } from 'lucide-react'
 import StatCard from '../../components/common/StatCard'
 import PageHeader from '../../components/common/PageHeader'
 import * as XLSX from 'xlsx'
@@ -1021,10 +1021,27 @@ export default function Education() {
               <Field label="만족도 조사 문항">
                 <p className="text-xs text-gray-400 mb-2">수강생 포털 만족도 조사에 사용될 문항입니다. 비워두면 기본 5개 문항이 사용됩니다.</p>
                 <div className="space-y-2">
-                  {(programForm.survey_questions || []).map((q, idx) => {
+                  {(programForm.survey_questions || []).map((q, idx, arr) => {
                     const qObj = typeof q === 'string' ? { text: q, type: 'rating' } : q
+                    const moveQ = (dir) => setProgramForm(f => {
+                      const qs = [...f.survey_questions]
+                      const ni = idx + dir
+                      if (ni < 0 || ni >= qs.length) return f
+                      ;[qs[idx], qs[ni]] = [qs[ni], qs[idx]]
+                      return { ...f, survey_questions: qs }
+                    })
                     return (
                       <div key={idx} className="flex items-center gap-2">
+                        <div className="flex flex-col shrink-0">
+                          <button type="button" onClick={() => moveQ(-1)} disabled={idx === 0}
+                            className="p-0.5 text-gray-300 hover:text-gray-500 disabled:opacity-20 transition">
+                            <ChevronUp size={13} />
+                          </button>
+                          <button type="button" onClick={() => moveQ(1)} disabled={idx === arr.length - 1}
+                            className="p-0.5 text-gray-300 hover:text-gray-500 disabled:opacity-20 transition">
+                            <ChevronDown size={13} />
+                          </button>
+                        </div>
                         <span className="text-xs text-gray-400 w-5 shrink-0 text-right">{idx + 1}.</span>
                         <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 ${qObj.type === 'text' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
                           {qObj.type === 'text' ? '주관식' : '객관식'}

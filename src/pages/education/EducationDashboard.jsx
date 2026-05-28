@@ -4,13 +4,6 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import PageHeader from '../../components/common/PageHeader'
 import StatCard from '../../components/common/StatCard'
 
-const DEFAULT_SURVEY_QUESTIONS = [
-  '교육 내용은 창업에 도움이 되었나요?',
-  '강사의 강의 전달력은 어땠나요?',
-  '교육 환경(장소, 시설)은 만족스러웠나요?',
-  '교육 일정과 시간은 적절했나요?',
-  '이 교육을 다른 분께 추천하시겠어요?',
-]
 
 const STATUS_COLOR = {
   '모집중': 'bg-blue-100 text-blue-700',
@@ -147,10 +140,11 @@ export default function EducationDashboard() {
     : { text: q?.text ?? '', type: q?.type ?? 'rating' }
 
   const surveyQuestionsTyped = (() => {
-    if (!surveyFilterProgram) return DEFAULT_SURVEY_QUESTIONS.map(toTyped)
-    const prog = programs.find(p => p.id === surveyFilterProgram)
+    const prog = surveyFilterProgram
+      ? programs.find(p => p.id === surveyFilterProgram)
+      : programs.find(p => p.survey_questions?.length > 0)
     const rawQs = prog?.survey_questions
-    if (!rawQs?.length) return DEFAULT_SURVEY_QUESTIONS.map(toTyped)
+    if (!rawQs?.length) return []
     return rawQs.map(toTyped).filter(q => q.text.trim())
   })()
 
@@ -169,7 +163,7 @@ export default function EducationDashboard() {
     const rawQs = prog?.survey_questions
     const typedQs = rawQs?.length
       ? rawQs.map(toTyped).filter(q => q.text.trim())
-      : DEFAULT_SURVEY_QUESTIONS.map(toTyped)
+      : []
     return typedQs
       .map((qt, idx) => ({
         type: qt.type,
@@ -181,7 +175,7 @@ export default function EducationDashboard() {
       .filter(r => r.type === 'text' && typeof r.answer === 'string' && r.answer.trim())
   })
 
-  const allSurveyAnswers = surveyApps.flatMap(a => a.survey_data.answers.filter(v => v > 0))
+  const allSurveyAnswers = surveyApps.flatMap(a => a.survey_data.answers.filter(v => typeof v === 'number' && v > 0))
   const avgSurvey = allSurveyAnswers.length > 0
     ? (allSurveyAnswers.reduce((s, v) => s + v, 0) / allSurveyAnswers.length).toFixed(1)
     : null
