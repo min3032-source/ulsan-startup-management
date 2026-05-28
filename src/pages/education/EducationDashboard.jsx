@@ -112,6 +112,7 @@ export default function EducationDashboard() {
 
   // ── 설문 통계 계산 ──
   const surveyApps = applications.filter(a => {
+    if (a.status !== '수료') return false
     if (!a.survey_completed || !a.survey_data?.answers?.length) return false
     if (surveyFilterProgram && a.program_id !== surveyFilterProgram) return false
     if (surveyFilterBusiness && a.related_program !== surveyFilterBusiness) return false
@@ -193,6 +194,7 @@ export default function EducationDashboard() {
   // 사업별 비교 (사업 필터 = 전체일 때)
   const businessComparisonRows = relatedPrograms.map(rp => {
     const rpApps = applications.filter(a => {
+      if (a.status !== '수료') return false
       if (!a.survey_completed || !a.survey_data?.answers?.length) return false
       if (surveyFilterProgram && a.program_id !== surveyFilterProgram) return false
       return a.related_program === rp.name
@@ -209,6 +211,7 @@ export default function EducationDashboard() {
   })
 
   const etcApps = applications.filter(a => {
+    if (a.status !== '수료') return false
     if (!a.survey_completed || !a.survey_data?.answers?.length) return false
     if (surveyFilterProgram && a.program_id !== surveyFilterProgram) return false
     return !a.related_program || !registeredNames.has(a.related_program)
