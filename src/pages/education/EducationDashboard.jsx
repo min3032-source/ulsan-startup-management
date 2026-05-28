@@ -123,21 +123,43 @@ export default function EducationDashboard() {
     return true
   }).length
 
-  const surveyQuestions = (() => {
-    if (!surveyFilterProgram) return DEFAULT_SURVEY_QUESTIONS
+  const toTyped = q => typeof q === 'string'
+    ? { text: q, type: 'rating' }
+    : { text: q?.text ?? '', type: q?.type ?? 'rating' }
+
+  const surveyQuestionsTyped = (() => {
+    if (!surveyFilterProgram) return DEFAULT_SURVEY_QUESTIONS.map(toTyped)
     const prog = programs.find(p => p.id === surveyFilterProgram)
     const rawQs = prog?.survey_questions
-    if (!rawQs?.length) return DEFAULT_SURVEY_QUESTIONS
-    const qs = rawQs
-      .map(q => (typeof q === 'string' ? q : q?.text ?? ''))
-      .filter(q => typeof q === 'string' && q.trim())
-    return qs.length ? qs : DEFAULT_SURVEY_QUESTIONS
+    if (!rawQs?.length) return DEFAULT_SURVEY_QUESTIONS.map(toTyped)
+    return rawQs.map(toTyped).filter(q => q.text.trim())
   })()
 
-  const questionStats = surveyQuestions.map((q, idx) => {
-    const answers = surveyApps.map(a => a.survey_data.answers[idx]).filter(v => v != null && v > 0)
+  const surveyQuestions = surveyQuestionsTyped.map(q => q.text)
+
+  const questionStats = surveyQuestionsTyped.map((qt, idx) => {
+    if (qt.type === 'text') return { q: qt.text, avg: null, total: 0, isText: true }
+    const answers = surveyApps.map(a => a.survey_data.answers[idx]).filter(v => typeof v === 'number' && v > 0)
     const avg = answers.length > 0 ? (answers.reduce((s, v) => s + v, 0) / answers.length).toFixed(1) : null
-    return { q, avg, total: answers.length }
+    return { q: qt.text, avg, total: answers.length, isText: false }
+  })
+
+  // 주관식 응답: 각 앱의 해당 교육 문항 타입 기준으로 수집
+  const textResponses = surveyApps.flatMap(app => {
+    const prog = programs.find(p => p.id === app.program_id)
+    const rawQs = prog?.survey_questions
+    const typedQs = rawQs?.length
+      ? rawQs.map(toTyped).filter(q => q.text.trim())
+      : DEFAULT_SURVEY_QUESTIONS.map(toTyped)
+    return typedQs
+      .map((qt, idx) => ({
+        type: qt.type,
+        questionText: qt.text,
+        answer: app.survey_data?.answers?.[idx],
+        programTitle: prog?.title || '-',
+        business: app.related_program || '-',
+      }))
+      .filter(r => r.type === 'text' && typeof r.answer === 'string' && r.answer.trim())
   })
 
   const allSurveyAnswers = surveyApps.flatMap(a => a.survey_data.answers.filter(v => v > 0))
@@ -185,14 +207,6 @@ export default function EducationDashboard() {
   const showBizTable = !surveyFilterBusiness
   const hasBizTableData = businessComparisonRows.some(r => r.count > 0) || etcApps.length > 0
 
-  // 자유 의견
-  const opinions = surveyApps
-    .filter(a => a.survey_data?.opinion?.trim())
-    .map(a => ({
-      programTitle: programs.find(p => p.id === a.program_id)?.title || '-',
-      business: a.related_program || '-',
-      opinion: a.survey_data.opinion.trim(),
-    }))
 
   if (loading) {
     return (
@@ -406,10 +420,10 @@ export default function EducationDashboard() {
             </div>
           ) : (
             <>
-              {/* 문항별 평균 점수 */}
+              {/* 문항별 평균 점수 (점수형만) */}
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
                 <h3 className="text-sm font-bold text-gray-700">문항별 평균 점수</h3>
-                {questionStats.map((qs, idx) => (
+                {questionStats.filter(qs => !qs.isText).map((qs, idx) => (
                   <div key={idx} className="space-y-1.5">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs text-gray-600 flex-1">
@@ -500,25 +514,27 @@ export default function EducationDashboard() {
                 </div>
               )}
 
-              {/* 자유 의견 */}
-              {opinions.length > 0 && (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-3">
-                  <h3 className="text-sm font-bold text-gray-700">자유 의견 ({opinions.length}건)</h3>
-                  <div className="space-y-2">
-                    {opinions.map((op, idx) => (
-                      <div key={idx} className="bg-gray-50 rounded-lg px-4 py-3 space-y-1">
+              {/* 주관식 응답 */}
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-3">
+                <h3 className="text-sm font-bold text-gray-700">주관식 응답 (총 {textResponses.length}건)</h3>
+                {textResponses.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-4">아직 응답이 없습니다.</p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {textResponses.map((r, idx) => (
+                      <div key={idx} className="bg-gray-50 rounded-xl px-4 py-3 space-y-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[11px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded">{op.programTitle}</span>
-                          {op.business !== '-' && (
-                            <span className="text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{op.business}</span>
+                          {r.business !== '-' && (
+                            <span className="text-[11px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">{r.business}</span>
                           )}
+                          <span className="text-[11px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{r.programTitle}</span>
                         </div>
-                        <p className="text-xs text-gray-600 leading-relaxed">"{op.opinion}"</p>
+                        <p className="text-xs text-gray-600 leading-relaxed">"{r.answer}"</p>
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </>
           )}
         </div>
