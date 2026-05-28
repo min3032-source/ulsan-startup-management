@@ -45,6 +45,7 @@ export default function EducationDashboard() {
   // 설문 필터
   const [surveyFilterProgram, setSurveyFilterProgram] = useState('')
   const [surveyFilterBusiness, setSurveyFilterBusiness] = useState('')
+  const [showOnlyNonRespondents, setShowOnlyNonRespondents] = useState(false)
 
   useEffect(() => { loadAll() }, [])
 
@@ -117,11 +118,25 @@ export default function EducationDashboard() {
     return true
   })
 
-  const totalInScope = applications.filter(a => {
+  const inScopeApplicants = applications.filter(a => {
     if (surveyFilterProgram && a.program_id !== surveyFilterProgram) return false
     if (surveyFilterBusiness && a.related_program !== surveyFilterBusiness) return false
     return true
-  }).length
+  })
+  const totalInScope = inScopeApplicants.length
+
+  const respondentTableData = (showOnlyNonRespondents
+    ? inScopeApplicants.filter(a => !a.survey_completed)
+    : inScopeApplicants
+  ).map(a => ({
+    id: a.id,
+    name: a.applicant_name || '-',
+    phone: a.phone || '-',
+    programTitle: programs.find(p => p.id === a.program_id)?.title || '-',
+    business: a.related_program || '-',
+    responded: !!a.survey_completed,
+    respondedAt: a.survey_completed_at ? a.survey_completed_at.slice(0, 10) : null,
+  }))
 
   const toTyped = q => typeof q === 'string'
     ? { text: q, type: 'rating' }
@@ -407,7 +422,7 @@ export default function EducationDashboard() {
             <StatCard
               label="응답률"
               value={totalInScope > 0
-                ? `${Math.round((surveyApps.length / totalInScope) * 100)}%`
+                ? `${Math.round((surveyApps.length / totalInScope) * 100)}% (${surveyApps.length}/${totalInScope}명)`
                 : '-'}
               color="teal"
             />
@@ -513,6 +528,70 @@ export default function EducationDashboard() {
                   </table>
                 </div>
               )}
+
+              {/* 응답자 현황 */}
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-700">응답자 현황</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      전체 {totalInScope}명 중 {surveyApps.length}명 응답 · 미응답 {totalInScope - surveyApps.length}명
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowOnlyNonRespondents(v => !v)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition border ${
+                      showOnlyNonRespondents
+                        ? 'bg-red-500 text-white border-red-500'
+                        : 'bg-white text-gray-500 border-gray-200 hover:border-red-300 hover:text-red-500'
+                    }`}
+                  >
+                    {showOnlyNonRespondents ? '✕ 미응답자만 보는 중' : '미응답자만 보기'}
+                  </button>
+                </div>
+                {respondentTableData.length === 0 ? (
+                  <div className="text-center py-10 text-sm text-gray-400">
+                    {showOnlyNonRespondents ? '미응답자가 없습니다.' : '신청자 데이터가 없습니다.'}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">신청자</th>
+                          <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">연락처</th>
+                          <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">교육명</th>
+                          <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">사업명</th>
+                          <th className="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">응답 여부</th>
+                          <th className="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">응답일</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {respondentTableData.map(r => (
+                          <tr key={r.id} className={`hover:bg-gray-50 transition ${!r.responded ? 'bg-red-50/30' : ''}`}>
+                            <td className="px-4 py-2.5 text-xs font-medium text-gray-800">{r.name}</td>
+                            <td className="px-4 py-2.5 text-xs text-gray-500">{r.phone}</td>
+                            <td className="px-4 py-2.5 text-xs text-gray-600 max-w-[160px] truncate">{r.programTitle}</td>
+                            <td className="px-4 py-2.5 text-xs text-gray-500">
+                              {r.business !== '-'
+                                ? <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">{r.business}</span>
+                                : <span className="text-gray-300">-</span>}
+                            </td>
+                            <td className="px-4 py-2.5 text-center">
+                              {r.responded
+                                ? <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-lg">✅ 응답</span>
+                                : <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-lg">❌ 미응답</span>}
+                            </td>
+                            <td className="px-4 py-2.5 text-xs text-gray-400 text-center">
+                              {r.respondedAt || '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
 
               {/* 주관식 응답 */}
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-3">
