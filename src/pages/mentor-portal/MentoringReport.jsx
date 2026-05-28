@@ -140,7 +140,7 @@ export default function MentoringReport() {
           </button>
           <div>
             <h1 className="text-base font-extrabold text-white">결과보고서</h1>
-            <p className="text-xs text-white/70">{assignment?.company_name}</p>
+            <p className="text-xs text-white/70">{assignment?.startup_name}</p>
           </div>
         </div>
       </div>

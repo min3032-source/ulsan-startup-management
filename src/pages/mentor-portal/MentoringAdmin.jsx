@@ -5,9 +5,9 @@ import PageHeader from '../../components/common/PageHeader'
 import { Plus, X, Loader2, Circle, Eye, RefreshCw, Trash2, ChevronUp } from 'lucide-react'
 
 const emptyForm = () => ({
-  mentor_name: '', mentor_org: '', mentor_phone: '',
-  company_name: '', founder_name: '', founder_phone: '',
-  item: '', access_password: '',
+  mentor_name: '', mentor_organization: '', mentor_phone: '',
+  startup_name: '', startup_ceo: '', startup_phone: '',
+  startup_item: '', access_password: '',
 })
 
 export default function MentoringAdmin() {
@@ -52,7 +52,7 @@ export default function MentoringAdmin() {
 
   async function handleRegister(e) {
     e.preventDefault()
-    if (!form.mentor_name.trim() || !form.company_name.trim() || !form.access_password.trim()) {
+    if (!form.mentor_name.trim() || !form.startup_name.trim() || !form.access_password.trim()) {
       alert('멘토명, 창업기업명, 비밀번호는 필수입니다.')
       return
     }
@@ -131,8 +131,8 @@ export default function MentoringAdmin() {
                   placeholder="홍길동" />
               </FormField>
               <FormField label="소속">
-                <input className="form-input" value={form.mentor_org}
-                  onChange={e => setForm(f => ({ ...f, mentor_org: e.target.value }))}
+                <input className="form-input" value={form.mentor_organization}
+                  onChange={e => setForm(f => ({ ...f, mentor_organization: e.target.value }))}
                   placeholder="소속 기관/회사" />
               </FormField>
               <FormField label="멘토 연락처">
@@ -143,25 +143,25 @@ export default function MentoringAdmin() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <FormField label="창업기업명 *">
-                <input className="form-input" value={form.company_name}
-                  onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))}
+                <input className="form-input" value={form.startup_name}
+                  onChange={e => setForm(f => ({ ...f, startup_name: e.target.value }))}
                   placeholder="(주)울산창업" />
               </FormField>
               <FormField label="대표자명">
-                <input className="form-input" value={form.founder_name}
-                  onChange={e => setForm(f => ({ ...f, founder_name: e.target.value }))}
+                <input className="form-input" value={form.startup_ceo}
+                  onChange={e => setForm(f => ({ ...f, startup_ceo: e.target.value }))}
                   placeholder="대표자명" />
               </FormField>
               <FormField label="대표자 연락처">
-                <input className="form-input" value={form.founder_phone}
-                  onChange={e => setForm(f => ({ ...f, founder_phone: formatPhone(e.target.value) }))}
+                <input className="form-input" value={form.startup_phone}
+                  onChange={e => setForm(f => ({ ...f, startup_phone: formatPhone(e.target.value) }))}
                   placeholder="010-0000-0000" maxLength={13} />
               </FormField>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <FormField label="아이템">
-                <input className="form-input" value={form.item}
-                  onChange={e => setForm(f => ({ ...f, item: e.target.value }))}
+                <input className="form-input" value={form.startup_item}
+                  onChange={e => setForm(f => ({ ...f, startup_item: e.target.value }))}
                   placeholder="사업 아이템 설명" />
               </FormField>
               <FormField label="비밀번호 *">
@@ -218,11 +218,11 @@ export default function MentoringAdmin() {
                     <tr key={a.id} className="hover:bg-gray-50 transition">
                       <td className="px-4 py-3">
                         <p className="font-semibold text-gray-800 text-sm">{a.mentor_name}</p>
-                        <p className="text-xs text-gray-400">{a.mentor_org}</p>
+                        <p className="text-xs text-gray-400">{a.mentor_organization}</p>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="font-medium text-gray-700 text-sm">{a.company_name}</p>
-                        <p className="text-xs text-gray-400">{a.founder_name}</p>
+                        <p className="font-medium text-gray-700 text-sm">{a.startup_name}</p>
+                        <p className="text-xs text-gray-400">{a.startup_ceo}</p>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <DocBadge submitted={st.plan} onClick={() => st.plan && openPopup('plan', a.id)} />

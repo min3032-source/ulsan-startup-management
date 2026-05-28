@@ -83,7 +83,7 @@ export default function MentoringDashboard() {
           <div>
             <p className="text-white/70 text-sm">멘토</p>
             <h1 className="text-xl font-extrabold text-white">{assignment?.mentor_name} 님</h1>
-            <p className="text-white/70 text-xs mt-0.5">{assignment?.mentor_org}</p>
+            <p className="text-white/70 text-xs mt-0.5">{assignment?.mentor_organization}</p>
           </div>
           <button
             onClick={logout}
@@ -99,10 +99,10 @@ export default function MentoringDashboard() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
           <p className="text-xs font-semibold text-gray-400 mb-3">담당 창업기업</p>
           <div className="space-y-2.5">
-            <Row label="기업명" value={assignment?.company_name} bold />
-            <Row label="대표자" value={assignment?.founder_name} />
-            <Row label="연락처" value={assignment?.founder_phone} />
-            <Row label="아이템" value={assignment?.item} />
+            <Row label="기업명" value={assignment?.startup_name} bold />
+            <Row label="대표자" value={assignment?.startup_ceo} />
+            <Row label="연락처" value={assignment?.startup_phone} />
+            <Row label="아이템" value={assignment?.startup_item} />
           </div>
         </div>
 
