@@ -125,6 +125,8 @@ export default function EducationDashboard() {
     return true
   })
   const totalInScope = inScopeApplicants.length
+  const respondedInScope = inScopeApplicants.filter(a => !!a.survey_completed).length
+  const nonRespondedInScope = totalInScope - respondedInScope
 
   const respondentTableData = (showOnlyNonRespondents
     ? inScopeApplicants.filter(a => !a.survey_completed)
@@ -419,11 +421,11 @@ export default function EducationDashboard() {
 
           {/* 요약 카드 */}
           <div className="grid grid-cols-3 gap-4">
-            <StatCard label="응답자 수" value={`${surveyApps.length}명`} color="blue" />
+            <StatCard label="응답자 수" value={`${respondedInScope}명`} color="blue" />
             <StatCard
               label="응답률"
               value={totalInScope > 0
-                ? `${Math.round((surveyApps.length / totalInScope) * 100)}% (${surveyApps.length}/${totalInScope}명)`
+                ? `${Math.round((respondedInScope / totalInScope) * 100)}% (${respondedInScope}/${totalInScope}명)`
                 : '-'}
               color="teal"
             />
@@ -536,7 +538,7 @@ export default function EducationDashboard() {
                   <div>
                     <h3 className="text-sm font-bold text-gray-700">응답자 현황</h3>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      전체 {totalInScope}명 중 {surveyApps.length}명 응답 · 미응답 {totalInScope - surveyApps.length}명
+                      전체 {totalInScope}명 중 {respondedInScope}명 응답 · 미응답 {nonRespondedInScope}명
                     </p>
                   </div>
                   <button
