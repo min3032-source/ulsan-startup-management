@@ -9,7 +9,7 @@ import {
 const emptyForm = () => ({
   mentor_name: '', mentor_org: '', mentor_phone: '',
   company_name: '', founder_name: '', founder_phone: '',
-  item: '', password: '',
+  item: '', access_password: '',
 })
 
 export default function MentoringAdmin() {
@@ -52,7 +52,7 @@ export default function MentoringAdmin() {
 
   async function handleRegister(e) {
     e.preventDefault()
-    if (!form.mentor_name.trim() || !form.company_name.trim() || !form.password.trim()) {
+    if (!form.mentor_name.trim() || !form.company_name.trim() || !form.access_password.trim()) {
       alert('멘토명, 창업기업명, 비밀번호는 필수입니다.')
       return
     }
@@ -171,8 +171,8 @@ export default function MentoringAdmin() {
                     placeholder="사업 아이템 설명" />
                 </FormField>
                 <FormField label="비밀번호 *">
-                  <input className="form-input" value={form.password}
-                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                  <input className="form-input" value={form.access_password}
+                    onChange={e => setForm(f => ({ ...f, access_password: e.target.value }))}
                     placeholder="멘토 접속 비밀번호" />
                 </FormField>
               </div>

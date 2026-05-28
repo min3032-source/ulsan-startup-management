@@ -17,7 +17,7 @@ export default function MentoringLogin() {
     const { data, error: err } = await supabase
       .from('mentoring_assignments')
       .select('*')
-      .eq('password', password.trim())
+      .eq('access_password', password.trim())
       .maybeSingle()
     setLoading(false)
     if (err || !data) {
