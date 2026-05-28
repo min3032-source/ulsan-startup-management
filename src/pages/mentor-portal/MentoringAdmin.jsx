@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { formatPhone } from '../../utils/formatPhone'
-import {
-  Plus, X, Loader2, CheckCircle2, Circle, Eye, RefreshCw,
-  Trash2, ChevronDown, ChevronUp
-} from 'lucide-react'
+import PageHeader from '../../components/common/PageHeader'
+import { Plus, X, Loader2, Circle, Eye, RefreshCw, Trash2, ChevronUp } from 'lucide-react'
 
 const emptyForm = () => ({
   mentor_name: '', mentor_org: '', mentor_phone: '',
@@ -19,7 +17,7 @@ export default function MentoringAdmin() {
   const [statusMap, setStatusMap] = useState({})
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [popup, setPopup] = useState(null) // { type: 'plan'|'log'|'report', assignmentId, data }
+  const [popup, setPopup] = useState(null)
   const [popupLoading, setPopupLoading] = useState(false)
 
   useEffect(() => { loadAll() }, [])
@@ -35,6 +33,8 @@ export default function MentoringAdmin() {
     setAssignments(list)
 
     const ids = list.map(a => a.id)
+    if (ids.length === 0) { setLoading(false); return }
+
     const [{ data: plans }, { data: logs }, { data: reports }] = await Promise.all([
       supabase.from('mentoring_plans').select('assignment_id').in('assignment_id', ids),
       supabase.from('mentoring_logs').select('assignment_id, session_num').in('assignment_id', ids),
@@ -98,173 +98,160 @@ export default function MentoringAdmin() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* 헤더 */}
-      <div style={{ background: 'linear-gradient(135deg, #059669, #0d9488)' }} className="px-6 py-5">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-extrabold text-white">멘토링 담당자 관리</h1>
-            <p className="text-xs text-white/70 mt-0.5">멘토 배정 등록 및 제출 현황 관리</p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={loadAll}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white text-sm font-medium transition"
-            >
-              <RefreshCw size={14} /> 새로고침
-            </button>
-            <button
-              onClick={() => setShowForm(v => !v)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white text-emerald-700 text-sm font-bold transition hover:bg-emerald-50"
-            >
-              {showForm ? <ChevronUp size={14} /> : <Plus size={14} />}
-              {showForm ? '접기' : '멘토 배정 등록'}
-            </button>
-          </div>
+    <div className="p-6 space-y-5 bg-slate-50 min-h-screen">
+      <div className="flex items-center justify-between">
+        <PageHeader title="멘토링 관리" />
+        <div className="flex gap-2">
+          <button
+            onClick={loadAll}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition"
+          >
+            <RefreshCw size={14} /> 새로고침
+          </button>
+          <button
+            onClick={() => setShowForm(v => !v)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold text-white transition"
+            style={{ background: showForm ? '#6b7280' : 'linear-gradient(135deg, #059669, #0d9488)' }}
+          >
+            {showForm ? <ChevronUp size={14} /> : <Plus size={14} />}
+            {showForm ? '접기' : '멘토 배정 등록'}
+          </button>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-        {/* 등록 폼 */}
-        {showForm && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h2 className="text-sm font-bold text-gray-700 mb-4">멘토 배정 등록</h2>
-            <form onSubmit={handleRegister} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <FormField label="멘토명 *">
-                  <input className="form-input" value={form.mentor_name}
-                    onChange={e => setForm(f => ({ ...f, mentor_name: e.target.value }))}
-                    placeholder="홍길동" />
-                </FormField>
-                <FormField label="소속">
-                  <input className="form-input" value={form.mentor_org}
-                    onChange={e => setForm(f => ({ ...f, mentor_org: e.target.value }))}
-                    placeholder="소속 기관/회사" />
-                </FormField>
-                <FormField label="멘토 연락처">
-                  <input className="form-input" value={form.mentor_phone}
-                    onChange={e => setForm(f => ({ ...f, mentor_phone: formatPhone(e.target.value) }))}
-                    placeholder="010-0000-0000" maxLength={13} />
-                </FormField>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <FormField label="창업기업명 *">
-                  <input className="form-input" value={form.company_name}
-                    onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))}
-                    placeholder="(주)울산창업" />
-                </FormField>
-                <FormField label="대표자명">
-                  <input className="form-input" value={form.founder_name}
-                    onChange={e => setForm(f => ({ ...f, founder_name: e.target.value }))}
-                    placeholder="대표자명" />
-                </FormField>
-                <FormField label="대표자 연락처">
-                  <input className="form-input" value={form.founder_phone}
-                    onChange={e => setForm(f => ({ ...f, founder_phone: formatPhone(e.target.value) }))}
-                    placeholder="010-0000-0000" maxLength={13} />
-                </FormField>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <FormField label="아이템">
-                  <input className="form-input" value={form.item}
-                    onChange={e => setForm(f => ({ ...f, item: e.target.value }))}
-                    placeholder="사업 아이템 설명" />
-                </FormField>
-                <FormField label="비밀번호 *">
-                  <input className="form-input" value={form.access_password}
-                    onChange={e => setForm(f => ({ ...f, access_password: e.target.value }))}
-                    placeholder="멘토 접속 비밀번호" />
-                </FormField>
-              </div>
-              <div className="flex justify-end gap-3">
-                <button type="button" onClick={() => { setForm(emptyForm()); setShowForm(false) }}
-                  className="px-4 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-100 transition">
-                  취소
-                </button>
-                <button type="submit" disabled={registering}
-                  className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold text-white disabled:opacity-50 transition"
-                  style={{ background: 'linear-gradient(135deg, #059669, #0d9488)' }}>
-                  {registering ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                  {registering ? '등록 중...' : '등록하기'}
-                </button>
-              </div>
-            </form>
+      {/* 등록 폼 */}
+      {showForm && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+          <h2 className="text-sm font-bold text-gray-700 mb-4">멘토 배정 등록</h2>
+          <form onSubmit={handleRegister} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <FormField label="멘토명 *">
+                <input className="form-input" value={form.mentor_name}
+                  onChange={e => setForm(f => ({ ...f, mentor_name: e.target.value }))}
+                  placeholder="홍길동" />
+              </FormField>
+              <FormField label="소속">
+                <input className="form-input" value={form.mentor_org}
+                  onChange={e => setForm(f => ({ ...f, mentor_org: e.target.value }))}
+                  placeholder="소속 기관/회사" />
+              </FormField>
+              <FormField label="멘토 연락처">
+                <input className="form-input" value={form.mentor_phone}
+                  onChange={e => setForm(f => ({ ...f, mentor_phone: formatPhone(e.target.value) }))}
+                  placeholder="010-0000-0000" maxLength={13} />
+              </FormField>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <FormField label="창업기업명 *">
+                <input className="form-input" value={form.company_name}
+                  onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))}
+                  placeholder="(주)울산창업" />
+              </FormField>
+              <FormField label="대표자명">
+                <input className="form-input" value={form.founder_name}
+                  onChange={e => setForm(f => ({ ...f, founder_name: e.target.value }))}
+                  placeholder="대표자명" />
+              </FormField>
+              <FormField label="대표자 연락처">
+                <input className="form-input" value={form.founder_phone}
+                  onChange={e => setForm(f => ({ ...f, founder_phone: formatPhone(e.target.value) }))}
+                  placeholder="010-0000-0000" maxLength={13} />
+              </FormField>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <FormField label="아이템">
+                <input className="form-input" value={form.item}
+                  onChange={e => setForm(f => ({ ...f, item: e.target.value }))}
+                  placeholder="사업 아이템 설명" />
+              </FormField>
+              <FormField label="비밀번호 *">
+                <input className="form-input" value={form.access_password}
+                  onChange={e => setForm(f => ({ ...f, access_password: e.target.value }))}
+                  placeholder="멘토 접속 비밀번호" />
+              </FormField>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={() => { setForm(emptyForm()); setShowForm(false) }}
+                className="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 transition border border-gray-200">
+                취소
+              </button>
+              <button type="submit" disabled={registering}
+                className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold text-white disabled:opacity-50 transition"
+                style={{ background: 'linear-gradient(135deg, #059669, #0d9488)' }}>
+                {registering ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                {registering ? '등록 중...' : '등록하기'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* 제출 현황 테이블 */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="text-sm font-bold text-gray-700">전체 제출 현황</h2>
+          <span className="text-xs text-gray-400">{assignments.length}건</span>
+        </div>
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 size={24} className="animate-spin text-emerald-500" />
+          </div>
+        ) : assignments.length === 0 ? (
+          <div className="text-center py-16 text-gray-400 text-sm">등록된 배정이 없습니다.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">멘토명</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">창업기업</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500">수행계획서</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500">수행일지</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500">결과보고서</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500">관리</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {assignments.map(a => {
+                  const st = statusMap[a.id] || {}
+                  return (
+                    <tr key={a.id} className="hover:bg-gray-50 transition">
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-gray-800 text-sm">{a.mentor_name}</p>
+                        <p className="text-xs text-gray-400">{a.mentor_org}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-gray-700 text-sm">{a.company_name}</p>
+                        <p className="text-xs text-gray-400">{a.founder_name}</p>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <DocBadge submitted={st.plan} onClick={() => st.plan && openPopup('plan', a.id)} />
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <DocBadge
+                          submitted={st.logCount > 0}
+                          label={st.logCount > 0 ? `${st.logCount}회차` : undefined}
+                          onClick={() => st.logCount > 0 && openPopup('log', a.id)}
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <DocBadge submitted={st.report} onClick={() => st.report && openPopup('report', a.id)} />
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => handleDelete(a.id)}
+                          className="p-1.5 text-gray-300 hover:text-red-400 transition rounded-lg hover:bg-red-50"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         )}
-
-        {/* 제출 현황 테이블 */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-gray-700">전체 제출 현황</h2>
-            <span className="text-xs text-gray-400">{assignments.length}건</span>
-          </div>
-          {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 size={24} className="animate-spin text-emerald-500" />
-            </div>
-          ) : assignments.length === 0 ? (
-            <div className="text-center py-16 text-gray-400 text-sm">등록된 배정이 없습니다.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">멘토명</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">창업기업</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500">수행계획서</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500">수행일지</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500">결과보고서</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500">관리</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {assignments.map(a => {
-                    const st = statusMap[a.id] || {}
-                    return (
-                      <tr key={a.id} className="hover:bg-gray-50 transition">
-                        <td className="px-4 py-3">
-                          <p className="font-semibold text-gray-800">{a.mentor_name}</p>
-                          <p className="text-xs text-gray-400">{a.mentor_org}</p>
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="font-medium text-gray-700">{a.company_name}</p>
-                          <p className="text-xs text-gray-400">{a.founder_name}</p>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <DocBadge
-                            submitted={st.plan}
-                            onClick={() => st.plan && openPopup('plan', a.id)}
-                          />
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <DocBadge
-                            submitted={st.logCount > 0}
-                            label={st.logCount > 0 ? `${st.logCount}회차` : undefined}
-                            onClick={() => st.logCount > 0 && openPopup('log', a.id)}
-                          />
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <DocBadge
-                            submitted={st.report}
-                            onClick={() => st.report && openPopup('report', a.id)}
-                          />
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <button
-                            onClick={() => handleDelete(a.id)}
-                            className="p-1.5 text-gray-300 hover:text-red-400 transition rounded-lg"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* 팝업 */}
@@ -277,7 +264,7 @@ export default function MentoringAdmin() {
                 {popup.type === 'log' && '수행일지'}
                 {popup.type === 'report' && '결과보고서'}
               </h3>
-              <button onClick={() => setPopup(null)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setPopup(null)} className="text-gray-400 hover:text-gray-600 transition">
                 <X size={20} />
               </button>
             </div>
@@ -338,16 +325,25 @@ function Row({ label, value }) {
   )
 }
 
+function Section({ title, children }) {
+  return (
+    <div className="mb-4">
+      <p className="text-xs font-bold text-gray-500 mb-1.5 bg-gray-50 px-3 py-1.5 rounded-lg">{title}</p>
+      <div className="px-1">{children}</div>
+    </div>
+  )
+}
+
 function PlanView({ data }) {
   if (!data) return <p className="text-sm text-gray-400">데이터가 없습니다.</p>
   return (
-    <div className="space-y-3 text-sm">
+    <div className="space-y-1 text-sm">
       <Row label="창업기업 현황" value={data.company_status} />
       <Row label="기업문제 진단" value={data.problem_diagnosis} />
       <Row label="목표" value={data.goal} />
       <Row label="기간" value={data.start_date && data.end_date ? `${data.start_date} ~ ${data.end_date}` : ''} />
       {data.sessions?.length > 0 && (
-        <div>
+        <div className="pt-2">
           <p className="text-xs font-semibold text-gray-400 mb-2">회차별 일정</p>
           <div className="space-y-2">
             {data.sessions.map(s => (
@@ -369,7 +365,7 @@ function LogView({ data }) {
   return (
     <div className="space-y-4">
       {data.map(log => (
-        <div key={log.id} className="border border-gray-100 rounded-xl p-4 space-y-2">
+        <div key={log.id} className="border border-gray-100 rounded-xl p-4 space-y-1">
           <p className="text-xs font-bold text-emerald-700 mb-2">{log.session_num}회차</p>
           <Row label="주제" value={log.topic} />
           <Row label="일시" value={log.date} />
@@ -456,9 +452,9 @@ function ReportView({ data }) {
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-gray-50">
-                <th className="text-left p-2 text-gray-500">항목</th>
-                <th className="text-center p-2 text-gray-500">지원 전</th>
-                <th className="text-center p-2 text-gray-500">지원 후</th>
+                <th className="text-left p-2 text-gray-500 font-medium">항목</th>
+                <th className="text-center p-2 text-gray-500 font-medium">지원 전</th>
+                <th className="text-center p-2 text-gray-500 font-medium">지원 후</th>
               </tr>
             </thead>
             <tbody>
@@ -493,15 +489,6 @@ function ReportView({ data }) {
           ))}
         </div>
       </Section>
-    </div>
-  )
-}
-
-function Section({ title, children }) {
-  return (
-    <div>
-      <p className="text-xs font-bold text-gray-500 mb-1.5 bg-gray-50 px-3 py-1.5 rounded-lg">{title}</p>
-      <div className="px-1">{children}</div>
     </div>
   )
 }

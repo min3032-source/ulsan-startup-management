@@ -2,7 +2,8 @@ import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, BarChart3, UserPlus, MessageSquare, Database,
   Users, UserCheck, Link2, Building, TrendingUp, LineChart,
-  FileText, Settings, LogOut, ChevronRight, X, Award, BookOpen, Wallet
+  FileText, Settings, LogOut, ChevronRight, X, Award, BookOpen, Wallet,
+  ClipboardList
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
@@ -21,8 +22,9 @@ const navGroups = [
   {
     label: '전문가 관리',
     items: [
-      { to: '/experts',   icon: Users,     label: '전문가 DB' },
-      { to: '/mentoring-manage', icon: UserCheck, label: '전문가 상담·멘토링' },
+      { to: '/experts',          icon: Users,          label: '전문가 DB' },
+      { to: '/mentoring-manage', icon: UserCheck,       label: '전문가 상담·멘토링' },
+      { to: '/mentoring/admin',  icon: ClipboardList,   label: '멘토링 관리' },
     ]
   },
   {

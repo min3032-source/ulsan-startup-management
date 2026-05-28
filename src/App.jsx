@@ -75,7 +75,6 @@ function AppRoutes() {
       <Route path="/mentoring/plan" element={<MentoringPlan />} />
       <Route path="/mentoring/log" element={<MentoringLog />} />
       <Route path="/mentoring/report" element={<MentoringReport />} />
-      <Route path="/mentoring/admin" element={<MentoringAdmin />} />
 
       <Route path="/login" element={(user && profile) ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/apply" element={<Apply />} />
@@ -92,6 +91,7 @@ function AppRoutes() {
         <Route path="founderdb" element={<FounderDB />} />
         <Route path="experts" element={<Experts />} />
         <Route path="mentoring-manage" element={<Mentoring />} />
+        <Route path="mentoring/admin" element={<MentoringAdmin />} />
         <Route path="support" element={<Support />} />
         <Route path="selected" element={<Selected />} />
         <Route path="startup" element={<Startup />} />
