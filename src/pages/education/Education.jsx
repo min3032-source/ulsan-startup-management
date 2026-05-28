@@ -1032,16 +1032,6 @@ export default function Education() {
                     })
                     return (
                       <div key={idx} className="flex items-center gap-2">
-                        <div className="flex flex-col shrink-0">
-                          <button type="button" onClick={() => moveQ(-1)} disabled={idx === 0}
-                            className="p-0.5 text-gray-300 hover:text-gray-500 disabled:opacity-20 transition">
-                            <ChevronUp size={13} />
-                          </button>
-                          <button type="button" onClick={() => moveQ(1)} disabled={idx === arr.length - 1}
-                            className="p-0.5 text-gray-300 hover:text-gray-500 disabled:opacity-20 transition">
-                            <ChevronDown size={13} />
-                          </button>
-                        </div>
                         <span className="text-xs text-gray-400 w-5 shrink-0 text-right">{idx + 1}.</span>
                         <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 ${qObj.type === 'text' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
                           {qObj.type === 'text' ? '주관식' : '객관식'}
@@ -1059,6 +1049,16 @@ export default function Education() {
                           }))}
                           placeholder={`문항 ${idx + 1}`}
                         />
+                        <div className="flex flex-col shrink-0">
+                          <button type="button" onClick={() => moveQ(-1)} disabled={idx === 0}
+                            className="p-0.5 text-gray-300 hover:text-gray-500 disabled:opacity-20 transition">
+                            <ChevronUp size={13} />
+                          </button>
+                          <button type="button" onClick={() => moveQ(1)} disabled={idx === arr.length - 1}
+                            className="p-0.5 text-gray-300 hover:text-gray-500 disabled:opacity-20 transition">
+                            <ChevronDown size={13} />
+                          </button>
+                        </div>
                         <button
                           type="button"
                           onClick={() => setProgramForm(f => ({
