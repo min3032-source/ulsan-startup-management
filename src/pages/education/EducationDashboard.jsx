@@ -435,48 +435,55 @@ export default function EducationDashboard() {
             </div>
           ) : (
             <>
-              {/* 문항별 평균 점수 (점수형만) */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
-                <h3 className="text-sm font-bold text-gray-700">문항별 평균 점수</h3>
-                {questionStats.filter(qs => !qs.isText).map((qs, idx) => (
-                  <div key={idx} className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs text-gray-600 flex-1">
-                        <span className="text-gray-400 mr-1">Q{idx + 1}.</span>{qs.q}
-                      </p>
-                      <span className="text-xs font-bold text-amber-600 whitespace-nowrap shrink-0">
-                        {qs.avg ? `⭐ ${qs.avg}점` : '-'}
-                        <span className="text-gray-400 font-normal ml-1">({qs.total}명)</span>
-                      </span>
-                    </div>
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${barColor(qs.avg)}`}
-                        style={{ width: qs.avg ? `${(parseFloat(qs.avg) / 5) * 100}%` : '0%' }}
-                      />
+              {/* 문항별 평균 점수 + 점수 분포 (특정 교육 선택 시만) */}
+              {surveyFilterProgram ? (
+                <>
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
+                    <h3 className="text-sm font-bold text-gray-700">문항별 평균 점수</h3>
+                    {questionStats.filter(qs => !qs.isText).map((qs, idx) => (
+                      <div key={idx} className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs text-gray-600 flex-1">
+                            <span className="text-gray-400 mr-1">Q{idx + 1}.</span>{qs.q}
+                          </p>
+                          <span className="text-xs font-bold text-amber-600 whitespace-nowrap shrink-0">
+                            {qs.avg ? `⭐ ${qs.avg}점` : '-'}
+                            <span className="text-gray-400 font-normal ml-1">({qs.total}명)</span>
+                          </span>
+                        </div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${barColor(qs.avg)}`}
+                            style={{ width: qs.avg ? `${(parseFloat(qs.avg) / 5) * 100}%` : '0%' }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-3">
+                    <h3 className="text-sm font-bold text-gray-700">점수 분포</h3>
+                    <div className="space-y-2">
+                      {scoreDist.map(({ star, count, pct }) => (
+                        <div key={star} className="flex items-center gap-3">
+                          <span className="text-xs text-gray-500 w-6 shrink-0">{star}점</span>
+                          <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                            <div
+                              className="h-full bg-amber-400 rounded-full transition-all"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-gray-500 w-16 shrink-0 text-right">{count}명 ({pct}%)</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
-
-              {/* 점수 분포 */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-3">
-                <h3 className="text-sm font-bold text-gray-700">점수 분포</h3>
-                <div className="space-y-2">
-                  {scoreDist.map(({ star, count, pct }) => (
-                    <div key={star} className="flex items-center gap-3">
-                      <span className="text-xs text-gray-500 w-6 shrink-0">{star}점</span>
-                      <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
-                        <div
-                          className="h-full bg-amber-400 rounded-full transition-all"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                      <span className="text-xs text-gray-500 w-16 shrink-0 text-right">{count}명 ({pct}%)</span>
-                    </div>
-                  ))}
+                </>
+              ) : (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-5 text-center text-sm text-blue-500">
+                  특정 교육을 선택하면 문항별 점수를 확인할 수 있습니다.
                 </div>
-              </div>
+              )}
 
               {/* 사업별 비교 테이블 (사업 필터 = 전체일 때만) */}
               {showBizTable && hasBizTableData && (
