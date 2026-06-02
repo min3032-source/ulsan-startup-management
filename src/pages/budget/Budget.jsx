@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
+import AIWorkSuggestion from '../../components/AIWorkSuggestion'
 
 const formatAmount = n => (Number(n) || 0).toLocaleString('ko-KR')
 const parseAmount = s => parseInt((s || '').replace(/,/g, '') || '0') || 0
@@ -505,6 +506,7 @@ export default function Budget() {
   const [progModal, setProgModal] = useState(false)
   const [progEditModal, setProgEditModal] = useState(null)
   const [excelModal, setExcelModal] = useState(false)
+  const [aiModal, setAiModal] = useState(null)
 
   useEffect(() => { loadPrograms() }, [])
   useEffect(() => {
@@ -844,6 +846,16 @@ export default function Budget() {
                   <div style={{ height: '5px', borderRadius: '999px', background: barColor(rate), width: `${Math.min(rate, 100)}%` }} />
                 </div>
                 <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '3px', textAlign: 'right' }}>{rate.toFixed(1)}%</div>
+                {!isViewer && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setAiModal(prog) }}
+                    style={{ marginTop: '8px', width: '100%', padding: '5px 0', fontSize: '11px', background: '#eef2ff', color: '#3730a3', border: '1px solid #c7d2fe', borderRadius: '6px', cursor: 'pointer', fontWeight: '500' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#e0e7ff' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#eef2ff' }}
+                  >
+                    📄 계획서로 업무 생성
+                  </button>
+                )}
               </div>
             )
           })}
@@ -1006,6 +1018,13 @@ export default function Budget() {
         <ProgramModal program={progEditModal}
           onClose={() => setProgEditModal(null)}
           onSaved={loadPrograms} />
+      )}
+      {aiModal && (
+        <AIWorkSuggestion
+          program={aiModal}
+          onClose={() => setAiModal(null)}
+          onSaved={() => {}}
+        />
       )}
     </div>
   )
