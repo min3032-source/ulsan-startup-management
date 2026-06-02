@@ -193,20 +193,27 @@ const [submittingSurvey, setSubmittingSurvey] = useState(false)
                     placeholder="의견을 자유롭게 입력해 주세요."
                   />
                 ) : (
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5].map(star => (
+                  <div className="flex gap-2">
+                    {[
+                      { value: 1, label: '매우불만족' },
+                      { value: 2, label: '불만족' },
+                      { value: 3, label: '보통' },
+                      { value: 4, label: '만족' },
+                      { value: 5, label: '매우만족' },
+                    ].map(({ value, label }) => (
                       <button
-                        key={star}
+                        key={value}
                         type="button"
-                        onClick={() => setRatings(r => r.map((v, i) => i === idx ? star : v))}
-                        className={`text-2xl transition-transform hover:scale-110 ${star <= ratings[idx] ? 'text-yellow-400' : 'text-gray-200'}`}
+                        onClick={() => setRatings(r => r.map((v, i) => i === idx ? value : v))}
+                        className={`flex-1 py-2 px-1 rounded-lg text-xs font-medium border transition-colors ${
+                          ratings[idx] === value
+                            ? 'bg-blue-600 border-blue-600 text-white'
+                            : 'bg-white border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-500'
+                        }`}
                       >
-                        ★
+                        {label}
                       </button>
                     ))}
-                    {ratings[idx] > 0 && (
-                      <span className="self-center text-xs text-gray-400 ml-1">{ratings[idx]}점</span>
-                    )}
                   </div>
                 )}
               </div>

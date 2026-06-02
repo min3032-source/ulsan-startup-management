@@ -466,7 +466,7 @@ export default function EducationDashboard() {
                     <div className="space-y-2">
                       {scoreDist.map(({ star, count, pct }) => (
                         <div key={star} className="flex items-center gap-3">
-                          <span className="text-xs text-gray-500 w-6 shrink-0">{star}점</span>
+                          <span className="text-xs text-gray-500 w-16 shrink-0">{{ 1: '매우불만족', 2: '불만족', 3: '보통', 4: '만족', 5: '매우만족' }[star]}</span>
                           <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
                             <div
                               className="h-full bg-amber-400 rounded-full transition-all"
