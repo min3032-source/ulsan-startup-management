@@ -846,16 +846,6 @@ export default function Budget() {
                   <div style={{ height: '5px', borderRadius: '999px', background: barColor(rate), width: `${Math.min(rate, 100)}%` }} />
                 </div>
                 <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '3px', textAlign: 'right' }}>{rate.toFixed(1)}%</div>
-                {!isViewer && (
-                  <button
-                    onClick={e => { e.stopPropagation(); setAiModal(prog) }}
-                    style={{ marginTop: '8px', width: '100%', padding: '5px 0', fontSize: '11px', background: '#eef2ff', color: '#3730a3', border: '1px solid #c7d2fe', borderRadius: '6px', cursor: 'pointer', fontWeight: '500' }}
-                    onMouseEnter={e => { e.currentTarget.style.background = '#e0e7ff' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = '#eef2ff' }}
-                  >
-                    📄 계획서로 업무 생성
-                  </button>
-                )}
               </div>
             )
           })}
