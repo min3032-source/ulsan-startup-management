@@ -98,11 +98,27 @@ function SectionTitle({ children }) {
   )
 }
 
-function FundModal({ form, setForm, onClose, onSave, saving, isEdit }) {
+function FundModal({ form, setForm, onClose, onSave, saving, isEdit, projectNames }) {
   const paid = PAY_MONTHS.reduce((s, m) => s + (Number(form[m.key]) || 0), 0) + (Number(form.extra_support) || 0)
   const budget = Number(form.total_budget) || 0
   const balance = budget - paid
   const execRate = budget > 0 ? Math.round(paid / budget * 100) : 0
+
+  // 사업명이 기존 목록에 없으면 직접입력 모드로 시작
+  const [useNew, setUseNew] = useState(
+    () => !!form.project_name && !projectNames.includes(form.project_name)
+  )
+  const selectValue = useNew ? '__new__' : (form.project_name || '')
+
+  function handleProjectSelect(val) {
+    if (val === '__new__') {
+      setUseNew(true)
+      setForm(p => ({ ...p, project_name: '' }))
+    } else {
+      setUseNew(false)
+      setForm(p => ({ ...p, project_name: val }))
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 overflow-y-auto py-8 px-4">
@@ -116,7 +132,31 @@ function FundModal({ form, setForm, onClose, onSave, saving, isEdit }) {
           {/* 기본 */}
           <div className="grid grid-cols-3 gap-3">
             <SectionTitle>기본 정보</SectionTitle>
-            <TextInput label="사업명 *" name="project_name" form={form} setForm={setForm} />
+
+            {/* 사업명 — 드롭다운 + 직접 입력 */}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">사업명 *</label>
+              <select
+                value={selectValue}
+                onChange={e => handleProjectSelect(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-blue-400 focus:outline-none"
+              >
+                <option value="">사업 선택</option>
+                {projectNames.map(n => <option key={n} value={n}>{n}</option>)}
+                <option value="__new__">＋ 새 사업명 직접 입력</option>
+              </select>
+              {useNew && (
+                <input
+                  type="text"
+                  value={form.project_name || ''}
+                  onChange={e => setForm(p => ({ ...p, project_name: e.target.value }))}
+                  placeholder="새 사업명 입력"
+                  className="mt-1.5 w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-blue-400 focus:outline-none"
+                  autoFocus
+                />
+              )}
+            </div>
+
             <TextInput label="기업명 *" name="company_name" form={form} setForm={setForm} />
             <TextInput label="대표자" name="representative" form={form} setForm={setForm} />
             <TextInput label="고용서류" name="employment_doc" form={form} setForm={setForm} />
@@ -311,7 +351,8 @@ export default function StartupFunds() {
     XLSX.writeFile(wb, `창업자지원금_${filterProject}_${new Date().toLocaleDateString('ko-KR').replace(/\. /g, '-').replace('.', '')}.xlsx`)
   }
 
-  const projectNames = ['전체', ...[...new Set(funds.map(f => f.project_name).filter(Boolean))]]
+  const projectNamesOnly = [...new Set(funds.map(f => f.project_name).filter(Boolean))]
+  const projectNames = ['전체', ...projectNamesOnly]
   const filtered = funds.filter(f => filterProject === '전체' || f.project_name === filterProject)
 
   // 합계
@@ -518,6 +559,7 @@ export default function StartupFunds() {
           onSave={save}
           saving={saving}
           isEdit={!!editTarget}
+          projectNames={projectNamesOnly}
         />
       )}
     </div>
