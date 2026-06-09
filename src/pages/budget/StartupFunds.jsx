@@ -416,7 +416,7 @@ export default function StartupFunds() {
       business_category: f.business_category || '',
       achievements: (Array.isArray(f.achievements) ? f.achievements : [])
         .map(a => ({ ...a, _id: uid() })),
-      note: f.note || '',
+      note: f.notes || '',
     })
     setShowModal(true)
   }
@@ -446,7 +446,7 @@ export default function StartupFunds() {
       business_start_date: form.business_start_date || null,
       business_category: form.business_category?.trim() || null,
       achievements: cleanAchievements.length > 0 ? cleanAchievements : null,
-      note: form.note?.trim() || null,
+      notes: form.note?.trim() || null,
     }
 
     const { error } = editTarget
@@ -489,7 +489,7 @@ export default function StartupFunds() {
         사업개시일: f.business_start_date,
         업태: f.business_category,
         '성과/매출': achTexts,
-        비고: f.note,
+        비고: f.notes,
       }
     })
     const ws = XLSX.utils.json_to_sheet(rows)
@@ -645,7 +645,7 @@ export default function StartupFunds() {
                   </td>
                   {/* 비고 */}
                   <td className={`${tdBase} max-w-[120px]`}>
-                    <span className="block truncate" title={f.note}>{f.note || '-'}</span>
+                    <span className="block truncate" title={f.notes}>{f.notes || '-'}</span>
                   </td>
                   {/* 관리 */}
                   {canWrite && (
