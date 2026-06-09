@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import AIWorkSuggestion from '../../components/AIWorkSuggestion'
+import StartupFunds from './StartupFunds'
 
 const formatAmount = n => (Number(n) || 0).toLocaleString('ko-KR')
 const parseAmount = s => parseInt((s || '').replace(/,/g, '') || '0') || 0
@@ -488,6 +489,7 @@ function ExcelUploadModal({ programId, onClose, onSaved }) {
 export default function Budget() {
   const { hasRole } = useAuth()
   const isViewer = !hasRole('manager')
+  const [budgetTab, setBudgetTab] = useState('budget')
 
   const [programs, setPrograms] = useState([])
   const [programSummary, setProgramSummary] = useState({})
@@ -782,7 +784,32 @@ export default function Budget() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* 연도별 사업 카드 */}
+      {/* 상단 탭 */}
+      <div className="bg-white border-b border-gray-200 px-6 pt-4">
+        <div className="flex gap-1">
+          {[
+            { id: 'budget', label: '사업비 관리' },
+            { id: 'funds', label: '창업자 지원금 관리' },
+          ].map(t => (
+            <button
+              key={t.id}
+              onClick={() => setBudgetTab(t.id)}
+              className={`px-5 py-2.5 text-sm font-medium rounded-t-lg border-b-2 transition-colors ${
+                budgetTab === t.id
+                  ? 'border-blue-600 text-blue-600 bg-blue-50/50'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {budgetTab === 'funds' && <StartupFunds />}
+
+      {budgetTab === 'budget' && (
+      <>{/* 연도별 사업 카드 */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         {/* 부서 필터 */}
         {depts.length > 1 && (
@@ -1016,6 +1043,7 @@ export default function Budget() {
           onSaved={() => {}}
         />
       )}
+      </>)}
     </div>
   )
 }
