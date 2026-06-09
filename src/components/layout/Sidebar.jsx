@@ -142,8 +142,8 @@ export default function Sidebar({ onClose }) {
       {/* 네비게이션 */}
       <nav className="flex-1 overflow-y-auto py-2">
         {navGroups.map(group => {
-          // 그룹 표시 여부 체크
-          if (!hasRole('admin')) {
+          // 마스터 외 모든 역할은 menu_permissions 필터 적용
+          if (profile?.role !== 'master') {
             const permKey = GROUP_PERM_KEY[group.label]
             if (permKey !== null) {
               const perms = profile?.menu_permissions
