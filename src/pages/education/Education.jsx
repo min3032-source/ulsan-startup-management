@@ -120,6 +120,11 @@ export default function Education() {
   const [editingProgramYear, setEditingProgramYear] = useState(new Date().getFullYear())
   const [approvalModal, setApprovalModal] = useState(null) // { app, selectedBusiness }
 
+  // 일괄 변경
+  const [selectedStudents, setSelectedStudents] = useState(new Set())
+  const [bulkStatus, setBulkStatus] = useState('')
+  const [bulkBusiness, setBulkBusiness] = useState('__no_change__')
+
   const [toast, setToast] = useState('')
   const [saving, setSaving] = useState(false)
   const [posterFile, setPosterFile] = useState(null)
@@ -203,6 +208,36 @@ export default function Education() {
       .eq('id', appId)
     if (error) { alert('사업 변경 실패: ' + error.message); return }
     setApplications(prev => prev.map(a => a.id === appId ? { ...a, related_program: businessName || null } : a))
+  }
+
+  async function applyBulkChanges() {
+    if (selectedStudents.size === 0) return
+    const hasStatusChange = bulkStatus !== ''
+    const hasBusinessChange = bulkBusiness !== '__no_change__'
+    if (!hasStatusChange && !hasBusinessChange) {
+      showToast('변경할 항목을 선택해주세요.')
+      return
+    }
+    const ids = [...selectedStudents]
+    const updates = {}
+    if (hasStatusChange) updates.status = bulkStatus
+    if (hasBusinessChange) updates.related_program = bulkBusiness || null
+
+    setSaving(true)
+    const { error } = await supabase.from('education_applications').update(updates).in('id', ids)
+    if (error) { alert('일괄 변경 실패: ' + error.message); setSaving(false); return }
+
+    if (hasStatusChange && bulkStatus === '수료') {
+      for (const id of ids) await issueCertificate(id)
+    }
+
+    const count = ids.length
+    setSelectedStudents(new Set())
+    setBulkStatus('')
+    setBulkBusiness('__no_change__')
+    showToast(`${count}명 변경되었습니다.`)
+    setSaving(false)
+    loadAll()
   }
 
   function defaultStudentForm() {
@@ -697,10 +732,61 @@ export default function Education() {
             </div>
           </div>
 
+          {selectedStudents.size > 0 && (
+            <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl">
+              <span className="text-sm font-medium text-blue-700">{selectedStudents.size}명 선택됨</span>
+              <select
+                value={bulkStatus}
+                onChange={e => setBulkStatus(e.target.value)}
+                className="text-sm border border-blue-300 rounded-lg px-2.5 py-1.5 bg-white text-gray-700"
+              >
+                <option value="">상태 변경 없음</option>
+                {APP_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <select
+                value={bulkBusiness}
+                onChange={e => setBulkBusiness(e.target.value)}
+                className="text-sm border border-blue-300 rounded-lg px-2.5 py-1.5 bg-white text-gray-700"
+              >
+                <option value="__no_change__">참여사업 변경 없음</option>
+                <option value="">미지정</option>
+                {relatedPrograms.map(rp => <option key={rp.id} value={rp.name}>{rp.name}</option>)}
+              </select>
+              <button
+                onClick={applyBulkChanges}
+                disabled={saving}
+                className="px-4 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 transition"
+              >
+                적용
+              </button>
+              <button
+                onClick={() => setSelectedStudents(new Set())}
+                className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700"
+              >
+                선택 해제
+              </button>
+            </div>
+          )}
+
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="px-4 py-2.5">
+                    <input
+                      type="checkbox"
+                      checked={filteredApps.length > 0 && filteredApps.every(a => selectedStudents.has(a.id))}
+                      ref={el => { if (el) el.indeterminate = filteredApps.some(a => selectedStudents.has(a.id)) && !filteredApps.every(a => selectedStudents.has(a.id)) }}
+                      onChange={e => {
+                        if (e.target.checked) {
+                          setSelectedStudents(new Set(filteredApps.map(a => a.id)))
+                        } else {
+                          setSelectedStudents(new Set())
+                        }
+                      }}
+                      className="rounded border-gray-300 cursor-pointer"
+                    />
+                  </th>
                   {['이름', '기업명', '연락처', '이메일', '프로그램', '신청일', '상태', '참여 사업', '출석률', '만족도조사', '관리'].map(h => (
                     <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
                   ))}
@@ -708,9 +794,22 @@ export default function Education() {
               </thead>
               <tbody>
                 {filteredApps.length === 0 ? (
-                  <tr><td colSpan={11} className="text-center py-10 text-gray-400">수강생이 없습니다</td></tr>
+                  <tr><td colSpan={12} className="text-center py-10 text-gray-400">수강생이 없습니다</td></tr>
                 ) : filteredApps.map(a => (
-                  <tr key={a.id} className="border-b border-gray-50 hover:bg-gray-50">
+                  <tr key={a.id} className={`border-b border-gray-50 hover:bg-gray-50 ${selectedStudents.has(a.id) ? 'bg-blue-50' : ''}`}>
+                    <td className="px-4 py-2.5">
+                      <input
+                        type="checkbox"
+                        checked={selectedStudents.has(a.id)}
+                        onChange={e => {
+                          const next = new Set(selectedStudents)
+                          if (e.target.checked) next.add(a.id)
+                          else next.delete(a.id)
+                          setSelectedStudents(next)
+                        }}
+                        className="rounded border-gray-300 cursor-pointer"
+                      />
+                    </td>
                     <td className="px-4 py-2.5 text-xs font-medium text-gray-800">
                       {a.applicant_name}
                       {a.founder_id && (
