@@ -53,6 +53,18 @@ export default function Apply() {
   const [stages, setStages] = useState([])
 
   useEffect(() => {
+    document.title = '창업지원 상담 신청 | 울산경제일자리진흥원'
+    const setMeta = (prop, val) => {
+      let el = document.querySelector(`meta[property="${prop}"]`)
+      if (!el) { el = document.createElement('meta'); el.setAttribute('property', prop); document.head.appendChild(el) }
+      el.setAttribute('content', val)
+    }
+    setMeta('og:title', '창업지원 상담 신청')
+    setMeta('og:description', '울산경제일자리진흥원 창업지원 상담을 신청하세요.')
+    setMeta('og:url', window.location.href)
+  }, [])
+
+  useEffect(() => {
     supabase.from('team_settings').select('stages').single().then(({ data }) => {
       if (data?.stages) setStages(data.stages)
     })

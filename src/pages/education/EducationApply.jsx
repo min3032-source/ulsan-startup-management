@@ -30,6 +30,18 @@ export default function EducationApply() {
   const [posterModal, setPosterModal] = useState(null) // poster_url string
 
   useEffect(() => {
+    document.title = '울산 창업 교육신청 | 울산경제일자리진흥원'
+    const setMeta = (prop, val) => {
+      let el = document.querySelector(`meta[property="${prop}"]`)
+      if (!el) { el = document.createElement('meta'); el.setAttribute('property', prop); document.head.appendChild(el) }
+      el.setAttribute('content', val)
+    }
+    setMeta('og:title', '울산 창업 교육신청')
+    setMeta('og:description', '울산경제일자리진흥원 창업 교육 신청 사이트입니다.')
+    setMeta('og:url', 'https://study.ubpi.or.kr')
+  }, [])
+
+  useEffect(() => {
     async function load() {
       const { data } = await supabase
         .from('education_programs')
