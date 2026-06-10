@@ -39,7 +39,7 @@ function calcRow(f) {
   return {
     total_paid: paid,
     balance: budget - paid,
-    exec_rate: budget > 0 ? Math.round(paid / budget * 100) : 0,
+    exec_rate: budget > 0 ? parseFloat((paid / budget * 100).toFixed(2)) : 0,
   }
 }
 
@@ -86,7 +86,7 @@ function FundModal({ form, setForm, onClose, onSave, saving, isEdit, budgetProgr
   const paid = (form.monthly_payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0)
   const budget = Number(form.total_budget) || 0
   const balance = budget - paid
-  const execRate = budget > 0 ? Math.round(paid / budget * 100) : 0
+  const execRate = budget > 0 ? parseFloat((paid / budget * 100).toFixed(2)) : 0
 
   const [useNew, setUseNew] = useState(
     () => !!form.project_name && !budgetProgramNames.includes(form.project_name)
@@ -205,7 +205,7 @@ function FundModal({ form, setForm, onClose, onSave, saving, isEdit, budgetProgr
             <div className="col-span-2 grid grid-cols-3 gap-2 p-3 bg-gray-50 rounded-lg text-xs">
               <div><span className="text-gray-500">총지급액</span><br /><span className="font-semibold">{fmt(paid)}원</span></div>
               <div><span className="text-gray-500">잔액</span><br /><span className={`font-semibold ${balance < 0 ? 'text-red-600' : 'text-green-700'}`}>{fmt(balance)}원</span></div>
-              <div><span className="text-gray-500">집행률</span><br /><span className="font-semibold">{execRate}%</span></div>
+              <div><span className="text-gray-500">집행률</span><br /><span className="font-semibold">{execRate.toFixed(2)}%</span></div>
             </div>
           </div>
 
@@ -516,7 +516,7 @@ export default function StartupFunds() {
   const totalPaidSum = filtered.reduce((s, f) => s + calcRow(f).total_paid, 0)
   const balanceSum = filtered.reduce((s, f) => s + calcRow(f).balance, 0)
   const avgExecRate = filtered.length > 0
-    ? Math.round(filtered.reduce((s, f) => s + calcRow(f).exec_rate, 0) / filtered.length)
+    ? parseFloat((filtered.reduce((s, f) => s + calcRow(f).exec_rate, 0) / filtered.length).toFixed(2))
     : 0
   const monthSum = m => filtered.reduce((s, f) => {
     const p = (Array.isArray(f.monthly_payments) ? f.monthly_payments : []).find(p => p.month === m)
@@ -616,7 +616,7 @@ export default function StartupFunds() {
                   <td className={`${tdNum} ${balance < 0 ? 'text-red-600 font-medium' : ''}`}>{fmt(balance)}</td>
                   <td className={tdBase}>
                     <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${exec_rate >= 80 ? 'bg-green-100 text-green-700' : exec_rate >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600'}`}>
-                      {exec_rate}%
+                      {exec_rate.toFixed(2)}%
                     </span>
                   </td>
                   {/* 동적 월별 지원금 */}
@@ -671,7 +671,7 @@ export default function StartupFunds() {
                 <td className={`${tdFoot} ${balanceSum < 0 ? 'text-red-600' : ''}`}>{fmt(balanceSum)}</td>
                 <td className="text-center px-2 py-2 text-xs font-semibold bg-gray-50">
                   <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${avgExecRate >= 80 ? 'bg-green-100 text-green-700' : avgExecRate >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600'}`}>
-                    평균 {avgExecRate}%
+                    평균 {avgExecRate.toFixed(2)}%
                   </span>
                 </td>
                 {allMonths.map(m => <td key={m} className={tdFoot}>{fmt(monthSum(m))}</td>)}
