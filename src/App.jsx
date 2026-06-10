@@ -16,6 +16,7 @@ import Growth from './pages/growth/Growth'
 import Report from './pages/report/Report'
 import Settings from './pages/settings/Settings'
 import Apply from './pages/apply/Apply'
+import ConsultApply from './pages/consult/ConsultApply'
 import ExpertApply from './pages/expert-apply/ExpertApply'
 import Founders from './pages/founders/Founders'
 import Education from './pages/education/Education'
@@ -78,6 +79,7 @@ function AppRoutes() {
 
       <Route path="/login" element={(user && profile) ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/apply" element={<Apply />} />
+      <Route path="/consult" element={<ConsultApply />} />
       <Route path="/expert-apply" element={<ExpertApply />} />
       <Route path="/education-apply" element={<EducationApply />} />
       <Route path="/certificate/:id" element={<Certificate />} />
