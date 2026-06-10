@@ -128,6 +128,8 @@ export default function Education() {
   const [toast, setToast] = useState('')
   const [saving, setSaving] = useState(false)
   const [posterFile, setPosterFile] = useState(null)
+  const [filterStatus, setFilterStatus] = useState('')
+  const [doneExpanded, setDoneExpanded] = useState(false)
 
   useEffect(() => { loadAll() }, [])
 
@@ -557,6 +559,51 @@ export default function Education() {
     done: programs.filter(p => p.status === '완료').length,
   }
 
+  const sortByStartAsc = arr => [...arr].sort((a, b) => (a.start_date || '') < (b.start_date || '') ? -1 : 1)
+  const sortByEndDesc  = arr => [...arr].sort((a, b) => (a.end_date   || '') > (b.end_date   || '') ? -1 : 1)
+
+  const progGroups = {
+    '모집중': sortByStartAsc(programs.filter(p => p.status === '모집중')),
+    '진행중': sortByStartAsc(programs.filter(p => p.status === '진행중')),
+    '완료':   sortByEndDesc(programs.filter(p => p.status === '완료')),
+  }
+
+  const filteredPrograms = filterStatus ? (progGroups[filterStatus] ?? []) : []
+
+  function renderProgramRows(list) {
+    return list.map(p => {
+      const enrolled = appsByProgram(p.id).length
+      return (
+        <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50">
+          <td className="px-4 py-2.5">
+            <button onClick={() => setStudentsModal(p)} className="font-medium text-blue-600 hover:underline text-xs">{p.title}</button>
+          </td>
+          <td className="px-4 py-2.5"><span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">{p.category}</span></td>
+          <td className="px-4 py-2.5 text-xs text-gray-600">{p.program_type}</td>
+          <td className="px-4 py-2.5 text-xs text-gray-500">
+            {p.start_date && <span>{p.start_date}{p.start_time ? ' ' + String(p.start_time).slice(0, 5) : ''}{' ~ '}{p.end_date}{p.end_time ? ' ' + String(p.end_time).slice(0, 5) : ''}</span>}
+          </td>
+          <td className="px-4 py-2.5 text-xs text-gray-600">{p.total_hours ? `${p.total_hours}시간 (${p.total_sessions}회)` : '-'}</td>
+          <td className="px-4 py-2.5 text-xs text-gray-600">{enrolled}명 / {p.max_participants ? `${p.max_participants}명` : '제한없음'}</td>
+          <td className="px-4 py-2.5 text-xs text-gray-600">{p.assignee || '-'}</td>
+          <td className="px-4 py-2.5">
+            <span className={`px-2 py-0.5 text-xs rounded font-medium ${STATUS_COLOR[p.status] || 'bg-gray-100 text-gray-500'}`}>{p.status}</span>
+          </td>
+          <td className="px-4 py-2.5">
+            {canWrite && (
+              <div className="flex gap-1.5">
+                <button onClick={() => openEditProgram(p)} className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">수정</button>
+                <button onClick={() => deleteProgram(p.id)} className="text-xs px-2 py-1 border border-red-200 text-red-500 rounded hover:bg-red-50">삭제</button>
+              </div>
+            )}
+          </td>
+        </tr>
+      )
+    })
+  }
+
+  const TABLE_HEADERS = ['교육명', '카테고리', '유형', '기간', '교육시간', '수강인원/정원', '담당자', '상태', '관리']
+
   return (
     <div className="p-6 space-y-5">
       {toast && (
@@ -588,98 +635,129 @@ export default function Education() {
       {/* ─── 탭 1: 교육 프로그램 ─── */}
       {tab === 'programs' && (
         <div className="space-y-4">
+          {/* 요약 카드 — 클릭 시 해당 상태 필터 */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="전체 프로그램" value={`${stats.total}개`} color="blue" />
-            <StatCard label="모집중"         value={`${stats.recruiting}개`} color="teal" />
-            <StatCard label="진행중"         value={`${stats.ongoing}개`}   color="orange" />
-            <StatCard label="완료"           value={`${stats.done}개`}      color="green" />
+            {[
+              { label: '전체 프로그램', value: `${stats.total}개`,      color: 'blue',   key: '' },
+              { label: '모집중',        value: `${stats.recruiting}개`, color: 'teal',   key: '모집중' },
+              { label: '진행중',        value: `${stats.ongoing}개`,    color: 'orange', key: '진행중' },
+              { label: '완료',          value: `${stats.done}개`,       color: 'green',  key: '완료' },
+            ].map(s => (
+              <button
+                key={s.key}
+                onClick={() => setFilterStatus(prev => prev === s.key ? '' : s.key)}
+                className={`text-left w-full rounded-xl transition-all ${filterStatus === s.key ? 'ring-2 ring-offset-2 ring-blue-400' : 'hover:opacity-80'}`}
+              >
+                <StatCard label={s.label} value={s.value} color={s.color} />
+              </button>
+            ))}
           </div>
 
-          <div className="flex justify-end gap-2">
-            {hasRole('admin') && (
-              <button
-                onClick={() => setShowRelatedProgramModal(true)}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition"
-              >
-                사업명 관리
-              </button>
-            )}
-            {canWrite && (
-              <button
-                onClick={openAddProgram}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm text-white rounded-lg font-medium"
-                style={{ background: '#2E75B6' }}
-              >
-                <Plus size={15} /> 프로그램 등록
-              </button>
-            )}
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              {filterStatus && (
+                <button
+                  onClick={() => setFilterStatus('')}
+                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 px-2.5 py-1.5 border border-gray-300 rounded-lg"
+                >
+                  <X size={12} /> 필터 해제 ({filterStatus})
+                </button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              {hasRole('admin') && (
+                <button onClick={() => setShowRelatedProgramModal(true)} className="flex items-center gap-1.5 px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition">
+                  사업명 관리
+                </button>
+              )}
+              {canWrite && (
+                <button onClick={openAddProgram} className="flex items-center gap-1.5 px-4 py-2 text-sm text-white rounded-lg font-medium" style={{ background: '#2E75B6' }}>
+                  <Plus size={15} /> 프로그램 등록
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  {['교육명', '카테고리', '유형', '기간', '교육시간', '수강인원/정원', '담당자', '상태', '관리'].map(h => (
-                    <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={9} className="text-center py-10 text-gray-400">로딩 중...</td></tr>
-                ) : programs.length === 0 ? (
-                  <tr><td colSpan={9} className="text-center py-10 text-gray-400">등록된 프로그램이 없습니다</td></tr>
-                ) : programs.map(p => {
-                  const enrolled = appsByProgram(p.id).length
-                  return (
-                    <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="px-4 py-2.5">
-                        <button
-                          onClick={() => setStudentsModal(p)}
-                          className="font-medium text-blue-600 hover:underline text-xs"
-                        >
-                          {p.title}
-                        </button>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">{p.category}</span>
-                      </td>
-                      <td className="px-4 py-2.5 text-xs text-gray-600">{p.program_type}</td>
-                      <td className="px-4 py-2.5 text-xs text-gray-500">
-                        {p.start_date && (
-                          <span>
-                            {p.start_date}{p.start_time ? ' ' + String(p.start_time).slice(0, 5) : ''}
-                            {' ~ '}
-                            {p.end_date}{p.end_time ? ' ' + String(p.end_time).slice(0, 5) : ''}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5 text-xs text-gray-600">
-                        {p.total_hours ? `${p.total_hours}시간 (${p.total_sessions}회)` : '-'}
-                      </td>
-                      <td className="px-4 py-2.5 text-xs text-gray-600">
-                        {enrolled}명 / {p.max_participants ? `${p.max_participants}명` : '제한없음'}
-                      </td>
-                      <td className="px-4 py-2.5 text-xs text-gray-600">{p.assignee || '-'}</td>
-                      <td className="px-4 py-2.5">
-                        <span className={`px-2 py-0.5 text-xs rounded font-medium ${STATUS_COLOR[p.status] || 'bg-gray-100 text-gray-500'}`}>
-                          {p.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        {canWrite && (
-                          <div className="flex gap-1.5">
-                            <button onClick={() => openEditProgram(p)} className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">수정</button>
-                            <button onClick={() => deleteProgram(p.id)} className="text-xs px-2 py-1 border border-red-200 text-red-500 rounded hover:bg-red-50">삭제</button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          {loading ? (
+            <div className="text-center py-10 text-gray-400">로딩 중...</div>
+          ) : filterStatus ? (
+            /* ── 특정 상태 필터 적용: 단일 테이블 ── */
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    {TABLE_HEADERS.map(h => <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPrograms.length === 0
+                    ? <tr><td colSpan={9} className="text-center py-10 text-gray-400">해당 상태의 프로그램이 없습니다</td></tr>
+                    : renderProgramRows(filteredPrograms)
+                  }
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            /* ── 전체 보기: 상태별 섹션 ── */
+            <div className="space-y-5">
+              {(['모집중', '진행중'] ).map(status => (
+                <div key={status}>
+                  <div className={`flex items-center gap-2 mb-2 px-1`}>
+                    <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${STATUS_COLOR[status]}`}>{status}</span>
+                    <span className="text-xs text-gray-400">{progGroups[status].length}개</span>
+                  </div>
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-100">
+                          {TABLE_HEADERS.map(h => <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {progGroups[status].length === 0
+                          ? <tr><td colSpan={9} className="text-center py-6 text-gray-400 text-xs">{status} 프로그램이 없습니다</td></tr>
+                          : renderProgramRows(progGroups[status])
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+
+              {/* 완료 — 접힘 토글 */}
+              <div>
+                <button
+                  onClick={() => setDoneExpanded(v => !v)}
+                  className="flex items-center gap-2 mb-2 px-1 w-full text-left"
+                >
+                  <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${STATUS_COLOR['완료']}`}>완료</span>
+                  <span className="text-xs text-gray-400">{progGroups['완료'].length}개</span>
+                  {doneExpanded ? <ChevronUp size={14} className="text-gray-400 ml-auto" /> : <ChevronDown size={14} className="text-gray-400 ml-auto" />}
+                </button>
+                {doneExpanded && (
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-100">
+                          {TABLE_HEADERS.map(h => <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {progGroups['완료'].length === 0
+                          ? <tr><td colSpan={9} className="text-center py-6 text-gray-400 text-xs">완료된 프로그램이 없습니다</td></tr>
+                          : renderProgramRows(progGroups['완료'])
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {programs.length === 0 && (
+                <div className="text-center py-10 text-gray-400">등록된 프로그램이 없습니다</div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
