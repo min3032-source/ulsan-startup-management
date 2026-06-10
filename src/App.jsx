@@ -47,7 +47,8 @@ function PrivateRoute({ children }) {
 function AppRoutes() {
   const { user, profile, loading } = useAuth()
   const hostname = window.location.hostname
-  const isStudyDomain = hostname === 'study.ubpi.or.kr'
+  const isStudyDomain   = hostname === 'study.ubpi.or.kr'
+  const isConsultDomain = hostname === 'consult.ubpi.or.kr'
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -63,6 +64,16 @@ function AppRoutes() {
         <Route path="/certificate/:id" element={<Certificate />} />
         <Route path="/student-portal" element={<StudentPortal />} />
         <Route path="*" element={<Navigate to="/education-apply" replace />} />
+      </Routes>
+    )
+  }
+
+  // consult.ubpi.or.kr: 상담 신청 전용 도메인
+  if (isConsultDomain) {
+    return (
+      <Routes>
+        <Route path="/consult" element={<ConsultApply />} />
+        <Route path="*" element={<Navigate to="/consult" replace />} />
       </Routes>
     )
   }

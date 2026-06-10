@@ -4,17 +4,9 @@ import { formatPhone } from '../../utils/formatPhone'
 import { CheckCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import PublicHeader from '../../components/common/PublicHeader'
 
-const STAGES = ['예비창업자', '초기창업자', '성장기창업자']
+const STAGES = ['예비창업', '초기창업(1년 미만)', '성장기(1~3년)', '기타']
 
-const CONSULT_FIELDS = [
-  '아이템 발굴/검증',
-  '사업계획서 작성',
-  '마케팅/홍보',
-  '자금/투자',
-  '법인설립/인허가',
-  '정부지원사업',
-  '기타',
-]
+const CONSULT_FIELDS = ['사업계획', '자금조달', '마케팅', '기술개발', '법률/세무', '기타']
 
 const HOLIDAYS_2026 = [
   '2026-01-01', '2026-02-16', '2026-02-17', '2026-02-18',
@@ -67,7 +59,7 @@ export default function ConsultApply() {
     }
     setMeta('og:title', '창업지원 상담 신청')
     setMeta('og:description', '울산경제일자리진흥원 창업지원 상담을 신청하세요.')
-    setMeta('og:url', window.location.href)
+    setMeta('og:url', 'https://consult.ubpi.or.kr')
   }, [])
 
   function set(k, v) { setForm(p => ({ ...p, [k]: v })) }
@@ -77,19 +69,19 @@ export default function ConsultApply() {
   async function handleSubmit() {
     if (!privacyAgreed) { setError('개인정보 수집·이용에 동의해주세요.'); return }
     setSubmitting(true); setError('')
-    const { error } = await supabase.from('founders').insert({
+    const now = new Date().toISOString()
+    const { error } = await supabase.from('consult_applications').insert({
       name: form.name,
       phone: form.phone,
       email: form.email || null,
       stage: form.stage || null,
-      consult_status: 'pending',
-      source: '온라인상담신청',
-      notes: JSON.stringify({
-        consult_field: form.consult_field,
-        preferred_date: form.preferred_date || null,
-        preferred_time: form.preferred_time || null,
-        inquiry: form.inquiry,
-      }),
+      consult_field: form.consult_field || null,
+      preferred_date: form.preferred_date || null,
+      preferred_time: form.preferred_time || null,
+      inquiry: form.inquiry || null,
+      status: 'pending',
+      privacy_agreed: true,
+      privacy_agreed_at: now,
     })
     setSubmitting(false)
     if (error) { setError(`제출 오류: ${error.message}`); return }
@@ -105,11 +97,12 @@ export default function ConsultApply() {
             style={{ background: '#EBF3FB' }}>
             <CheckCircle size={40} style={{ color: '#2E75B6' }} />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-3">신청이 완료되었습니다!</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-3">상담 신청이 완료되었습니다.</h1>
           <p className="text-gray-500 text-sm leading-relaxed mb-8">
-            담당자가 신청 내용을 검토 후<br />
-            <strong>{form.phone}</strong>으로 연락드리겠습니다.<br />
-            {form.preferred_date && `(희망 상담일: ${form.preferred_date} ${form.preferred_time})`}
+            담당자가 확인 후 연락드리겠습니다.<br />
+            {form.preferred_date && (
+              <span className="mt-1 block">(희망 상담일: {form.preferred_date}{form.preferred_time ? ' ' + form.preferred_time : ''})</span>
+            )}
           </p>
           <div className="bg-white rounded-xl border border-gray-200 p-5 text-left mb-8 shadow-sm">
             <div className="text-sm font-bold text-gray-700 mb-3">접수 내용 요약</div>
@@ -163,10 +156,10 @@ export default function ConsultApply() {
         <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-4">
           <h2 className="text-sm font-bold text-gray-700 pb-2 border-b border-gray-100">창업 정보</h2>
           <Field label="창업단계">
-            <div className="flex gap-2 flex-wrap">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {STAGES.map(s => (
-                <button key={s} type="button" onClick={() => set('stage', s)}
-                  className={`flex-1 py-2 rounded-lg text-sm border-2 font-medium transition-all ${
+                <button key={s} type="button" onClick={() => set('stage', form.stage === s ? '' : s)}
+                  className={`py-2 px-3 rounded-lg text-xs border-2 font-medium transition-all text-center ${
                     form.stage === s
                       ? 'border-blue-500 bg-blue-50 text-blue-700'
                       : 'border-gray-200 text-gray-500 hover:border-gray-300'
@@ -177,18 +170,26 @@ export default function ConsultApply() {
             </div>
           </Field>
           <Field label="희망 상담 분야">
-            <select value={form.consult_field} onChange={e => set('consult_field', e.target.value)} className={inp()}>
-              <option value="">분야 선택</option>
-              {CONSULT_FIELDS.map(f => <option key={f}>{f}</option>)}
-            </select>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {CONSULT_FIELDS.map(f => (
+                <button key={f} type="button" onClick={() => set('consult_field', form.consult_field === f ? '' : f)}
+                  className={`py-2 px-3 rounded-lg text-xs border-2 font-medium transition-all text-center ${
+                    form.consult_field === f
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}>
+                  {f}
+                </button>
+              ))}
+            </div>
           </Field>
         </div>
 
         {/* 상담 신청 */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-4">
-          <h2 className="text-sm font-bold text-gray-700 pb-2 border-b border-gray-100">상담 신청</h2>
+          <h2 className="text-sm font-bold text-gray-700 pb-2 border-b border-gray-100">상담 일정 및 문의</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="희망 상담일">
+            <Field label="희망 상담 날짜">
               <input type="date" value={form.preferred_date} min={today()}
                 onChange={e => { set('preferred_date', e.target.value); set('preferred_time', '') }}
                 className={inp()} />
@@ -196,7 +197,7 @@ export default function ConsultApply() {
                 <p className="text-red-500 text-xs mt-1">주말 및 공휴일은 선택할 수 없습니다.</p>
               )}
             </Field>
-            <Field label="희망 시간">
+            <Field label="희망 상담 시간">
               <select value={form.preferred_time}
                 onChange={e => set('preferred_time', e.target.value)}
                 disabled={!form.preferred_date || !isValidDate(form.preferred_date)}
