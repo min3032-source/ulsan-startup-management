@@ -13,11 +13,13 @@ const MONTH_LABELS = {
 }
 const ALL_MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 const ACHIEVEMENT_TYPES = ['고용', '매출', '지식재산권', '기타']
+const YEARS = [2024, 2025, 2026]
 
 let _uid = 0
 const uid = () => `id_${++_uid}`
 
 const DEFAULT_FORM = {
+  year: new Date().getFullYear(),
   project_name: '',
   company_name: '',
   representative: '',
@@ -166,8 +168,20 @@ function FundModal({ form, setForm, onClose, onSave, saving, isEdit, budgetProgr
         <div className="px-6 py-5 space-y-6 max-h-[76vh] overflow-y-auto">
 
           {/* 기본 정보 */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-4 gap-3">
             <SectionTitle>기본 정보</SectionTitle>
+
+            {/* 연도 */}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">연도 *</label>
+              <select
+                value={form.year || new Date().getFullYear()}
+                onChange={e => setForm(p => ({ ...p, year: Number(e.target.value) }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-blue-400 focus:outline-none"
+              >
+                {YEARS.map(y => <option key={y} value={y}>{y}년</option>)}
+              </select>
+            </div>
 
             {/* 사업명 */}
             <div>
@@ -369,7 +383,8 @@ export default function StartupFunds() {
   const [funds, setFunds] = useState([])
   const [budgetPrograms, setBudgetPrograms] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filterProject, setFilterProject] = useState('전체')
+  const [filterYear, setFilterYear] = useState(new Date().getFullYear())
+  const [filterProject, setFilterProject] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editTarget, setEditTarget] = useState(null)
   const [form, setForm] = useState(DEFAULT_FORM)
@@ -392,7 +407,8 @@ export default function StartupFunds() {
     setEditTarget(null)
     setForm({
       ...DEFAULT_FORM,
-      project_name: filterProject !== '전체' ? filterProject : '',
+      year: filterYear,
+      project_name: filterProject || '',
       monthly_payments: [],
       achievements: [],
     })
@@ -403,6 +419,7 @@ export default function StartupFunds() {
     setEditTarget(f)
     setForm({
       ...DEFAULT_FORM,
+      year: f.year || new Date().getFullYear(),
       project_name: f.project_name || '',
       company_name: f.company_name || '',
       representative: f.representative || '',
@@ -435,6 +452,7 @@ export default function StartupFunds() {
       .map(({ type, content, value }) => ({ type, content: content || '', value: Number(value) || 0 }))
 
     const payload = {
+      year: Number(form.year) || new Date().getFullYear(),
       project_name: form.project_name.trim(),
       company_name: form.company_name?.trim() || null,
       representative: form.representative?.trim() || null,
@@ -495,16 +513,23 @@ export default function StartupFunds() {
     const ws = XLSX.utils.json_to_sheet(rows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, '창업자지원금')
-    XLSX.writeFile(wb, `창업자지원금_${filterProject}_${new Date().toLocaleDateString('ko-KR').replace(/\. /g, '-').replace('.', '')}.xlsx`)
+    XLSX.writeFile(wb, `창업자지원금_${filterYear}_${filterProject || '전체'}_${new Date().toLocaleDateString('ko-KR').replace(/\. /g, '-').replace('.', '')}.xlsx`)
   }
 
-  // 사업명 목록: budget_programs 우선, 없으면 funds에서 수집
+  // 연도별 사업명 목록: budget_programs 우선, 없으면 funds에서 수집
   const budgetProgramNames = budgetPrograms.length > 0
     ? [...new Set(budgetPrograms.map(p => p.name).filter(Boolean))]
     : [...new Set(funds.map(f => f.project_name).filter(Boolean))]
 
-  const projectNames = ['전체', ...[...new Set(funds.map(f => f.project_name).filter(Boolean))]]
-  const filtered = funds.filter(f => filterProject === '전체' || f.project_name === filterProject)
+  const projectNamesForYear = budgetPrograms.length > 0
+    ? [...new Set(budgetPrograms.filter(p => !p.year || p.year === filterYear).map(p => p.name).filter(Boolean))]
+    : [...new Set(funds.filter(f => !f.year || f.year === filterYear).map(f => f.project_name).filter(Boolean))]
+
+  const filtered = funds.filter(f => {
+    const yearMatch = f.year == null || f.year === filterYear
+    const projectMatch = !filterProject || f.project_name === filterProject
+    return yearMatch && projectMatch
+  })
 
   // 테이블에 표시할 동적 월 목록 (데이터에 있는 월만)
   const allMonths = [...new Set(
@@ -540,13 +565,23 @@ export default function StartupFunds() {
     <div className="p-6 space-y-4">
       {/* 컨트롤 바 */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <select
-          value={filterProject}
-          onChange={e => setFilterProject(e.target.value)}
-          className="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white"
-        >
-          {projectNames.map(n => <option key={n} value={n}>{n}</option>)}
-        </select>
+        <div className="flex items-center gap-2">
+          <select
+            value={filterYear}
+            onChange={e => { setFilterYear(Number(e.target.value)); setFilterProject('') }}
+            className="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white"
+          >
+            {YEARS.map(y => <option key={y} value={y}>{y}년</option>)}
+          </select>
+          <select
+            value={filterProject}
+            onChange={e => setFilterProject(e.target.value)}
+            className="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white min-w-[160px]"
+          >
+            <option value="">담당사업 전체</option>
+            {projectNamesForYear.map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
         <div className="flex gap-2">
           <button
             onClick={downloadExcel}
