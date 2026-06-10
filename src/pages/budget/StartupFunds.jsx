@@ -385,6 +385,7 @@ export default function StartupFunds() {
   const [loading, setLoading] = useState(true)
   const [filterYear, setFilterYear] = useState(new Date().getFullYear())
   const [filterProject, setFilterProject] = useState('')
+  const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editTarget, setEditTarget] = useState(null)
   const [form, setForm] = useState(DEFAULT_FORM)
@@ -528,7 +529,11 @@ export default function StartupFunds() {
   const filtered = funds.filter(f => {
     const yearMatch = f.year == null || f.year === filterYear
     const projectMatch = !filterProject || f.project_name === filterProject
-    return yearMatch && projectMatch
+    const q = search.trim().toLowerCase()
+    const searchMatch = !q ||
+      (f.company_name || '').toLowerCase().includes(q) ||
+      (f.representative || '').toLowerCase().includes(q)
+    return yearMatch && projectMatch && searchMatch
   })
 
   // 테이블에 표시할 동적 월 목록 (데이터에 있는 월만)
@@ -581,6 +586,13 @@ export default function StartupFunds() {
             <option value="">담당사업 전체</option>
             {projectNamesForYear.map(n => <option key={n} value={n}>{n}</option>)}
           </select>
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="기업명 또는 대표자 검색"
+            className="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white min-w-[200px] focus:outline-none focus:ring-1 focus:ring-blue-400"
+          />
         </div>
         <div className="flex gap-2">
           <button
