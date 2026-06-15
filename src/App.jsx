@@ -27,6 +27,12 @@ import StudentPortal from './pages/education/StudentPortal'
 import Budget from './pages/budget/Budget'
 import BudgetDashboard from './pages/budget/BudgetDashboard'
 import BudgetReport from './pages/budget/BudgetReport'
+import WorkPoolPage from './pages/work/WorkPoolPage'
+import WorkAssignPage from './pages/work/WorkAssignPage'
+import EmployeePage from './pages/work/EmployeePage'
+import ManagerPage from './pages/work/ManagerPage'
+import DirectorPage from './pages/work/DirectorPage'
+import WorkAdminPage from './pages/work/AdminPage'
 import MentoringLogin from './pages/mentor-portal/MentoringLogin'
 import MentoringDashboard from './pages/mentor-portal/MentoringDashboard'
 import MentoringPlan from './pages/mentor-portal/MentoringPlan'
@@ -116,6 +122,12 @@ function AppRoutes() {
         <Route path="budget" element={<Budget />} />
         <Route path="budget/dashboard" element={<BudgetDashboard />} />
         <Route path="budget/report" element={<BudgetReport />} />
+        <Route path="work/pool" element={<WorkPoolPage />} />
+        <Route path="work/assign" element={<WorkAssignPage />} />
+        <Route path="work/employee" element={<EmployeePage />} />
+        <Route path="work/manager" element={<ManagerPage />} />
+        <Route path="work/director" element={<DirectorPage />} />
+        <Route path="work/admin" element={<WorkAdminPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

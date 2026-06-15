@@ -3,7 +3,7 @@ import {
   LayoutDashboard, BarChart3, UserPlus, MessageSquare, Database,
   Users, UserCheck, Link2, Building, TrendingUp, LineChart,
   FileText, Settings, LogOut, ChevronRight, X, Award, BookOpen, Wallet,
-  ClipboardList
+  ClipboardList, Briefcase, ListTodo, UserCog, GitBranch, BarChart2
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
@@ -57,6 +57,17 @@ const navGroups = [
     ]
   },
   {
+    label: '업무분장',
+    items: [
+      { to: '/work/pool',     icon: ListTodo,   label: '업무 풀' },
+      { to: '/work/assign',   icon: GitBranch,  label: '업무 배분' },
+      { to: '/work/employee', icon: Briefcase,  label: '내 업무' },
+      { to: '/work/manager',  icon: Users,      label: '팀장 대시보드' },
+      { to: '/work/director', icon: BarChart2,  label: '부장·원장 현황' },
+      { to: '/work/admin',    icon: UserCog,    label: '직원 관리' },
+    ]
+  },
+  {
     label: '보고·설정',
     items: [
       { to: '/report',   icon: FileText, label: '성과 보고' },
@@ -72,6 +83,7 @@ const GROUP_PERM_KEY = {
   '성장 추적':   'growth',
   '교육 관리':   'education',
   '사업비 관리': 'budget',
+  '업무분장':    null,
   '보고·설정':   null,
 }
 
@@ -154,6 +166,10 @@ export default function Sidebar({ onClose }) {
 
           const items = group.items.filter(item => {
             if (item.to === '/settings') return hasRole('admin')
+            if (item.to === '/work/assign') return hasRole('manager')
+            if (item.to === '/work/manager') return hasRole('manager')
+            if (item.to === '/work/director') return hasRole('admin')
+            if (item.to === '/work/admin') return hasRole('admin')
             return true
           })
           if (items.length === 0) return null
