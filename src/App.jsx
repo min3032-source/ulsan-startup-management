@@ -33,6 +33,7 @@ import MentoringPlan from './pages/mentor-portal/MentoringPlan'
 import MentoringLog from './pages/mentor-portal/MentoringLog'
 import MentoringReport from './pages/mentor-portal/MentoringReport'
 import MentoringAdmin from './pages/mentor-portal/MentoringAdmin'
+import DocumentManagementPage from './pages/documents/DocumentManagementPage'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -111,6 +112,7 @@ function AppRoutes() {
         <Route path="growth" element={<Growth />} />
         <Route path="report" element={<Report />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="documents" element={<DocumentManagementPage />} />
         <Route path="education" element={<Education />} />
         <Route path="education/dashboard" element={<EducationDashboard />} />
         <Route path="budget" element={<Budget />} />

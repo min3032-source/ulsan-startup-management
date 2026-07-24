@@ -27,6 +27,7 @@ export const MENU_PERMISSIONS = [
   { key: 'growth',    label: '성장 추적',   desc: '창업 현황, 기업 성장 지표' },
   { key: 'education', label: '교육 관리',   desc: '교육 프로그램, 교육 대시보드' },
   { key: 'budget',    label: '사업비 관리', desc: '사업비 관리, 전체 대시보드, 집행현황 보고서' },
+  { key: 'documents', label: '서류 관리',   desc: '이메일 서류 수신 관리' },
   { key: 'report',    label: '성과 보고',   desc: '성과 보고서' },
 ]
 

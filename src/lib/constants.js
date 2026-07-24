@@ -33,6 +33,21 @@ export const COMPANY_STATUSES = ['초기운영', '운영중', '성장중', '스�
 
 export const NOTE_TYPES = ['방문점검', '전화', '이메일', '화상', '기타']
 
+// ── 이메일 서류 수신·관리 ────────────────────────────────
+export const DOCUMENT_STATUSES = ['수신', '검토중', '승인', '반려', '처리완료']
+
+export const DOCUMENT_STATUS_FLOW = {
+  수신: ['검토중', '반려'],
+  검토중: ['승인', '반려'],
+  승인: ['처리완료', '반려'],
+  반려: ['검토중'],
+  처리완료: [],
+}
+
+export const DOCUMENT_ALLOWED_EXT = ['pdf', 'xls', 'xlsx', 'hwp', 'hwpx']
+export const DOCUMENT_MAX_FILE_MB = 10
+export const DOCUMENT_MAX_TOTAL_MB = 50
+
 // Q1~Q7 질문 텍스트
 export const Q_LABELS = {
   q1: '소프트웨어·앱·플랫폼을 없애면 사업 자체가 사라지나요?',
@@ -96,6 +111,11 @@ export function getStatusBadgeClass(status) {
     '성장중': 'bg-blue-100 text-blue-700',
     '스케일업': 'bg-teal-100 text-teal-700',
     '폐업': 'bg-red-100 text-red-700',
+    '수신': 'bg-blue-100 text-blue-700',
+    '검토중': 'bg-amber-100 text-amber-700',
+    '승인': 'bg-teal-100 text-teal-700',
+    '반려': 'bg-red-100 text-red-700',
+    '처리완료': 'bg-green-100 text-green-700',
   }
   return map[status] || 'bg-gray-100 text-gray-500'
 }

@@ -3,7 +3,7 @@ import {
   LayoutDashboard, BarChart3, UserPlus, MessageSquare, Database,
   Users, UserCheck, Link2, Building, TrendingUp, LineChart,
   FileText, Settings, LogOut, ChevronRight, X, Award, BookOpen, Wallet,
-  ClipboardList
+  ClipboardList, Mail
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
@@ -57,6 +57,12 @@ const navGroups = [
     ]
   },
   {
+    label: '서류 관리',
+    items: [
+      { to: '/documents', icon: Mail, label: '이메일 서류 수신 관리' },
+    ]
+  },
+  {
     label: '보고·설정',
     items: [
       { to: '/report',   icon: FileText, label: '성과 보고' },
@@ -72,6 +78,7 @@ const GROUP_PERM_KEY = {
   '성장 추적':   'growth',
   '교육 관리':   'education',
   '사업비 관리': 'budget',
+  '서류 관리':   'documents',
   '보고·설정':   null,
 }
 
