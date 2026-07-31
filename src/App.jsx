@@ -18,6 +18,9 @@ import Settings from './pages/settings/Settings'
 import Apply from './pages/apply/Apply'
 import ConsultApply from './pages/consult/ConsultApply'
 import ExpertApply from './pages/expert-apply/ExpertApply'
+import MentorBusinessApply from './pages/mentor-match/BusinessApply'
+import MentorCompanySelect from './pages/mentor-match/CompanySelect'
+import MentorMatchAdmin from './pages/mentor-match/MentorMatchAdmin'
 import Founders from './pages/founders/Founders'
 import Education from './pages/education/Education'
 import EducationDashboard from './pages/education/EducationDashboard'
@@ -93,6 +96,8 @@ function AppRoutes() {
       <Route path="/apply" element={<Apply />} />
       <Route path="/consult" element={<ConsultApply />} />
       <Route path="/expert-apply" element={<ExpertApply />} />
+      <Route path="/mentor-apply" element={<MentorBusinessApply />} />
+      <Route path="/mentor-select" element={<MentorCompanySelect />} />
       <Route path="/education-apply" element={<EducationApply />} />
       <Route path="/certificate/:id" element={<Certificate />} />
       <Route path="/student-portal" element={<StudentPortal />} />
@@ -106,6 +111,7 @@ function AppRoutes() {
         <Route path="experts" element={<Experts />} />
         <Route path="mentoring-manage" element={<Mentoring />} />
         <Route path="mentoring/admin" element={<MentoringAdmin />} />
+        <Route path="mentor-match/admin" element={<MentorMatchAdmin />} />
         <Route path="support" element={<Support />} />
         <Route path="selected" element={<Selected />} />
         <Route path="startup" element={<Startup />} />
