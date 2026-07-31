@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatPhone } from '../../utils/formatPhone'
-import { CheckCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { ULSAN_REGIONS } from '../../lib/constants'
+import { CheckCircle, ChevronDown, ChevronUp, Search, ClipboardList } from 'lucide-react'
 import PublicHeader from '../../components/common/PublicHeader'
 
 function emptyForm() {
   return {
-    name: '', company_name: '', phone: '', email: '', item: '', memo: '',
+    name: '', company_name: '', phone: '', email: '', item: '', region: '', memo: '',
     pick1: '', pick2: '', pick3: '',
   }
 }
@@ -14,6 +16,8 @@ function emptyForm() {
 export default function BusinessApply() {
   const [companies, setCompanies] = useState([])
   const [loadingCompanies, setLoadingCompanies] = useState(true)
+  const [companySearch, setCompanySearch] = useState('')
+  const [companyFieldFilter, setCompanyFieldFilter] = useState('')
   const [form, setForm] = useState(emptyForm())
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
@@ -47,6 +51,12 @@ export default function BusinessApply() {
 
   function set(k, v) { setForm(p => ({ ...p, [k]: v })) }
 
+  const companyFields = [...new Set(companies.map(c => c.field).filter(Boolean))]
+  const filteredCompanies = companies.filter(c =>
+    (!companySearch || c.company_name?.includes(companySearch) || c.intro?.includes(companySearch)) &&
+    (!companyFieldFilter || c.field === companyFieldFilter)
+  )
+
   const picks = [form.pick1, form.pick2, form.pick3].filter(Boolean)
   const picksValid = picks.length === 3 && new Set(picks).size === 3
   const canSubmit = form.name.trim() && form.company_name.trim() && form.phone.trim() && picksValid && privacyAgreed
@@ -63,6 +73,7 @@ export default function BusinessApply() {
         phone: form.phone.trim(),
         email: form.email || null,
         item: form.item || null,
+        region: form.region || null,
         memo: form.memo || null,
         privacy_agreed: true,
       }).select().single()
@@ -97,7 +108,8 @@ export default function BusinessApply() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-3">신청이 접수되었습니다!</h1>
           <p className="text-gray-500 text-sm leading-relaxed mb-8">
-            선택하신 멘토기업과의 상호 매칭 결과는 담당자가 확인 후 안내드립니다.
+            선택하신 멘토기업과의 상호 매칭 결과는 담당자가 확인 후 안내드립니다.<br />
+            <Link to="/status" className="text-blue-600 font-medium hover:underline">신청 상태 조회 페이지</Link>에서 언제든 진행 상황을 확인하실 수 있습니다.
           </p>
           <div className="bg-white rounded-xl border border-gray-200 p-5 text-left shadow-sm">
             <div className="text-sm font-bold text-gray-700 mb-3">접수 내용 요약</div>
@@ -123,6 +135,9 @@ export default function BusinessApply() {
         <div className="text-center mb-6">
           <h1 className="text-xl font-bold text-gray-900 mb-1">혁신 소상공인 AI활용지원사업</h1>
           <p className="text-sm text-gray-500">희망하는 멘토기업을 1, 2, 3순위로 선택해주세요</p>
+          <Link to="/status" className="inline-flex items-center gap-1 mt-3 text-xs font-medium text-blue-600 hover:text-blue-800">
+            <ClipboardList size={13} /> 이미 신청하셨나요? 신청 상태 조회
+          </Link>
         </div>
 
         {/* 신청자 정보 */}
@@ -144,9 +159,50 @@ export default function BusinessApply() {
               <input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="example@email.com" className={inp()} />
             </Field>
           </div>
-          <Field label="업종 · 아이템">
-            <input value={form.item} onChange={e => set('item', e.target.value)} placeholder="예: 요식업, 소매업 등" className={inp()} />
-          </Field>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="업종 · 아이템">
+              <input value={form.item} onChange={e => set('item', e.target.value)} placeholder="예: 요식업, 소매업 등" className={inp()} />
+            </Field>
+            <Field label="지역">
+              <select value={form.region} onChange={e => set('region', e.target.value)} className={inp()}>
+                <option value="">선택해주세요</option>
+                {ULSAN_REGIONS.map(r => <option key={r}>{r}</option>)}
+              </select>
+            </Field>
+          </div>
+        </div>
+
+        {/* 멘토기업 목록 조회 */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-3">
+          <h2 className="text-sm font-bold text-gray-700 pb-2 border-b border-gray-100">멘토기업 목록 살펴보기 ({companies.length}개)</h2>
+          <div className="flex flex-wrap gap-2">
+            <div className="relative flex-1 min-w-[160px]">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input value={companySearch} onChange={e => setCompanySearch(e.target.value)}
+                placeholder="기업명·소개 검색" className={inp() + ' pl-8'} />
+            </div>
+            <select value={companyFieldFilter} onChange={e => setCompanyFieldFilter(e.target.value)} className={inp() + ' w-auto'}>
+              <option value="">전체 분야</option>
+              {companyFields.map(f => <option key={f}>{f}</option>)}
+            </select>
+          </div>
+          {loadingCompanies ? (
+            <p className="text-sm text-gray-400 py-4 text-center">불러오는 중...</p>
+          ) : filteredCompanies.length === 0 ? (
+            <p className="text-sm text-gray-400 py-4 text-center">검색 조건에 맞는 멘토기업이 없습니다.</p>
+          ) : (
+            <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
+              {filteredCompanies.map(c => (
+                <div key={c.id} className="border border-gray-100 rounded-lg px-3 py-2 bg-gray-50/60">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-gray-800">{c.company_name}</span>
+                    {c.field && <span className="text-[11px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">{c.field}</span>}
+                  </div>
+                  {c.intro && <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-1">{c.intro}</p>}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* 멘토기업 선택 */}

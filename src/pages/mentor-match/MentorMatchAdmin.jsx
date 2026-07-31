@@ -746,7 +746,7 @@ export default function MentorMatchAdmin() {
             </div>
             <div className="px-6 py-4 space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                {[['기업명', bizDetail.company_name], ['연락처', bizDetail.phone], ['이메일', bizDetail.email], ['업종·아이템', bizDetail.item]].map(([l, v]) => (
+                {[['기업명', bizDetail.company_name], ['연락처', bizDetail.phone], ['이메일', bizDetail.email], ['업종·아이템', bizDetail.item], ['지역', bizDetail.region]].map(([l, v]) => (
                   <div key={l} className="bg-gray-50 rounded-lg p-3">
                     <div className="text-xs text-gray-400">{l}</div>
                     <div className="text-sm font-medium text-gray-700">{v || '-'}</div>

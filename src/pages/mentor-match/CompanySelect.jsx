@@ -1,8 +1,17 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { formatPhone } from '../../utils/formatPhone'
-import { CheckCircle, Heart, HeartOff, LogOut } from 'lucide-react'
+import { ULSAN_REGIONS } from '../../lib/constants'
+import { CheckCircle, Heart, HeartOff, LogOut, Search } from 'lucide-react'
 import PublicHeader from '../../components/common/PublicHeader'
+
+const MAX_INTEREST = 20
+
+const TABS = [
+  { id: 'applicants', label: '신청 소상공인 목록' },
+  { id: 'interested', label: '내 선택 목록' },
+  { id: 'matched',    label: '매칭 결과' },
+]
 
 export default function CompanySelect() {
   const [companies, setCompanies] = useState([])
@@ -16,6 +25,10 @@ export default function CompanySelect() {
   const [interested, setInterested] = useState(new Set())
   const [matchings, setMatchings] = useState([])
   const [loading, setLoading] = useState(false)
+
+  const [tab, setTab] = useState('applicants')
+  const [regionFilter, setRegionFilter] = useState('')
+  const [itemSearch, setItemSearch] = useState('')
 
   useEffect(() => {
     document.title = '멘토기업 조회 | 울산경제일자리진흥원'
@@ -59,7 +72,7 @@ export default function CompanySelect() {
     setLoading(true)
     try {
       const [{ data: prefs, error: e1 }, { data: cprefs, error: e2 }, { data: mtch, error: e3 }] = await Promise.all([
-        supabase.from('mentor_preferences').select('priority, small_business_id, small_businesses(id, name, company_name, phone, item)').eq('mentor_company_id', companyId).order('priority'),
+        supabase.from('mentor_preferences').select('priority, small_business_id, small_businesses(id, name, company_name, phone, item, region)').eq('mentor_company_id', companyId).order('priority'),
         supabase.from('company_preferences').select('small_business_id').eq('mentor_company_id', companyId),
         supabase.from('matchings').select('small_business_id').eq('mentor_company_id', companyId),
       ])
@@ -79,6 +92,10 @@ export default function CompanySelect() {
 
   async function toggleInterest(businessId) {
     if (!company) return
+    if (!interested.has(businessId) && interested.size >= MAX_INTEREST) {
+      alert(`관심 소상공인은 최대 ${MAX_INTEREST}개까지 선택할 수 있습니다.`)
+      return
+    }
     try {
       if (interested.has(businessId)) {
         const { error } = await supabase.from('company_preferences').delete().eq('mentor_company_id', company.id).eq('small_business_id', businessId)
@@ -98,6 +115,7 @@ export default function CompanySelect() {
   function logout() {
     setCompany(null); setApplicants([]); setInterested(new Set()); setMatchings([])
     setSelectedId(''); setPhone('')
+    setTab('applicants'); setRegionFilter(''); setItemSearch('')
   }
 
   if (!company) {
@@ -136,6 +154,17 @@ export default function CompanySelect() {
     )
   }
 
+  const tabFiltered = applicants.filter(a => {
+    if (tab === 'interested' && !interested.has(a.small_business_id)) return false
+    if (tab === 'matched' && !matchings.includes(a.small_business_id)) return false
+    return true
+  })
+  const visible = tabFiltered.filter(a => {
+    const biz = a.small_businesses
+    return (!regionFilter || biz.region === regionFilter) &&
+      (!itemSearch || biz.item?.includes(itemSearch) || biz.company_name?.includes(itemSearch))
+  })
+
   return (
     <div className="min-h-screen" style={{ background: '#F0F4F8' }}>
       <PublicHeader title="멘토기업 조회" />
@@ -145,23 +174,53 @@ export default function CompanySelect() {
             <div className="text-xs text-gray-400">멘토기업</div>
             <div className="text-lg font-bold text-gray-900">{company.company_name}</div>
           </div>
-          <button onClick={logout} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5 border border-gray-200 rounded-lg">
-            <LogOut size={13} /> 나가기
-          </button>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-500">관심 등록 <strong className="text-blue-600">{interested.size}</strong> / {MAX_INTEREST}</span>
+            <button onClick={logout} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5 border border-gray-200 rounded-lg">
+              <LogOut size={13} /> 나가기
+            </button>
+          </div>
+        </div>
+
+        <div className="flex border-b border-gray-200 gap-1">
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                tab === t.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <div className="relative flex-1 min-w-[160px]">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={itemSearch} onChange={e => setItemSearch(e.target.value)}
+              placeholder="기업명·업종 검색" className={inp() + ' pl-8'} />
+          </div>
+          <select value={regionFilter} onChange={e => setRegionFilter(e.target.value)} className={inp() + ' w-auto'}>
+            <option value="">전체 지역</option>
+            {ULSAN_REGIONS.map(r => <option key={r}>{r}</option>)}
+          </select>
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-            <span className="text-sm font-semibold text-gray-700">본 기업을 희망 멘토기업으로 선택한 소상공인</span>
-            <span className="text-xs text-gray-400">{applicants.length}건</span>
+            <span className="text-sm font-semibold text-gray-700">{TABS.find(t => t.id === tab)?.label}</span>
+            <span className="text-xs text-gray-400">{visible.length}건</span>
           </div>
           {loading ? (
             <div className="py-12 text-center text-gray-400 text-sm">로딩 중...</div>
-          ) : applicants.length === 0 ? (
-            <div className="py-12 text-center text-gray-400 text-sm">아직 본 기업을 선택한 소상공인이 없습니다.</div>
+          ) : visible.length === 0 ? (
+            <div className="py-12 text-center text-gray-400 text-sm">
+              {tab === 'interested' ? '관심 등록한 소상공인이 없습니다.' :
+               tab === 'matched' ? '매칭된 소상공인이 없습니다.' :
+               '아직 본 기업을 선택한 소상공인이 없습니다.'}
+            </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {applicants.map(a => {
+              {visible.map(a => {
                 const biz = a.small_businesses
                 const isMatched = matchings.includes(biz.id)
                 const isInterested = interested.has(biz.id)
@@ -183,11 +242,12 @@ export default function CompanySelect() {
                       <div className="flex flex-wrap gap-2 text-xs text-gray-500">
                         <span>📞 {biz.phone}</span>
                         {biz.item && <span>🗂 {biz.item}</span>}
+                        {biz.region && <span>📍 {biz.region}</span>}
                       </div>
                     </div>
                     <button
                       onClick={() => toggleInterest(biz.id)}
-                      disabled={isMatched}
+                      disabled={isMatched || (!isInterested && interested.size >= MAX_INTEREST)}
                       className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 ${
                         isInterested ? 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100' : 'bg-blue-600 text-white hover:bg-blue-700'
                       }`}

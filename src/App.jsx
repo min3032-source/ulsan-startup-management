@@ -19,6 +19,7 @@ import Apply from './pages/apply/Apply'
 import ConsultApply from './pages/consult/ConsultApply'
 import ExpertApply from './pages/expert-apply/ExpertApply'
 import MentorBusinessApply from './pages/mentor-match/BusinessApply'
+import MentorApplyStatus from './pages/mentor-match/ApplyStatus'
 import MentorCompanySelect from './pages/mentor-match/CompanySelect'
 import MentorMatchAdmin from './pages/mentor-match/MentorMatchAdmin'
 import Founders from './pages/founders/Founders'
@@ -53,6 +54,8 @@ function AppRoutes() {
   const hostname = window.location.hostname
   const isStudyDomain   = hostname === 'study.ubpi.or.kr'
   const isConsultDomain = hostname === 'consult.ubpi.or.kr'
+  const isApplyDomain   = hostname === 'apply.ubpi.or.kr'
+  const isCompanyDomain = hostname === 'company.ubpi.or.kr'
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -82,6 +85,27 @@ function AppRoutes() {
     )
   }
 
+  // apply.ubpi.or.kr: 소상공인 멘토매칭 신청 전용 도메인
+  if (isApplyDomain) {
+    return (
+      <Routes>
+        <Route path="/" element={<MentorBusinessApply />} />
+        <Route path="/status" element={<MentorApplyStatus />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    )
+  }
+
+  // company.ubpi.or.kr: 멘토기업 조회 전용 도메인
+  if (isCompanyDomain) {
+    return (
+      <Routes>
+        <Route path="/" element={<MentorCompanySelect />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    )
+  }
+
   // manage.ubpi.or.kr 및 기타 도메인: 관리자 라우팅
   return (
     <Routes>
@@ -97,6 +121,7 @@ function AppRoutes() {
       <Route path="/consult" element={<ConsultApply />} />
       <Route path="/expert-apply" element={<ExpertApply />} />
       <Route path="/mentor-apply" element={<MentorBusinessApply />} />
+      <Route path="/status" element={<MentorApplyStatus />} />
       <Route path="/mentor-select" element={<MentorCompanySelect />} />
       <Route path="/education-apply" element={<EducationApply />} />
       <Route path="/certificate/:id" element={<Certificate />} />

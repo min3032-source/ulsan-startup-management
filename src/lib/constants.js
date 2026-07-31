@@ -116,8 +116,19 @@ export function getStatusBadgeClass(status) {
     '승인': 'bg-teal-100 text-teal-700',
     '반려': 'bg-red-100 text-red-700',
     '처리완료': 'bg-green-100 text-green-700',
+    '신청대기': 'bg-gray-100 text-gray-600',
+    '매칭중': 'bg-amber-100 text-amber-700',
+    '매칭완료': 'bg-green-100 text-green-700',
   }
   return map[status] || 'bg-gray-100 text-gray-500'
+}
+
+// 멘토매칭 - 소상공인 신청 상태 계산 (신청대기 → 매칭중 → 매칭완료)
+// 별도 컬럼으로 저장하지 않고 company_preferences/matchings 존재 여부로 즉시 계산한다.
+export function calcMentorMatchStatus({ hasInterest, isMatched }) {
+  if (isMatched) return '매칭완료'
+  if (hasInterest) return '매칭중'
+  return '신청대기'
 }
 
 export function getExpertFieldBadgeClass(field) {
