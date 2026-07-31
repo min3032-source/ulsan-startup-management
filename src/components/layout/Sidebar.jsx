@@ -22,7 +22,7 @@ const navGroups = [
   {
     label: '멘토매칭 관리',
     items: [
-      { to: '/mentor-match/admin', icon: Handshake,     label: '멘토매칭 대시보드' },
+      { to: '/mentor-match',     icon: Handshake,      label: '멘토매칭 대시보드' },
       { to: '/experts',          icon: Users,          label: '전문가 DB' },
       { to: '/mentoring-manage', icon: UserCheck,       label: '전문가 상담·멘토링' },
       { to: '/mentoring/admin',  icon: ClipboardList,   label: '멘토링 관리' },

@@ -111,7 +111,7 @@ function AppRoutes() {
         <Route path="experts" element={<Experts />} />
         <Route path="mentoring-manage" element={<Mentoring />} />
         <Route path="mentoring/admin" element={<MentoringAdmin />} />
-        <Route path="mentor-match/admin" element={<MentorMatchAdmin />} />
+        <Route path="mentor-match" element={<MentorMatchAdmin />} />
         <Route path="support" element={<Support />} />
         <Route path="selected" element={<Selected />} />
         <Route path="startup" element={<Startup />} />
