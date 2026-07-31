@@ -78,26 +78,43 @@ export default function MentorMatchAdmin() {
 
   async function loadAll() {
     setLoading(true)
-    const [{ data: c }, { data: b }, { data: p }, { data: m }] = await Promise.all([
-      supabase.from('mentor_companies').select('*').order('company_name'),
-      supabase.from('small_businesses').select('*').order('created_at', { ascending: false }),
-      supabase.from('mentor_preferences').select('*, mentor_companies(id, company_name)').order('priority'),
-      supabase.from('matchings').select('*, small_businesses(id, name, company_name, phone, item), mentor_companies(id, company_name)').order('created_at', { ascending: false }),
-    ])
-    setCompanies(c || [])
-    setBusinesses(b || [])
-    setPreferences(p || [])
-    setMatchings(m || [])
+    try {
+      const [
+        { data: c, error: eC },
+        { data: b, error: eB },
+        { data: p, error: eP },
+        { data: m, error: eM },
+      ] = await Promise.all([
+        supabase.from('mentor_companies').select('*').order('company_name'),
+        supabase.from('small_businesses').select('*').order('created_at', { ascending: false }),
+        supabase.from('mentor_preferences').select('*, mentor_companies(id, company_name)').order('priority'),
+        supabase.from('matchings').select('*, small_businesses(id, name, company_name, phone, item), mentor_companies(id, company_name)').order('created_at', { ascending: false }),
+      ])
+      if (eC) throw eC
+      if (eB) throw eB
+      if (eP) throw eP
+      if (eM) throw eM
 
-    if (m?.length) {
-      const { data: recs } = await supabase.from('mentoring_records').select('id, matching_id, plan_content, logs, report_content').in('matching_id', m.map(x => x.id))
-      const map = {}
-      ;(recs || []).forEach(r => { map[r.matching_id] = r })
-      setRecordMap(map)
-    } else {
-      setRecordMap({})
+      setCompanies(c || [])
+      setBusinesses(b || [])
+      setPreferences(p || [])
+      setMatchings(m || [])
+
+      if (m?.length) {
+        const { data: recs, error: eR } = await supabase.from('mentoring_records').select('id, matching_id, plan_content, logs, report_content').in('matching_id', m.map(x => x.id))
+        if (eR) throw eR
+        const map = {}
+        ;(recs || []).forEach(r => { map[r.matching_id] = r })
+        setRecordMap(map)
+      } else {
+        setRecordMap({})
+      }
+    } catch (e) {
+      console.error('멘토매칭 데이터 조회 실패:', e)
+      showToast('데이터를 불러오지 못했습니다. 잠시 후 새로고침 해주세요.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   // ── 멘토기업 CRUD ──────────────────────────────────────
@@ -116,25 +133,36 @@ export default function MentorMatchAdmin() {
   async function saveCompany() {
     if (!companyForm.company_name.trim()) { alert('기업명을 입력해주세요'); return }
     setSaving(true)
-    let error
-    if (editingCompany) {
-      ({ error } = await supabase.from('mentor_companies').update(companyForm).eq('id', editingCompany.id))
-    } else {
-      ({ error } = await supabase.from('mentor_companies').insert(companyForm))
+    try {
+      let error
+      if (editingCompany) {
+        ({ error } = await supabase.from('mentor_companies').update(companyForm).eq('id', editingCompany.id))
+      } else {
+        ({ error } = await supabase.from('mentor_companies').insert(companyForm))
+      }
+      if (error) throw error
+      setCompanyModal(false)
+      showToast(editingCompany ? '멘토기업 정보가 수정되었습니다.' : '멘토기업이 등록되었습니다.')
+      loadAll()
+    } catch (e) {
+      console.error('멘토기업 저장 실패:', e)
+      alert('저장 실패: ' + (e.message || '잠시 후 다시 시도해주세요.'))
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
-    if (error) { alert('저장 실패: ' + error.message); return }
-    setCompanyModal(false)
-    showToast(editingCompany ? '멘토기업 정보가 수정되었습니다.' : '멘토기업이 등록되었습니다.')
-    loadAll()
   }
 
   async function deleteCompany(id) {
     if (!confirm('이 멘토기업을 삭제하시겠습니까? 관련 선택·매칭 데이터도 함께 삭제됩니다.')) return
-    const { error } = await supabase.from('mentor_companies').delete().eq('id', id)
-    if (error) { alert('삭제 실패: ' + error.message); return }
-    showToast('삭제되었습니다.')
-    loadAll()
+    try {
+      const { error } = await supabase.from('mentor_companies').delete().eq('id', id)
+      if (error) throw error
+      showToast('삭제되었습니다.')
+      loadAll()
+    } catch (e) {
+      console.error('멘토기업 삭제 실패:', e)
+      alert('삭제 실패: ' + (e.message || '잠시 후 다시 시도해주세요.'))
+    }
   }
 
   // ── 엑셀 일괄 등록 (114개 기존 데이터 import) ──────────
@@ -176,28 +204,39 @@ export default function MentorMatchAdmin() {
   async function saveBulk() {
     if (!bulkPreview.length) return
     setBulkSaving(true)
-    const payload = bulkPreview.map(r => ({
-      company_name: r.company_name,
-      ceo_name: r.ceo_name || null, phone: r.phone || null, email: r.email || null,
-      field: r.field || null, address: r.address || null, intro: r.intro || null,
-      status: '활동중',
-    }))
-    const { error } = await supabase.from('mentor_companies').insert(payload)
-    setBulkSaving(false)
-    if (error) { alert('일괄 등록 실패: ' + error.message); return }
-    setBulkModalOpen(false)
-    setBulkPreview([])
-    showToast(`${payload.length}개 멘토기업이 등록되었습니다.`)
-    loadAll()
+    try {
+      const payload = bulkPreview.map(r => ({
+        company_name: r.company_name,
+        ceo_name: r.ceo_name || null, phone: r.phone || null, email: r.email || null,
+        field: r.field || null, address: r.address || null, intro: r.intro || null,
+        status: '활동중',
+      }))
+      const { error } = await supabase.from('mentor_companies').insert(payload)
+      if (error) throw error
+      setBulkModalOpen(false)
+      setBulkPreview([])
+      showToast(`${payload.length}개 멘토기업이 등록되었습니다.`)
+      loadAll()
+    } catch (e) {
+      console.error('멘토기업 일괄 등록 실패:', e)
+      alert('일괄 등록 실패: ' + (e.message || '잠시 후 다시 시도해주세요.'))
+    } finally {
+      setBulkSaving(false)
+    }
   }
 
   // ── 소상공인 신청 ──────────────────────────────────────
   async function deleteBusiness(id) {
     if (!confirm('이 신청 건을 삭제하시겠습니까? 선택·매칭 데이터도 함께 삭제됩니다.')) return
-    const { error } = await supabase.from('small_businesses').delete().eq('id', id)
-    if (error) { alert('삭제 실패: ' + error.message); return }
-    showToast('삭제되었습니다.')
-    loadAll()
+    try {
+      const { error } = await supabase.from('small_businesses').delete().eq('id', id)
+      if (error) throw error
+      showToast('삭제되었습니다.')
+      loadAll()
+    } catch (e) {
+      console.error('소상공인 신청 삭제 실패:', e)
+      alert('삭제 실패: ' + (e.message || '잠시 후 다시 시도해주세요.'))
+    }
   }
 
   function prefsFor(bizId) {
@@ -207,53 +246,70 @@ export default function MentorMatchAdmin() {
   // ── 자동 매칭 실행 ──────────────────────────────────────
   async function runAutoMatch() {
     setMatchingRunning(true)
-    const matchedIds = new Set(matchings.map(m => m.small_businesses?.id))
-    const unmatched = businesses.filter(b => !matchedIds.has(b.id))
+    try {
+      const matchedIds = new Set(matchings.map(m => m.small_businesses?.id))
+      const unmatched = businesses.filter(b => !matchedIds.has(b.id))
 
-    const { data: allCPrefs } = await supabase.from('company_preferences').select('mentor_company_id, small_business_id')
-    const interestSet = new Set((allCPrefs || []).map(c => `${c.mentor_company_id}_${c.small_business_id}`))
+      const { data: allCPrefs, error: eCPrefs } = await supabase.from('company_preferences').select('mentor_company_id, small_business_id')
+      if (eCPrefs) throw eCPrefs
+      const interestSet = new Set((allCPrefs || []).map(c => `${c.mentor_company_id}_${c.small_business_id}`))
 
-    const sortedUnmatched = [...unmatched].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-    const newMatches = []
-    for (const biz of sortedUnmatched) {
-      const prefs = prefsFor(biz.id)
-      for (const p of prefs) {
-        if (interestSet.has(`${p.mentor_company_id}_${biz.id}`)) {
-          newMatches.push({ small_business_id: biz.id, mentor_company_id: p.mentor_company_id, matched_priority: p.priority })
-          break
+      const sortedUnmatched = [...unmatched].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+      const newMatches = []
+      for (const biz of sortedUnmatched) {
+        const prefs = prefsFor(biz.id)
+        for (const p of prefs) {
+          if (interestSet.has(`${p.mentor_company_id}_${biz.id}`)) {
+            newMatches.push({ small_business_id: biz.id, mentor_company_id: p.mentor_company_id, matched_priority: p.priority })
+            break
+          }
         }
       }
-    }
 
-    if (newMatches.length === 0) {
+      if (newMatches.length === 0) {
+        alert('상호 선택된 신규 매칭 건이 없습니다. 멘토기업의 관심 등록 여부를 확인해주세요.')
+        return
+      }
+      const { error } = await supabase.from('matchings').insert(newMatches)
+      if (error) throw error
+      const { error: eUpd } = await supabase.from('small_businesses').update({ status: '매칭완료' }).in('id', newMatches.map(m => m.small_business_id))
+      if (eUpd) throw eUpd
+      showToast(`${newMatches.length}건이 새로 매칭되었습니다.`)
+      loadAll()
+    } catch (e) {
+      console.error('자동 매칭 실행 실패:', e)
+      alert('매칭 실행 실패: ' + (e.message || '잠시 후 다시 시도해주세요.'))
+    } finally {
       setMatchingRunning(false)
-      alert('상호 선택된 신규 매칭 건이 없습니다. 멘토기업의 관심 등록 여부를 확인해주세요.')
-      return
     }
-    const { error } = await supabase.from('matchings').insert(newMatches)
-    if (!error) {
-      await supabase.from('small_businesses').update({ status: '매칭완료' }).in('id', newMatches.map(m => m.small_business_id))
-    }
-    setMatchingRunning(false)
-    if (error) { alert('매칭 실행 실패: ' + error.message); return }
-    showToast(`${newMatches.length}건이 새로 매칭되었습니다.`)
-    loadAll()
   }
 
   async function updateMatchStatus(id, status) {
-    const { error } = await supabase.from('matchings').update({ status }).eq('id', id)
-    if (error) { alert('상태 변경 실패: ' + error.message); return }
-    setMatchings(prev => prev.map(m => m.id === id ? { ...m, status } : m))
+    try {
+      const { error } = await supabase.from('matchings').update({ status }).eq('id', id)
+      if (error) throw error
+      setMatchings(prev => prev.map(m => m.id === id ? { ...m, status } : m))
+    } catch (e) {
+      console.error('매칭 상태 변경 실패:', e)
+      alert('상태 변경 실패: ' + (e.message || '잠시 후 다시 시도해주세요.'))
+    }
   }
 
   async function deleteMatch(m) {
     if (!confirm(`${m.small_businesses?.company_name} ↔ ${m.mentor_companies?.company_name} 매칭을 취소하시겠습니까?`)) return
-    await supabase.from('mentoring_records').delete().eq('matching_id', m.id)
-    const { error } = await supabase.from('matchings').delete().eq('id', m.id)
-    if (error) { alert('삭제 실패: ' + error.message); return }
-    await supabase.from('small_businesses').update({ status: '신청완료' }).eq('id', m.small_businesses.id)
-    showToast('매칭이 취소되었습니다.')
-    loadAll()
+    try {
+      const { error: eRec } = await supabase.from('mentoring_records').delete().eq('matching_id', m.id)
+      if (eRec) throw eRec
+      const { error } = await supabase.from('matchings').delete().eq('id', m.id)
+      if (error) throw error
+      const { error: eBiz } = await supabase.from('small_businesses').update({ status: '신청완료' }).eq('id', m.small_businesses.id)
+      if (eBiz) throw eBiz
+      showToast('매칭이 취소되었습니다.')
+      loadAll()
+    } catch (e) {
+      console.error('매칭 취소 실패:', e)
+      alert('삭제 실패: ' + (e.message || '잠시 후 다시 시도해주세요.'))
+    }
   }
 
   // ── 협약 관리 ──────────────────────────────────────────
@@ -267,17 +323,22 @@ export default function MentorMatchAdmin() {
   }
 
   async function saveAgreement() {
-    const payload = {
-      agreement_signed: agreementForm.agreement_signed,
-      agreement_date: agreementForm.agreement_date || null,
-      agreement_file_url: agreementForm.agreement_file_url || null,
-      status: agreementForm.agreement_signed ? '협약완료' : agreementModal.status,
+    try {
+      const payload = {
+        agreement_signed: agreementForm.agreement_signed,
+        agreement_date: agreementForm.agreement_date || null,
+        agreement_file_url: agreementForm.agreement_file_url || null,
+        status: agreementForm.agreement_signed ? '협약완료' : agreementModal.status,
+      }
+      const { error } = await supabase.from('matchings').update(payload).eq('id', agreementModal.id)
+      if (error) throw error
+      setAgreementModal(null)
+      showToast('협약 정보가 저장되었습니다.')
+      loadAll()
+    } catch (e) {
+      console.error('협약 정보 저장 실패:', e)
+      alert('저장 실패: ' + (e.message || '잠시 후 다시 시도해주세요.'))
     }
-    const { error } = await supabase.from('matchings').update(payload).eq('id', agreementModal.id)
-    if (error) { alert('저장 실패: ' + error.message); return }
-    setAgreementModal(null)
-    showToast('협약 정보가 저장되었습니다.')
-    loadAll()
   }
 
   // ── 멘토링 수행 기록 ────────────────────────────────────
@@ -297,27 +358,33 @@ export default function MentorMatchAdmin() {
 
   async function saveRecord() {
     setRecordSaving(true)
-    const now = new Date().toISOString()
-    const existing = recordMap[recordModal.id]
-    const payload = {
-      matching_id: recordModal.id,
-      plan_content: recordForm.plan_content || null,
-      plan_submitted_at: recordForm.plan_content ? now : null,
-      logs: recordForm.logs,
-      report_content: recordForm.report_content || null,
-      report_submitted_at: recordForm.report_content ? now : null,
+    try {
+      const now = new Date().toISOString()
+      const existing = recordMap[recordModal.id]
+      const payload = {
+        matching_id: recordModal.id,
+        plan_content: recordForm.plan_content || null,
+        plan_submitted_at: recordForm.plan_content ? now : null,
+        logs: recordForm.logs,
+        report_content: recordForm.report_content || null,
+        report_submitted_at: recordForm.report_content ? now : null,
+      }
+      let error
+      if (existing) {
+        ({ error } = await supabase.from('mentoring_records').update(payload).eq('matching_id', recordModal.id))
+      } else {
+        ({ error } = await supabase.from('mentoring_records').insert(payload))
+      }
+      if (error) throw error
+      setRecordModal(null)
+      showToast('멘토링 수행 기록이 저장되었습니다.')
+      loadAll()
+    } catch (e) {
+      console.error('멘토링 수행 기록 저장 실패:', e)
+      alert('저장 실패: ' + (e.message || '잠시 후 다시 시도해주세요.'))
+    } finally {
+      setRecordSaving(false)
     }
-    let error
-    if (existing) {
-      ({ error } = await supabase.from('mentoring_records').update(payload).eq('matching_id', recordModal.id))
-    } else {
-      ({ error } = await supabase.from('mentoring_records').insert(payload))
-    }
-    setRecordSaving(false)
-    if (error) { alert('저장 실패: ' + error.message); return }
-    setRecordModal(null)
-    showToast('멘토링 수행 기록이 저장되었습니다.')
-    loadAll()
   }
 
   // ── 필터 ──────────────────────────────────────────────

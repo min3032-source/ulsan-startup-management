@@ -23,46 +23,75 @@ export default function CompanySelect() {
   }, [])
 
   async function loadCompanies() {
-    const { data } = await supabase.from('mentor_companies').select('id, company_name').order('company_name')
-    setCompanies(data || [])
+    try {
+      const { data, error } = await supabase.from('mentor_companies').select('id, company_name').order('company_name')
+      if (error) throw error
+      setCompanies(data || [])
+    } catch (e) {
+      console.error('멘토기업 목록 조회 실패:', e)
+      setAuthError('멘토기업 목록을 불러오지 못했습니다. 잠시 후 새로고침 해주세요.')
+      setCompanies([])
+    }
   }
 
   async function handleVerify() {
     if (!selectedId || !phone.trim()) { setAuthError('기업명과 연락처를 모두 입력해주세요.'); return }
     setVerifying(true); setAuthError('')
-    const { data, error } = await supabase.from('mentor_companies').select('*').eq('id', selectedId).maybeSingle()
-    setVerifying(false)
-    if (error || !data) { setAuthError('기업 정보를 확인할 수 없습니다.'); return }
-    if ((data.phone || '').replace(/-/g, '') !== phone.replace(/-/g, '')) {
-      setAuthError('등록된 연락처와 일치하지 않습니다.')
-      return
+    try {
+      const { data, error } = await supabase.from('mentor_companies').select('*').eq('id', selectedId).maybeSingle()
+      if (error) throw error
+      if (!data) { setAuthError('기업 정보를 확인할 수 없습니다.'); return }
+      if ((data.phone || '').replace(/-/g, '') !== phone.replace(/-/g, '')) {
+        setAuthError('등록된 연락처와 일치하지 않습니다.')
+        return
+      }
+      setCompany(data)
+      await loadApplicants(data.id)
+    } catch (e) {
+      console.error('멘토기업 본인확인 실패:', e)
+      setAuthError('기업 정보를 확인할 수 없습니다.')
+    } finally {
+      setVerifying(false)
     }
-    setCompany(data)
-    loadApplicants(data.id)
   }
 
   async function loadApplicants(companyId) {
     setLoading(true)
-    const [{ data: prefs }, { data: cprefs }, { data: mtch }] = await Promise.all([
-      supabase.from('mentor_preferences').select('priority, small_business_id, small_businesses(id, name, company_name, phone, item)').eq('mentor_company_id', companyId).order('priority'),
-      supabase.from('company_preferences').select('small_business_id').eq('mentor_company_id', companyId),
-      supabase.from('matchings').select('small_business_id').eq('mentor_company_id', companyId),
-    ])
-    setApplicants((prefs || []).filter(p => p.small_businesses))
-    setInterested(new Set((cprefs || []).map(c => c.small_business_id)))
-    setMatchings((mtch || []).map(m => m.small_business_id))
-    setLoading(false)
+    try {
+      const [{ data: prefs, error: e1 }, { data: cprefs, error: e2 }, { data: mtch, error: e3 }] = await Promise.all([
+        supabase.from('mentor_preferences').select('priority, small_business_id, small_businesses(id, name, company_name, phone, item)').eq('mentor_company_id', companyId).order('priority'),
+        supabase.from('company_preferences').select('small_business_id').eq('mentor_company_id', companyId),
+        supabase.from('matchings').select('small_business_id').eq('mentor_company_id', companyId),
+      ])
+      if (e1) throw e1
+      if (e2) throw e2
+      if (e3) throw e3
+      setApplicants((prefs || []).filter(p => p.small_businesses))
+      setInterested(new Set((cprefs || []).map(c => c.small_business_id)))
+      setMatchings((mtch || []).map(m => m.small_business_id))
+    } catch (e) {
+      console.error('신청 목록 조회 실패:', e)
+      setApplicants([]); setInterested(new Set()); setMatchings([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function toggleInterest(businessId) {
     if (!company) return
-    if (interested.has(businessId)) {
-      await supabase.from('company_preferences').delete().eq('mentor_company_id', company.id).eq('small_business_id', businessId)
-      setInterested(prev => { const n = new Set(prev); n.delete(businessId); return n })
-    } else {
-      const { error } = await supabase.from('company_preferences').insert({ mentor_company_id: company.id, small_business_id: businessId })
-      if (error) { alert('등록 실패: ' + error.message); return }
-      setInterested(prev => new Set(prev).add(businessId))
+    try {
+      if (interested.has(businessId)) {
+        const { error } = await supabase.from('company_preferences').delete().eq('mentor_company_id', company.id).eq('small_business_id', businessId)
+        if (error) throw error
+        setInterested(prev => { const n = new Set(prev); n.delete(businessId); return n })
+      } else {
+        const { error } = await supabase.from('company_preferences').insert({ mentor_company_id: company.id, small_business_id: businessId })
+        if (error) throw error
+        setInterested(prev => new Set(prev).add(businessId))
+      }
+    } catch (e) {
+      console.error('관심 등록/취소 실패:', e)
+      alert('처리 실패: ' + (e.message || '잠시 후 다시 시도해주세요.'))
     }
   }
 

@@ -28,13 +28,21 @@ export default function BusinessApply() {
 
   async function loadCompanies() {
     setLoadingCompanies(true)
-    const { data } = await supabase
-      .from('mentor_companies')
-      .select('id, company_name, field, intro')
-      .eq('status', '활동중')
-      .order('company_name')
-    setCompanies(data || [])
-    setLoadingCompanies(false)
+    try {
+      const { data, error } = await supabase
+        .from('mentor_companies')
+        .select('id, company_name, field, intro')
+        .eq('status', '활동중')
+        .order('company_name')
+      if (error) throw error
+      setCompanies(data || [])
+    } catch (e) {
+      console.error('멘토기업 목록 조회 실패:', e)
+      setError('멘토기업 목록을 불러오지 못했습니다. 잠시 후 새로고침 해주세요.')
+      setCompanies([])
+    } finally {
+      setLoadingCompanies(false)
+    }
   }
 
   function set(k, v) { setForm(p => ({ ...p, [k]: v })) }
@@ -48,27 +56,33 @@ export default function BusinessApply() {
     if (!privacyAgreed) { setError('개인정보 수집·이용에 동의해주세요.'); return }
     setSubmitting(true); setError('')
 
-    const { data: biz, error: bizErr } = await supabase.from('small_businesses').insert({
-      name: form.name.trim(),
-      company_name: form.company_name.trim(),
-      phone: form.phone.trim(),
-      email: form.email || null,
-      item: form.item || null,
-      memo: form.memo || null,
-      privacy_agreed: true,
-    }).select().single()
+    try {
+      const { data: biz, error: bizErr } = await supabase.from('small_businesses').insert({
+        name: form.name.trim(),
+        company_name: form.company_name.trim(),
+        phone: form.phone.trim(),
+        email: form.email || null,
+        item: form.item || null,
+        memo: form.memo || null,
+        privacy_agreed: true,
+      }).select().single()
 
-    if (bizErr) { setSubmitting(false); setError(`제출 오류: ${bizErr.message}`); return }
+      if (bizErr) throw bizErr
 
-    const prefRows = [
-      { small_business_id: biz.id, mentor_company_id: form.pick1, priority: 1 },
-      { small_business_id: biz.id, mentor_company_id: form.pick2, priority: 2 },
-      { small_business_id: biz.id, mentor_company_id: form.pick3, priority: 3 },
-    ]
-    const { error: prefErr } = await supabase.from('mentor_preferences').insert(prefRows)
-    setSubmitting(false)
-    if (prefErr) { setError(`제출 오류: ${prefErr.message}`); return }
-    setDone(true)
+      const prefRows = [
+        { small_business_id: biz.id, mentor_company_id: form.pick1, priority: 1 },
+        { small_business_id: biz.id, mentor_company_id: form.pick2, priority: 2 },
+        { small_business_id: biz.id, mentor_company_id: form.pick3, priority: 3 },
+      ]
+      const { error: prefErr } = await supabase.from('mentor_preferences').insert(prefRows)
+      if (prefErr) throw prefErr
+      setDone(true)
+    } catch (e) {
+      console.error('멘토매칭 신청 제출 실패:', e)
+      setError(`제출 오류: ${e.message || '잠시 후 다시 시도해주세요.'}`)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const companyName = id => companies.find(c => c.id === id)?.company_name || ''
