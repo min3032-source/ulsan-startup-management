@@ -74,6 +74,10 @@ const TABS = [
   { id: 'certificates', label: '수료 관리', icon: Award },
 ]
 
+// education_applications.certificate_number 컬럼은 마이그레이션 적용 전엔 DB에 없어
+// update가 42703(컬럼 없음)으로 매번 실패한다. 세션 동안은 재시도하지 않도록 캐시한다.
+let certificateNumberColumnExists = true
+
 export default function Education() {
   const { hasRole } = useAuth()
   const canWrite = hasRole('manager')
@@ -546,8 +550,11 @@ export default function Education() {
         return
       }
 
-      // education_applications.certificate_number 동기화 (컬럼이 아직 없는 환경이면 조용히 무시)
-      await supabase.from('education_applications').update({ certificate_number: certNo }).eq('id', appId)
+      // education_applications.certificate_number 동기화 (마이그레이션 적용 전이라 컬럼이 없으면 건너뛴다)
+      if (certificateNumberColumnExists) {
+        const { error: syncErr } = await supabase.from('education_applications').update({ certificate_number: certNo }).eq('id', appId)
+        if (syncErr?.code === '42703') certificateNumberColumnExists = false
+      }
 
       showToast(`수료증 번호 ${certNo} 발급 완료`)
       await loadAll()
