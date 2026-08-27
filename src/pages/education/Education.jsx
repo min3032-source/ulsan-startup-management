@@ -107,6 +107,10 @@ export default function Education() {
   // 수료증 미리보기 모달
   const [certPreview, setCertPreview] = useState(null)
 
+  // 발급 직후 팝업 (Certificate.jsx 라우트를 그대로 재사용)
+  const [issuedCert, setIssuedCert] = useState(null)
+  const [issuingId, setIssuingId] = useState(null)
+
   // 수강생 목록 모달 (프로그램 클릭)
   const [studentsModal, setStudentsModal] = useState(null) // program
 
@@ -138,7 +142,7 @@ export default function Education() {
     const [pRes, aRes, cRes, prRes, rpRes] = await Promise.all([
       supabase.from('education_programs').select('*').order('start_date', { ascending: true }),
       supabase.from('education_applications').select('*, education_programs(title, start_date, start_time, end_date, end_time, total_hours), founders(name)').order('applied_at', { ascending: false }),
-      supabase.from('certificates').select('*, education_applications(applicant_name, education_programs(title, start_date, start_time, end_date, end_time, total_hours))').order('issued_at', { ascending: false }),
+      supabase.from('certificates').select('*, education_applications(applicant_name, email, education_programs(title, start_date, start_time, end_date, end_time, total_hours))').order('issued_at', { ascending: false }),
       supabase.from('profiles').select('id, name').eq('is_active', true),
       supabase.from('education_related_programs').select('*').order('year', { ascending: false }),
     ])
@@ -474,46 +478,84 @@ export default function Education() {
     }
   }
 
-  async function issueCertificate(appId) {
-    // 컴포넌트 state는 방금 반영한 status 변경을 아직 못 읽을 수 있어(재렌더 전) DB에서 직접 확인한다.
-    const { data: app, error: fetchErr } = await supabase
-      .from('education_applications')
-      .select('id, status, program_id')
-      .eq('id', appId)
-      .single()
-    if (fetchErr || !app || app.status !== '수료') {
-      alert('수료 상태인 신청건만 수료증을 발급할 수 있습니다.')
-      return
-    }
-    if (certificates.some(c => c.application_id === appId)) {
-      showToast('이미 수료증이 발급된 신청건입니다.')
-      return
-    }
-
-    const program = programs.find(p => p.id === app.program_id)
-    const year = program?.start_date ? new Date(program.start_date).getFullYear() : new Date().getFullYear()
-    const { count } = await supabase
+  async function loadFullCertificate(certId) {
+    const { data } = await supabase
       .from('certificates')
-      .select('*', { count: 'exact', head: true })
-      .like('certificate_number', `제${year}-03-%`)
-    const seq = String((count || 0) + 1).padStart(3, '0')
-    const certNo = `제${year}-03-${seq}호`
+      .select('*, education_applications(applicant_name, email, education_programs(title, start_date, end_date, total_hours))')
+      .eq('id', certId)
+      .single()
+    return data
+  }
 
-    const { error } = await supabase.from('certificates').insert({
-      application_id: appId,
-      certificate_number: certNo,
-      issued_at: new Date().toISOString(),
-    })
-    if (error) {
-      if (error.code === '23505') {
-        showToast('이미 발급된 수료증이 있습니다.')
-      } else {
-        alert('수료증 발급 실패: ' + error.message)
+  async function issueCertificate(appId) {
+    if (issuingId === appId) return // 같은 버튼 연타 방지
+    setIssuingId(appId)
+    try {
+      // 컴포넌트 state는 방금 반영한 status 변경을 아직 못 읽을 수 있어(재렌더 전) DB에서 직접 확인한다.
+      const { data: app, error: fetchErr } = await supabase
+        .from('education_applications')
+        .select('id, status, program_id')
+        .eq('id', appId)
+        .single()
+      if (fetchErr || !app || app.status !== '수료') {
+        alert('수료 상태인 신청건만 수료증을 발급할 수 있습니다.')
+        return
       }
-      return
+
+      // 중복 발급 방지: 컴포넌트 state가 아니라 DB를 직접 재조회해서 확인한다(레이스 컨디션 방지).
+      const { data: existing } = await supabase
+        .from('certificates')
+        .select('id, certificate_number')
+        .eq('application_id', appId)
+        .maybeSingle()
+      if (existing) {
+        showToast(`이미 발급된 수료증입니다 (${existing.certificate_number})`)
+        const full = await loadFullCertificate(existing.id)
+        if (full) setIssuedCert(full)
+        await loadAll()
+        return
+      }
+
+      const program = programs.find(p => p.id === app.program_id)
+      const year = program?.start_date ? new Date(program.start_date).getFullYear() : new Date().getFullYear()
+      const { count } = await supabase
+        .from('certificates')
+        .select('*', { count: 'exact', head: true })
+        .like('certificate_number', `제${year}-03-%`)
+      const seq = String((count || 0) + 1).padStart(3, '0')
+      const certNo = `제${year}-03-${seq}호`
+
+      const { data: inserted, error } = await supabase
+        .from('certificates')
+        .insert({ application_id: appId, certificate_number: certNo, issued_at: new Date().toISOString() })
+        .select('id')
+        .single()
+      if (error) {
+        if (error.code === '23505') {
+          // 동시 클릭 등으로 이미 다른 요청이 먼저 발급한 경우: 새로 만들지 않고 기존 것을 보여준다.
+          const { data: raced } = await supabase.from('certificates').select('id, certificate_number').eq('application_id', appId).maybeSingle()
+          if (raced) {
+            showToast(`이미 발급된 수료증입니다 (${raced.certificate_number})`)
+            const full = await loadFullCertificate(raced.id)
+            if (full) setIssuedCert(full)
+          }
+        } else {
+          alert('수료증 발급 실패: ' + error.message)
+        }
+        await loadAll()
+        return
+      }
+
+      // education_applications.certificate_number 동기화 (컬럼이 아직 없는 환경이면 조용히 무시)
+      await supabase.from('education_applications').update({ certificate_number: certNo }).eq('id', appId)
+
+      showToast(`수료증 번호 ${certNo} 발급 완료`)
+      await loadAll()
+      const full = await loadFullCertificate(inserted.id)
+      if (full) setIssuedCert(full)
+    } finally {
+      setIssuingId(null)
     }
-    await supabase.from('education_applications').update({ certificate_number: certNo }).eq('id', appId)
-    showToast(`수료증 번호 ${certNo} 발급 완료`)
   }
 
   async function loadAttendance(app) {
@@ -547,11 +589,15 @@ export default function Education() {
   async function sendCertEmail(cert) {
     const app = cert.education_applications
     if (!app) return
+    if (!app.email) {
+      alert('신청자의 이메일 정보가 없어 발송할 수 없습니다.')
+      return
+    }
     const certUrl = `${window.location.origin}/certificate/${cert.id}`
     try {
       await supabase.functions.invoke('send-email', {
         body: {
-          to: cert.email || 'noreply@example.com',
+          to: app.email,
           subject: `[울산경제일자리진흥원] 수료증이 발급되었습니다`,
           html: `<p>안녕하세요, ${app.applicant_name}님!</p>
 <p><strong>${app.education_programs?.title}</strong> 교육과정을 성공적으로 수료하셨습니다.</p>
@@ -1088,10 +1134,11 @@ export default function Education() {
                           )}
                           {!cert && canWrite && (
                             <button
-                              onClick={() => issueCertificate(a.id).then(loadAll)}
-                              className="text-xs px-2 py-1 border border-green-300 text-green-600 rounded hover:bg-green-50"
+                              onClick={() => issueCertificate(a.id)}
+                              disabled={issuingId === a.id}
+                              className="text-xs px-2 py-1 border border-green-300 text-green-600 rounded hover:bg-green-50 disabled:opacity-40"
                             >
-                              수료증 발급
+                              {issuingId === a.id ? '발급 중...' : '수료증 발급'}
                             </button>
                           )}
                         </div>
@@ -1514,6 +1561,57 @@ export default function Education() {
           </div>
         </div>
       )}
+
+      {/* ─── 수료증 발급 완료 팝업 (Certificate.jsx 라우트를 iframe으로 그대로 재사용) ─── */}
+      {issuedCert && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col" style={{ maxHeight: '90vh' }}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-base font-bold text-gray-800">수료증 발급 완료</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {issuedCert.education_applications?.applicant_name} · {issuedCert.certificate_number}
+                </p>
+              </div>
+              <button onClick={() => setIssuedCert(null)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="flex-1 overflow-auto bg-gray-100">
+              <iframe
+                src={`/certificate/${issuedCert.id}`}
+                title="수료증 미리보기"
+                style={{ width: '100%', height: '65vh', border: 'none' }}
+              />
+            </div>
+            <div className="px-6 py-3 border-t border-gray-100 flex justify-end gap-2 flex-wrap">
+              <button onClick={() => setIssuedCert(null)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">닫기</button>
+              <a
+                href={`/certificate/${issuedCert.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-4 py-2 text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
+              >
+                새 창에서 크게 보기
+              </a>
+              <button
+                onClick={() => sendCertEmail(issuedCert)}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
+              >
+                <Mail size={14} /> 이메일 발송
+              </button>
+              <a
+                href={`/certificate/${issuedCert.id}?autoprint=1`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-4 py-2 text-sm text-white rounded-lg"
+                style={{ background: '#2E75B6' }}
+              >
+                <Printer size={14} /> 인쇄
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── 승인 모달 ─── */}
       {approvalModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
