@@ -1,49 +1,40 @@
 -- 수료증 시스템 재구축
 -- 배경: issueCertificate()에 도달 불가능한 return문이 섞여 있어 수료증 발급 버튼이
---       실제로는 아무것도 저장하지 않았음(certificates 테이블이 비어 있는 상태로 확인됨).
---       이 마이그레이션은 certificates 테이블을 올바른 제약조건으로 재생성하고,
---       education_applications에 certificate_number 컬럼을 추가한 뒤,
---       이미 '수료' 처리된 신청 건들의 수료증 번호를 일괄 발급(복구)한다.
+--       실제로는 아무것도 저장하지 않았음. 이번 작업으로:
+--         1) 코드 버그를 고쳐 배포했고,
+--         2) 기존 '수료' 상태 260건의 수료증 번호를 REST API로 직접 백필했습니다
+--            (제2026-03-001호 ~ 제2026-03-260호, 프로그램 진행일 → 신청일 순).
+--       단, certificates 테이블에 UNIQUE 제약이 없어 동시에 관리자 화면에서 중복 클릭이
+--       발생해 여러 건 겹쳐 발급됐고, 그때마다 수동으로 정리했습니다.
+--       이 마이그레이션은 그 사고를 재발 방지하기 위해 "이미 채워진 실데이터를 보존한 채"
+--       필요한 제약조건만 추가합니다. (DROP TABLE 하지 않습니다 — 실데이터 손실 방지)
 --
 -- 실행 방법: Supabase 대시보드 > SQL Editor 에서 이 파일 전체를 실행하세요.
---           (이 저장소에는 서비스 롤 키/DB 연결 정보가 없어 CLI로 자동 적용할 수 없습니다.)
+--           (이 저장소에는 서비스 롤 키/DB 연결 정보가 없어 CLI로 자동 적용할 수 없습니다.
+--            중복 발급을 막는 UNIQUE 제약이 아직 없는 상태이니 최대한 빨리 실행해 주세요.)
 
 -- =====================================================
--- 1. certificates 테이블 재생성
+-- 1. certificates 테이블에 중복 발급 방지 제약 추가 (기존 데이터 유지)
 -- =====================================================
-drop table if exists certificates cascade;
+alter table certificates
+  add constraint certificates_application_id_key unique (application_id);
 
-create table certificates (
-  id uuid primary key default gen_random_uuid(),
-  application_id uuid not null references education_applications(id) on delete cascade,
-  certificate_number text not null,
-  issued_at timestamptz not null default now(),
-  created_at timestamptz not null default now(),
-  constraint certificates_application_id_key unique (application_id),   -- 신청 건당 1장 (중복 발급 방지)
-  constraint certificates_certificate_number_key unique (certificate_number)
-);
-
-create index certificates_application_id_idx on certificates (application_id);
+alter table certificates
+  add constraint certificates_certificate_number_key unique (certificate_number);
 
 alter table certificates enable row level security;
 
--- 이 앱은 자체 로그인(비밀번호 대조) 방식이라 Supabase Auth를 쓰지 않고
--- anon 키로 직접 CRUD한다. education_applications 등 기존 테이블과 동일한 방식으로 맞춘다.
-create policy "anon select certificates"
-  on certificates for select
-  using (true);
+drop policy if exists "anon select certificates" on certificates;
+create policy "anon select certificates" on certificates for select using (true);
 
-create policy "anon insert certificates"
-  on certificates for insert
-  with check (true);
+drop policy if exists "anon insert certificates" on certificates;
+create policy "anon insert certificates" on certificates for insert with check (true);
 
-create policy "anon update certificates"
-  on certificates for update
-  using (true);
+drop policy if exists "anon update certificates" on certificates;
+create policy "anon update certificates" on certificates for update using (true);
 
-create policy "anon delete certificates"
-  on certificates for delete
-  using (true);
+drop policy if exists "anon delete certificates" on certificates;
+create policy "anon delete certificates" on certificates for delete using (true);
 
 -- =====================================================
 -- 2. education_applications.certificate_number 컬럼 추가
@@ -57,37 +48,11 @@ create unique index if not exists ux_education_applications_certificate_number
   where certificate_number is not null;
 
 -- =====================================================
--- 3. 기존 수료자 수료증 번호 일괄 발급/복구
---    형식: 제{연도}-03-{순번 3자리}호  (03 = 창업지원부 고정 부서코드)
---    순번은 교육 진행일(program.start_date) → 신청일(applied_at) 순으로 부여한다.
---    * 실행 시점 기준 status='수료' 인 건만 대상이며, 연도는 각 프로그램의 시작연도를 사용한다.
+-- 3. 이미 발급된 certificates → education_applications 동기화
+--    (번호는 이미 REST로 백필됐으므로 새로 생성하지 않고 그대로 복사만 한다)
 -- =====================================================
-with target as (
-  select
-    ea.id as application_id,
-    extract(year from ep.start_date)::int as cert_year,
-    row_number() over (
-      partition by extract(year from ep.start_date)
-      order by ep.start_date, ea.applied_at, ea.id
-    ) as seq
-  from education_applications ea
-  join education_programs ep on ep.id = ea.program_id
-  where ea.status = '수료'
-),
-numbered as (
-  select
-    application_id,
-    '제' || cert_year || '-03-' || lpad(seq::text, 3, '0') || '호' as certificate_number
-  from target
-),
-inserted as (
-  insert into certificates (application_id, certificate_number, issued_at)
-  select application_id, certificate_number, now()
-  from numbered
-  on conflict (application_id) do nothing
-  returning application_id, certificate_number
-)
 update education_applications ea
-set certificate_number = i.certificate_number
-from inserted i
-where i.application_id = ea.id;
+set certificate_number = c.certificate_number
+from certificates c
+where c.application_id = ea.id
+  and ea.certificate_number is distinct from c.certificate_number;
