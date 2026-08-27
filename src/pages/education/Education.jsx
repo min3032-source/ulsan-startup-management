@@ -477,6 +477,9 @@ export default function Education() {
   async function issueCertificate(appId) {
     const year = new Date().getFullYear()
     const { count } = await supabase.from('certificates').select('*', { count: 'exact', head: true })
+   const seq = String((count || 0) + 1).padStart(5, '0')
+  const certNo = `UBPI-2026-${seq}`
+  return { certificate_number: certNo } 
     const seq = String((count || 0) + 1).padStart(3, '0')
     const certNo = `제${year}-03-${seq}호`
     const { error } = await supabase.from('certificates').insert({

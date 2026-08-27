@@ -67,7 +67,9 @@ export default function BusinessApply() {
     setSubmitting(true); setError('')
 
     try {
-      const { data: biz, error: bizErr } = await supabase.from('small_businesses').insert({
+      const bizId = crypto.randomUUID()
+      const { error: bizErr } = await supabase.from('small_businesses').insert({
+        id: bizId,
         name: form.name.trim(),
         company_name: form.company_name.trim(),
         phone: form.phone.trim(),
@@ -76,14 +78,14 @@ export default function BusinessApply() {
         region: form.region || null,
         memo: form.memo || null,
         privacy_agreed: true,
-      }).select().single()
+      })
 
       if (bizErr) throw bizErr
 
       const prefRows = [
-        { small_business_id: biz.id, mentor_company_id: form.pick1, priority: 1 },
-        { small_business_id: biz.id, mentor_company_id: form.pick2, priority: 2 },
-        { small_business_id: biz.id, mentor_company_id: form.pick3, priority: 3 },
+        { small_business_id: bizId, mentor_company_id: form.pick1, priority: 1 },
+        { small_business_id: bizId, mentor_company_id: form.pick2, priority: 2 },
+        { small_business_id: bizId, mentor_company_id: form.pick3, priority: 3 },
       ]
       const { error: prefErr } = await supabase.from('mentor_preferences').insert(prefRows)
       if (prefErr) throw prefErr

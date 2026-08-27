@@ -21,26 +21,15 @@ export default function ApplyStatus() {
     if (!name.trim() || !phone.trim()) { setSearchError('이름과 연락처를 모두 입력해주세요.'); return }
     setSearching(true); setSearchError(''); setResult(null)
     try {
-      const { data: biz, error: bizErr } = await supabase
-        .from('small_businesses')
-        .select('*')
-        .eq('name', name.trim())
-        .eq('phone', phone.trim())
-        .maybeSingle()
-      if (bizErr) throw bizErr
-      if (!biz) { setSearchError('일치하는 신청 내역을 찾을 수 없습니다.'); return }
+      const { data, error } = await supabase.rpc('business_application_status', {
+        p_name: name.trim(),
+        p_phone: phone.trim(),
+      })
+      if (error) throw error
+      if (!data) { setSearchError('일치하는 신청 내역을 찾을 수 없습니다.'); return }
 
-      const [{ data: prefs, error: e1 }, { data: cprefs, error: e2 }, { data: match, error: e3 }] = await Promise.all([
-        supabase.from('mentor_preferences').select('priority, mentor_companies(id, company_name, field)').eq('small_business_id', biz.id).order('priority'),
-        supabase.from('company_preferences').select('id').eq('small_business_id', biz.id),
-        supabase.from('matchings').select('*, mentor_companies(company_name)').eq('small_business_id', biz.id).maybeSingle(),
-      ])
-      if (e1) throw e1
-      if (e2) throw e2
-      if (e3) throw e3
-
-      const status = calcMentorMatchStatus({ hasInterest: (cprefs || []).length > 0, isMatched: !!match })
-      setResult({ biz, prefs: prefs || [], status, match })
+      const status = calcMentorMatchStatus({ hasInterest: data.has_interest, isMatched: !!data.matching })
+      setResult({ biz: data.business, prefs: data.prefs || [], status, match: data.matching })
     } catch (e) {
       console.error('신청 상태 조회 실패:', e)
       setSearchError('조회 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.')

@@ -51,15 +51,11 @@ export default function CompanySelect() {
     if (!selectedId || !phone.trim()) { setAuthError('기업명과 연락처를 모두 입력해주세요.'); return }
     setVerifying(true); setAuthError('')
     try {
-      const { data, error } = await supabase.from('mentor_companies').select('*').eq('id', selectedId).maybeSingle()
+      const { data, error } = await supabase.rpc('verify_mentor_company', { p_company_id: selectedId, p_phone: phone })
       if (error) throw error
-      if (!data) { setAuthError('기업 정보를 확인할 수 없습니다.'); return }
-      if ((data.phone || '').replace(/-/g, '') !== phone.replace(/-/g, '')) {
-        setAuthError('등록된 연락처와 일치하지 않습니다.')
-        return
-      }
+      if (!data) { setAuthError('기업명 또는 연락처가 일치하지 않습니다.'); return }
       setCompany(data)
-      await loadApplicants(data.id)
+      await loadApplicants(data.id, phone)
     } catch (e) {
       console.error('멘토기업 본인확인 실패:', e)
       setAuthError('기업 정보를 확인할 수 없습니다.')
@@ -68,20 +64,15 @@ export default function CompanySelect() {
     }
   }
 
-  async function loadApplicants(companyId) {
+  async function loadApplicants(companyId, phoneValue) {
     setLoading(true)
     try {
-      const [{ data: prefs, error: e1 }, { data: cprefs, error: e2 }, { data: mtch, error: e3 }] = await Promise.all([
-        supabase.from('mentor_preferences').select('priority, small_business_id, small_businesses(id, name, company_name, phone, item, region)').eq('mentor_company_id', companyId).order('priority'),
-        supabase.from('company_preferences').select('small_business_id').eq('mentor_company_id', companyId),
-        supabase.from('matchings').select('small_business_id').eq('mentor_company_id', companyId),
-      ])
-      if (e1) throw e1
-      if (e2) throw e2
-      if (e3) throw e3
-      setApplicants((prefs || []).filter(p => p.small_businesses))
-      setInterested(new Set((cprefs || []).map(c => c.small_business_id)))
-      setMatchings((mtch || []).map(m => m.small_business_id))
+      const { data, error } = await supabase.rpc('mentor_company_applicants', { p_company_id: companyId, p_phone: phoneValue })
+      if (error) throw error
+      if (!data || data.error) { setApplicants([]); setInterested(new Set()); setMatchings([]); return }
+      setApplicants((data.applicants || []).filter(p => p.small_businesses))
+      setInterested(new Set(data.interested || []))
+      setMatchings(data.matched || [])
     } catch (e) {
       console.error('신청 목록 조회 실패:', e)
       setApplicants([]); setInterested(new Set()); setMatchings([])

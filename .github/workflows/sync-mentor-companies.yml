@@ -1,0 +1,24 @@
+name: Sync mentor companies
+
+on:
+  schedule:
+    # 매주 월요일 03:00 KST == 매주 일요일 18:00 UTC
+    - cron: '0 18 * * 0'
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      - run: npm run sync:mentors
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
