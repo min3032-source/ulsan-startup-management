@@ -475,19 +475,45 @@ export default function Education() {
   }
 
   async function issueCertificate(appId) {
-    const year = new Date().getFullYear()
-    const { count } = await supabase.from('certificates').select('*', { count: 'exact', head: true })
-   const seq = String((count || 0) + 1).padStart(5, '0')
-  const certNo = `UBPI-2026-${seq}`
-  return { certificate_number: certNo } 
+    // 컴포넌트 state는 방금 반영한 status 변경을 아직 못 읽을 수 있어(재렌더 전) DB에서 직접 확인한다.
+    const { data: app, error: fetchErr } = await supabase
+      .from('education_applications')
+      .select('id, status, program_id')
+      .eq('id', appId)
+      .single()
+    if (fetchErr || !app || app.status !== '수료') {
+      alert('수료 상태인 신청건만 수료증을 발급할 수 있습니다.')
+      return
+    }
+    if (certificates.some(c => c.application_id === appId)) {
+      showToast('이미 수료증이 발급된 신청건입니다.')
+      return
+    }
+
+    const program = programs.find(p => p.id === app.program_id)
+    const year = program?.start_date ? new Date(program.start_date).getFullYear() : new Date().getFullYear()
+    const { count } = await supabase
+      .from('certificates')
+      .select('*', { count: 'exact', head: true })
+      .like('certificate_number', `제${year}-03-%`)
     const seq = String((count || 0) + 1).padStart(3, '0')
     const certNo = `제${year}-03-${seq}호`
+
     const { error } = await supabase.from('certificates').insert({
       application_id: appId,
       certificate_number: certNo,
       issued_at: new Date().toISOString(),
     })
-    if (!error) showToast(`수료증 번호 ${certNo} 발급 완료`)
+    if (error) {
+      if (error.code === '23505') {
+        showToast('이미 발급된 수료증이 있습니다.')
+      } else {
+        alert('수료증 발급 실패: ' + error.message)
+      }
+      return
+    }
+    await supabase.from('education_applications').update({ certificate_number: certNo }).eq('id', appId)
+    showToast(`수료증 번호 ${certNo} 발급 완료`)
   }
 
   async function loadAttendance(app) {
