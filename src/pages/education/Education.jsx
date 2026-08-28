@@ -146,13 +146,24 @@ export default function Education() {
     const [pRes, aRes, cRes, prRes, rpRes] = await Promise.all([
       supabase.from('education_programs').select('*').order('start_date', { ascending: true }),
       supabase.from('education_applications').select('*, education_programs(title, start_date, start_time, end_date, end_time, total_hours), founders(name)').order('applied_at', { ascending: false }),
-      supabase.from('certificates').select('*, education_applications(applicant_name, email, education_programs(title, start_date, start_time, end_date, end_time, total_hours))').order('issued_at', { ascending: false }),
+      // 수료 관리 탭 표 렌더링에는 cert.issued_at / cert.certificate_number만 쓰이고
+      // 신청자 정보는 필요 없으므로, 깨지기 쉬운 FK 임베드 조인 없이 단순 조회로 바꿨다.
+      supabase.from('certificates').select('*').order('issued_at', { ascending: false }),
       supabase.from('profiles').select('id, name').eq('is_active', true),
       supabase.from('education_related_programs').select('*').order('year', { ascending: false }),
     ])
     if (!pRes.error) setPrograms(pRes.data || [])
     if (!aRes.error) setApplications(aRes.data || [])
-    if (!cRes.error) setCertificates(cRes.data || [])
+    if (cRes.error) {
+      // 이 쿼리가 조용히 실패하면 수료 관리 탭에 수료증 번호가 전부 '-'로 보이고,
+      // 발급 버튼을 눌러도 미리보기/인쇄/발송 버튼으로 전환되지 않는 것처럼 보인다
+      // (버튼 표시 여부가 이 certificates 목록에서 찾은 결과에 달려 있기 때문).
+      // 원인 파악을 위해 콘솔/토스트로 실제 에러를 드러낸다.
+      console.error('[Education] certificates 조회 실패:', cRes.error)
+      showToast(`수료증 목록을 불러오지 못했습니다: ${cRes.error.message}`)
+    } else {
+      setCertificates(cRes.data || [])
+    }
     if (!prRes.error) setProfiles(prRes.data || [])
     if (!rpRes.error) setRelatedPrograms(rpRes.data || [])
     setLoading(false)
@@ -483,12 +494,22 @@ export default function Education() {
   }
 
   async function loadFullCertificate(certId) {
-    const { data } = await supabase
-      .from('certificates')
-      .select('*, education_applications(applicant_name, email, education_programs(title, start_date, end_date, total_hours))')
-      .eq('id', certId)
-      .single()
-    return data
+    // certificates -> education_applications 임베드 조인은 두 테이블 사이 FK 관계가
+    // Supabase에 정의돼 있어야만 동작한다. 관계가 없거나 깨져 있으면 이 select 전체가
+    // 조용히 실패해서(에러 미확인) 발급 직후 팝업이 아무 반응 없이 사라진 것처럼 보인다.
+    // 그래서 임베드에 의존하지 않고 두 단계로 나눠 조회한다.
+    const { data: cert, error: certErr } = await supabase.from('certificates').select('*').eq('id', certId).single()
+    if (certErr || !cert) {
+      console.error('[Education] 수료증 단건 조회 실패:', certErr)
+      return null
+    }
+    const { data: app, error: appErr } = await supabase
+      .from('education_applications')
+      .select('applicant_name, email, education_programs(title, start_date, end_date, total_hours)')
+      .eq('id', cert.application_id)
+      .maybeSingle()
+    if (appErr) console.error('[Education] 수료증의 신청자 정보 조회 실패:', appErr)
+    return { ...cert, education_applications: app || null }
   }
 
   async function issueCertificate(appId) {
@@ -593,8 +614,11 @@ export default function Education() {
     loadAll()
   }
 
-  async function sendCertEmail(cert) {
-    const app = cert.education_applications
+  async function sendCertEmail(cert, appOverride) {
+    // 목록 화면(수료 관리 탭)의 cert 객체는 더 이상 education_applications를 임베드하지
+    // 않으므로(깨지기 쉬운 FK 조인 제거), 호출하는 쪽에서 신청자 정보를 함께 넘겨준다.
+    // 발급 직후 팝업(issuedCert)은 loadFullCertificate가 별도 조회로 채워주므로 그대로 둔다.
+    const app = appOverride || cert.education_applications
     if (!app) return
     if (!app.email) {
       alert('신청자의 이메일 정보가 없어 발송할 수 없습니다.')
@@ -1132,7 +1156,7 @@ export default function Education() {
                                 <Printer size={11} /> 인쇄
                               </a>
                               <button
-                                onClick={() => sendCertEmail(cert)}
+                                onClick={() => sendCertEmail(cert, a)}
                                 className="flex items-center gap-1 text-xs px-2 py-1 border border-gray-300 text-gray-600 rounded hover:bg-gray-50"
                               >
                                 <Mail size={11} /> 발송
