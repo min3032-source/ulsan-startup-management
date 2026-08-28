@@ -30,16 +30,28 @@ export default function Certificate() {
 
   useEffect(() => {
     async function load() {
-      const { data: cert, error: err } = await supabase
+      // certificates -> education_applications 임베드 조인은 두 테이블 사이 FK 관계가
+      // Supabase에 정의돼 있어야 동작한다. 관계가 없거나 깨져 있으면 이 select 전체가
+      // 실패해서 실제로는 수료증이 존재하는데도 "수료증을 찾을 수 없습니다"가 뜬다.
+      // 그래서 임베드에 의존하지 않고 두 단계로 나눠 조회한다.
+      const { data: cert, error: certErr } = await supabase
         .from('certificates')
-        .select('*, education_applications(applicant_name, email, education_programs(title, start_date, end_date, total_hours))')
+        .select('*')
         .eq('id', id)
         .single()
-      if (err || !cert) {
+      if (certErr || !cert) {
+        console.error('[Certificate] 수료증 조회 실패:', certErr)
         setError('수료증을 찾을 수 없습니다.')
-      } else {
-        setData(cert)
+        setLoading(false)
+        return
       }
+      const { data: app, error: appErr } = await supabase
+        .from('education_applications')
+        .select('applicant_name, email, education_programs(title, start_date, end_date, total_hours)')
+        .eq('id', cert.application_id)
+        .maybeSingle()
+      if (appErr) console.error('[Certificate] 신청자 정보 조회 실패:', appErr)
+      setData({ ...cert, education_applications: app || null })
       setLoading(false)
     }
     load()
