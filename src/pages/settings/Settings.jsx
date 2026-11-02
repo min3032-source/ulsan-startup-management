@@ -22,7 +22,7 @@ const ROLE_BADGE = {
 
 export const MENU_PERMISSIONS = [
   { key: 'consult',   label: '상담 관리',   desc: '상담 접수, 상담 관리, 상담일지, 창업자 DB' },
-  { key: 'expert',    label: '전문가 관리', desc: '전문가 DB, 전문가 상담·멘토링' },
+  { key: 'expert',    label: '전문가·멘토링', desc: '멘토링 통합(멘토 DB·매칭·진행관리), 기존 전문가 관리·멘토매칭' },
   { key: 'support',   label: '지원사업',    desc: '지원사업 연계, 선정기업 관리' },
   { key: 'growth',    label: '성장 추적',   desc: '창업 현황, 기업 성장 지표' },
   { key: 'education', label: '교육 관리',   desc: '교육 프로그램, 교육 대시보드' },

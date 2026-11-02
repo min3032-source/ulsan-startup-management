@@ -3,7 +3,7 @@ import {
   LayoutDashboard, BarChart3, UserPlus, MessageSquare, Database,
   Users, UserCheck, Link2, Building, TrendingUp, LineChart,
   FileText, Settings, LogOut, ChevronRight, X, Award, BookOpen, Wallet,
-  ClipboardList, Mail, Handshake
+  ClipboardList, Mail, Handshake, UserRoundCheck, Shuffle, FolderKanban, ClipboardCheck
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
@@ -20,7 +20,17 @@ const navGroups = [
     ]
   },
   {
-    label: '전문가 관리',
+    label: '멘토링 통합',
+    items: [
+      { to: '/mt/mentors',      icon: Users,          label: '멘토 DB' },
+      { to: '/mt/applications', icon: UserRoundCheck, label: '멘토 신청 심사' },
+      { to: '/mt/programs',     icon: FolderKanban,   label: '사업 · 멘티' },
+      { to: '/mt/matching',     icon: Shuffle,        label: '자동 매칭' },
+      { to: '/mt/progress',     icon: ClipboardCheck, label: '진행 관리 · 정산' },
+    ]
+  },
+  {
+    label: '전문가 관리(기존)',
     items: [
       { to: '/experts',          icon: Users,          label: '전문가 DB' },
       { to: '/mentoring-manage', icon: UserCheck,       label: '전문가 상담·멘토링' },
@@ -28,7 +38,7 @@ const navGroups = [
     ]
   },
   {
-    label: '멘토매칭 관리',
+    label: '멘토매칭 관리(기존)',
     items: [
       { to: '/mentor-match', icon: Handshake, label: '멘토매칭 관리' },
     ]
@@ -79,8 +89,9 @@ const navGroups = [
 
 const GROUP_PERM_KEY = {
   '상담 관리':   'consult',
-  '전문가 관리': 'expert',
-  '멘토매칭 관리': 'expert',
+  '멘토링 통합': 'expert',
+  '전문가 관리(기존)': 'expert',
+  '멘토매칭 관리(기존)': 'expert',
   '지원사업':    'support',
   '성장 추적':   'growth',
   '교육 관리':   'education',

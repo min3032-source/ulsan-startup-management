@@ -38,6 +38,13 @@ import MentoringLog from './pages/mentor-portal/MentoringLog'
 import MentoringReport from './pages/mentor-portal/MentoringReport'
 import MentoringAdmin from './pages/mentor-portal/MentoringAdmin'
 import DocumentManagementPage from './pages/documents/DocumentManagementPage'
+import MentorRegister from './pages/mt/MentorRegister'
+import MentorPortal from './pages/mt/MentorPortal'
+import MtMentors from './pages/mt/MtMentors'
+import MtApplications from './pages/mt/MtApplications'
+import MtPrograms from './pages/mt/MtPrograms'
+import MtMatching from './pages/mt/MtMatching'
+import MtProgress from './pages/mt/MtProgress'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -109,7 +116,11 @@ function AppRoutes() {
   // manage.ubpi.or.kr 및 기타 도메인: 관리자 라우팅
   return (
     <Routes>
-      {/* 멘토 포털 (공개) */}
+      {/* 멘토링 통합: 멘토 포털 · 멘토 등록 신청 (공개) */}
+      <Route path="/mentor" element={<MentorPortal />} />
+      <Route path="/mentor-register" element={<MentorRegister />} />
+
+      {/* 기존 멘토 포털 (공개) */}
       <Route path="/mentoring" element={<MentoringLogin />} />
       <Route path="/mentoring/dashboard" element={<MentoringDashboard />} />
       <Route path="/mentoring/plan" element={<MentoringPlan />} />
@@ -119,7 +130,8 @@ function AppRoutes() {
       <Route path="/login" element={(user && profile) ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/apply" element={<Apply />} />
       <Route path="/consult" element={<ConsultApply />} />
-      <Route path="/expert-apply" element={<ExpertApply />} />
+      <Route path="/expert-apply" element={<MentorRegister />} />
+      <Route path="/expert-apply-old" element={<ExpertApply />} />
       <Route path="/mentor-apply" element={<MentorBusinessApply />} />
       <Route path="/status" element={<MentorApplyStatus />} />
       <Route path="/mentor-select" element={<MentorCompanySelect />} />
@@ -137,6 +149,11 @@ function AppRoutes() {
         <Route path="mentoring-manage" element={<Mentoring />} />
         <Route path="mentoring/admin" element={<MentoringAdmin />} />
         <Route path="mentor-match" element={<MentorMatchAdmin />} />
+        <Route path="mt/mentors" element={<MtMentors />} />
+        <Route path="mt/applications" element={<MtApplications />} />
+        <Route path="mt/programs" element={<MtPrograms />} />
+        <Route path="mt/matching" element={<MtMatching />} />
+        <Route path="mt/progress" element={<MtProgress />} />
         <Route path="support" element={<Support />} />
         <Route path="selected" element={<Selected />} />
         <Route path="startup" element={<Startup />} />
