@@ -243,12 +243,78 @@ export default function MentorMatchAdmin() {
     return preferences.filter(p => p.small_business_id === bizId).sort((a, b) => a.priority - b.priority)
   }
 
-  // ── 자동 매칭 실행 ──────────────────────────────────────
+  // ── 순차 심사 매칭 ──────────────────────────────────────
+  // 소상공인이 고른 1순위 멘토기업에게 먼저 검토를 요청한다. 그 멘토가 승인하면 매칭,
+  // 거절하면 2순위 -> 3순위로 자동으로 넘어간다(mentor_review_decision RPC가 처리).
+  // 3순위까지 전부 거절된 건만 기존 "관심업체 기반 자동매칭"으로 폴백한다.
+  async function startReview(bizId) {
+    try {
+      const first = preferences.find(p => p.small_business_id === bizId && p.priority === 1)
+      if (!first) { alert('1순위 멘토기업 선택 정보가 없습니다.'); return }
+      const { error: e1 } = await supabase.from('mentor_preferences')
+        .update({ review_status: '검토중' }).eq('id', first.id).eq('review_status', '대기')
+      if (e1) throw e1
+      const { error: e2 } = await supabase.from('small_businesses')
+        .update({ review_stage: '심사중' }).eq('id', bizId).eq('review_stage', '미시작')
+      if (e2) throw e2
+      showToast('1순위 멘토기업에게 심사 요청을 보냈습니다.')
+      loadAll()
+    } catch (e) {
+      console.error('심사 시작 실패:', e)
+      alert('심사 시작 실패: ' + (e.message || '잠시 후 다시 시도해주세요.'))
+    }
+  }
+
+  async function startReviewBulk(bizIds) {
+    for (const id of bizIds) await startReview(id)
+  }
+
+  // 관리자가 멘토기업을 대신해(전화 등으로 연락받아) 승인/거절을 처리할 때 사용.
+  // mentor_review_decision RPC와 동일한 순차 이관 로직을 관리자 권한(authenticated)으로 수행한다.
+  async function adminDecide(pref, decision) {
+    try {
+      const { error: e1 } = await supabase.from('mentor_preferences')
+        .update({ review_status: decision, reviewed_at: new Date().toISOString() })
+        .eq('id', pref.id).eq('review_status', '검토중')
+      if (e1) throw e1
+
+      if (decision === '승인') {
+        const { error: e2 } = await supabase.from('matchings')
+          .insert({ small_business_id: pref.small_business_id, mentor_company_id: pref.mentor_company_id, matched_priority: pref.priority })
+        if (e2 && e2.code !== '23505') throw e2
+        const { error: e3 } = await supabase.from('small_businesses')
+          .update({ status: '매칭완료', review_stage: '매칭완료' }).eq('id', pref.small_business_id)
+        if (e3) throw e3
+        showToast('승인 처리되어 매칭되었습니다.')
+      } else {
+        const next = preferences.find(p => p.small_business_id === pref.small_business_id && p.priority === pref.priority + 1)
+        if (next) {
+          const { error: e4 } = await supabase.from('mentor_preferences')
+            .update({ review_status: '검토중' }).eq('id', next.id).eq('review_status', '대기')
+          if (e4) throw e4
+          showToast(`거절 처리되어 ${next.priority}순위 멘토기업으로 넘어갔습니다.`)
+        } else {
+          const { error: e5 } = await supabase.from('small_businesses')
+            .update({ review_stage: '전체거절' }).eq('id', pref.small_business_id)
+          if (e5) throw e5
+          showToast('3순위까지 모두 거절되어 폴백 매칭 대상으로 표시됩니다.')
+        }
+      }
+      loadAll()
+    } catch (e) {
+      console.error('심사 처리 실패:', e)
+      alert('처리 실패: ' + (e.message || '잠시 후 다시 시도해주세요.'))
+    }
+  }
+
+  // ── 자동 매칭 실행(폴백) ─────────────────────────────────
   async function runAutoMatch() {
     setMatchingRunning(true)
     try {
       const matchedIds = new Set(matchings.map(m => m.small_businesses?.id))
-      const unmatched = businesses.filter(b => !matchedIds.has(b.id))
+      // 순차 심사에서 1~3순위 멘토기업이 전부 거절한 건만 폴백 대상으로 삼는다.
+      // 아직 심사를 시작하지 않았거나 심사가 진행 중인 건은 여기서 건드리지 않는다.
+      const unmatched = businesses.filter(b => !matchedIds.has(b.id) && b.review_stage === '전체거절')
 
       const { data: allCPrefs, error: eCPrefs } = await supabase.from('company_preferences').select('mentor_company_id, small_business_id')
       if (eCPrefs) throw eCPrefs
@@ -267,12 +333,12 @@ export default function MentorMatchAdmin() {
       }
 
       if (newMatches.length === 0) {
-        alert('상호 선택된 신규 매칭 건이 없습니다. 멘토기업의 관심 등록 여부를 확인해주세요.')
+        alert('폴백 매칭 대상(1~3순위 전부 거절) 중 상호 선택된 신규 매칭 건이 없습니다. 멘토기업의 관심 등록 여부를 확인해주세요.')
         return
       }
       const { error } = await supabase.from('matchings').insert(newMatches)
       if (error) throw error
-      const { error: eUpd } = await supabase.from('small_businesses').update({ status: '매칭완료' }).in('id', newMatches.map(m => m.small_business_id))
+      const { error: eUpd } = await supabase.from('small_businesses').update({ status: '매칭완료', review_stage: '매칭완료' }).in('id', newMatches.map(m => m.small_business_id))
       if (eUpd) throw eUpd
       showToast(`${newMatches.length}건이 새로 매칭되었습니다.`)
       loadAll()
@@ -302,9 +368,15 @@ export default function MentorMatchAdmin() {
       if (eRec) throw eRec
       const { error } = await supabase.from('matchings').delete().eq('id', m.id)
       if (error) throw error
-      const { error: eBiz } = await supabase.from('small_businesses').update({ status: '신청완료' }).eq('id', m.small_businesses.id)
+      const { error: eBiz } = await supabase.from('small_businesses')
+        .update({ status: '신청완료', review_stage: '미시작' }).eq('id', m.small_businesses.id)
       if (eBiz) throw eBiz
-      showToast('매칭이 취소되었습니다.')
+      // 심사 상태도 초기화해서 다시 "심사 시작"을 누르면 1순위부터 깨끗하게 재시작되도록 한다.
+      const { error: ePrefs } = await supabase.from('mentor_preferences')
+        .update({ review_status: '대기', reviewed_at: null, review_note: null })
+        .eq('small_business_id', m.small_businesses.id)
+      if (ePrefs) throw ePrefs
+      showToast('매칭이 취소되어 심사 상태가 초기화되었습니다.')
       loadAll()
     } catch (e) {
       console.error('매칭 취소 실패:', e)
@@ -546,14 +618,107 @@ export default function MentorMatchAdmin() {
       )}
 
       {/* ── 탭: 매칭 현황 ── */}
-      {activeTab === 'matching' && (
-        <div className="space-y-4">
-          <div className="flex justify-end">
+      {activeTab === 'matching' && (() => {
+        const matchedIds = new Set(matchings.map(m => m.small_businesses?.id))
+        const notStarted = businesses.filter(b => !matchedIds.has(b.id) && (b.review_stage || '미시작') === '미시작')
+        const inReview = preferences.filter(p => p.review_status === '검토중')
+        const byCompany = {}
+        inReview.forEach(p => {
+          const key = p.mentor_company_id
+          if (!byCompany[key]) byCompany[key] = { company: p.mentor_companies, items: [] }
+          byCompany[key].items.push(p)
+        })
+        const fallbackTargets = businesses.filter(b => !matchedIds.has(b.id) && b.review_stage === '전체거절')
+
+        return (
+        <div className="space-y-5">
+          {/* ── 1) 심사 대기중: 아직 1순위 멘토기업에게 요청을 보내지 않은 건 ── */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+              <span className="text-sm font-semibold text-gray-700">심사 대기중 (1순위 멘토기업에게 요청 전)</span>
+              {canWrite && notStarted.length > 0 && (
+                <button onClick={() => startReviewBulk(notStarted.map(b => b.id))}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50">
+                  전체 {notStarted.length}건 일괄 심사 시작
+                </button>
+              )}
+            </div>
+            {notStarted.length === 0 ? (
+              <div className="py-8 text-center text-gray-400 text-sm">심사 대기중인 신청 건이 없습니다.</div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {notStarted.map(b => (
+                  <div key={b.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                    <div className="text-xs">
+                      <span className="font-semibold text-gray-800">{b.company_name}</span>
+                      <span className="text-gray-400 ml-1.5">{b.name}</span>
+                      <span className="text-gray-400 ml-2">1순위: {prefsFor(b.id).find(p => p.priority === 1)?.mentor_companies?.company_name || '-'}</span>
+                    </div>
+                    {canWrite && (
+                      <button onClick={() => startReview(b.id)}
+                        className="text-xs font-semibold px-3 py-1 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 flex-shrink-0">
+                        심사 시작
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── 2) 멘토기업별 심사 현황: 지금 각 멘토기업 차례인 검토 요청 ── */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="px-5 py-3 border-b border-gray-100">
+              <span className="text-sm font-semibold text-gray-700">멘토기업별 심사 현황 (검토 중)</span>
+              <span className="text-xs text-gray-400 ml-2">멘토기업이 직접 포털에서 승인/거절하며, 전화 등으로 연락받은 경우 여기서 대신 처리할 수 있습니다.</span>
+            </div>
+            {Object.keys(byCompany).length === 0 ? (
+              <div className="py-8 text-center text-gray-400 text-sm">현재 검토 중인 건이 없습니다.</div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {Object.values(byCompany).map(group => (
+                  <div key={group.company?.id} className="px-5 py-3">
+                    <div className="text-xs font-bold text-gray-700 mb-2">{group.company?.company_name} <span className="text-gray-400 font-normal">({group.items.length}건 검토 중)</span></div>
+                    <div className="space-y-1.5">
+                      {group.items.map(p => {
+                        const biz = businesses.find(b => b.id === p.small_business_id)
+                        if (!biz) return null
+                        return (
+                          <div key={p.id} className="flex items-center justify-between gap-3 bg-gray-50 rounded-lg px-3 py-2">
+                            <div className="text-xs">
+                              <span className="font-semibold text-gray-800">{biz.company_name}</span>
+                              <span className="text-gray-400 ml-1.5">{biz.name}</span>
+                              <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-100 text-blue-700 ml-2">{p.priority}순위</span>
+                              {biz.business_plan_url && (
+                                <a href={biz.business_plan_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline ml-2">사업계획서 보기</a>
+                              )}
+                            </div>
+                            {canWrite && (
+                              <div className="flex gap-1.5 flex-shrink-0">
+                                <button onClick={() => adminDecide(p, '승인')} className="text-xs px-2.5 py-1 rounded border border-green-200 text-green-600 hover:bg-green-50">승인</button>
+                                <button onClick={() => adminDecide(p, '거절')} className="text-xs px-2.5 py-1 rounded border border-red-200 text-red-600 hover:bg-red-50">거절</button>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── 3) 폴백 매칭: 1~3순위 전부 거절된 건 ── */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-gray-700">
+              폴백 매칭 대상 (1~3순위 전부 거절) <span className="text-gray-400 font-normal">{fallbackTargets.length}건</span>
+            </span>
             {canWrite && (
-              <button onClick={runAutoMatch} disabled={matchingRunning}
+              <button onClick={runAutoMatch} disabled={matchingRunning || fallbackTargets.length === 0}
                 className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white rounded-lg disabled:opacity-50"
                 style={{ background: 'linear-gradient(135deg, #2E75B6, #1E5A94)' }}>
-                <Shuffle size={15} /> {matchingRunning ? '매칭 실행 중...' : '상호 선택 기반 자동 매칭 실행'}
+                <Shuffle size={15} /> {matchingRunning ? '매칭 실행 중...' : '관심업체 기반 자동 매칭 실행'}
               </button>
             )}
           </div>
@@ -600,7 +765,8 @@ export default function MentorMatchAdmin() {
             </table>
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* ── 탭: 협약 · 멘토링 관리 ── */}
       {activeTab === 'agreement' && (

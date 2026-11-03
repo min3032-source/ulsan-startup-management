@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { formatPhone } from '../../utils/formatPhone'
 import { ULSAN_REGIONS } from '../../lib/constants'
-import { CheckCircle, Heart, HeartOff, LogOut, Search } from 'lucide-react'
+import { CheckCircle, FileText, Heart, HeartOff, LogOut, Search } from 'lucide-react'
 import PublicHeader from '../../components/common/PublicHeader'
 
 const MAX_INTEREST = 20
 
 const TABS = [
+  { id: 'review',     label: '검토 요청' },
   { id: 'applicants', label: '신청 소상공인 목록' },
   { id: 'interested', label: '내 선택 목록' },
   { id: 'matched',    label: '매칭 결과' },
@@ -26,7 +27,8 @@ export default function CompanySelect() {
   const [matchings, setMatchings] = useState([])
   const [loading, setLoading] = useState(false)
 
-  const [tab, setTab] = useState('applicants')
+  const [tab, setTab] = useState('review')
+  const [decidingId, setDecidingId] = useState('')
   const [regionFilter, setRegionFilter] = useState('')
   const [itemSearch, setItemSearch] = useState('')
 
@@ -103,10 +105,44 @@ export default function CompanySelect() {
     }
   }
 
+  async function decideReview(businessId, decision) {
+    if (!company) return
+    if (decision === '거절') {
+      const ok = confirm('이 소상공인의 신청을 거절하시겠습니까? 거절하면 다음 순위 멘토기업에게 자동으로 검토 요청이 넘어갑니다.')
+      if (!ok) return
+    }
+    setDecidingId(businessId)
+    try {
+      const { data, error } = await supabase.rpc('mentor_review_decision', {
+        p_company_id: company.id,
+        p_phone: phone,
+        p_small_business_id: businessId,
+        p_decision: decision,
+        p_note: null,
+      })
+      if (error) throw error
+      if (data?.error === 'not_your_turn') {
+        alert('이미 처리되었거나 현재 이 기업 차례가 아닙니다. 목록을 새로고침합니다.')
+      } else if (data?.error) {
+        alert('처리 실패: 본인 확인 정보가 일치하지 않습니다.')
+      } else if (decision === '승인') {
+        alert('승인 처리되었습니다. 소상공인에게 연락처가 공유되니 일정을 조율해주세요.')
+      } else {
+        alert('거절 처리되었습니다.')
+      }
+      await loadApplicants(company.id, phone)
+    } catch (e) {
+      console.error('심사 처리 실패:', e)
+      alert('처리 실패: ' + (e.message || '잠시 후 다시 시도해주세요.'))
+    } finally {
+      setDecidingId('')
+    }
+  }
+
   function logout() {
     setCompany(null); setApplicants([]); setInterested(new Set()); setMatchings([])
     setSelectedId(''); setPhone('')
-    setTab('applicants'); setRegionFilter(''); setItemSearch('')
+    setTab('review'); setRegionFilter(''); setItemSearch('')
   }
 
   if (!company) {
@@ -146,6 +182,7 @@ export default function CompanySelect() {
   }
 
   const tabFiltered = applicants.filter(a => {
+    if (tab === 'review' && a.review_status !== '검토중') return false
     if (tab === 'interested' && !interested.has(a.small_business_id)) return false
     if (tab === 'matched' && !matchings.includes(a.small_business_id)) return false
     return true
@@ -205,7 +242,8 @@ export default function CompanySelect() {
             <div className="py-12 text-center text-gray-400 text-sm">로딩 중...</div>
           ) : visible.length === 0 ? (
             <div className="py-12 text-center text-gray-400 text-sm">
-              {tab === 'interested' ? '관심 등록한 소상공인이 없습니다.' :
+              {tab === 'review' ? '현재 검토를 기다리는 신청 건이 없습니다.' :
+               tab === 'interested' ? '관심 등록한 소상공인이 없습니다.' :
                tab === 'matched' ? '매칭된 소상공인이 없습니다.' :
                '아직 본 기업을 선택한 소상공인이 없습니다.'}
             </div>
@@ -234,17 +272,46 @@ export default function CompanySelect() {
                         <span>📞 {biz.phone}</span>
                         {biz.item && <span>🗂 {biz.item}</span>}
                         {biz.region && <span>📍 {biz.region}</span>}
+                        {biz.memo && <span>📝 {biz.memo}</span>}
                       </div>
+                      {tab === 'review' && biz.business_plan_url && (
+                        <a href={biz.business_plan_url} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1.5">
+                          <FileText size={12} /> 사업계획서 확인하기
+                        </a>
+                      )}
+                      {tab === 'review' && !biz.business_plan_url && (
+                        <span className="inline-flex items-center gap-1 text-xs text-gray-400 mt-1.5">사업계획서가 등록되지 않았습니다</span>
+                      )}
                     </div>
-                    <button
-                      onClick={() => toggleInterest(biz.id)}
-                      disabled={isMatched || (!isInterested && interested.size >= MAX_INTEREST)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 ${
-                        isInterested ? 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100' : 'bg-blue-600 text-white hover:bg-blue-700'
-                      }`}
-                    >
-                      {isInterested ? <><HeartOff size={13} /> 관심 취소</> : <><Heart size={13} /> 관심 등록</>}
-                    </button>
+                    {tab === 'review' ? (
+                      <div className="flex gap-1.5 flex-shrink-0">
+                        <button
+                          onClick={() => decideReview(biz.id, '승인')}
+                          disabled={decidingId === biz.id}
+                          className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          승인
+                        </button>
+                        <button
+                          onClick={() => decideReview(biz.id, '거절')}
+                          disabled={decidingId === biz.id}
+                          className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          거절
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => toggleInterest(biz.id)}
+                        disabled={isMatched || (!isInterested && interested.size >= MAX_INTEREST)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 ${
+                          isInterested ? 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100' : 'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}
+                      >
+                        {isInterested ? <><HeartOff size={13} /> 관심 취소</> : <><Heart size={13} /> 관심 등록</>}
+                      </button>
+                    )}
                   </div>
                 )
               })}

@@ -119,15 +119,18 @@ export function getStatusBadgeClass(status) {
     '신청대기': 'bg-gray-100 text-gray-600',
     '매칭중': 'bg-amber-100 text-amber-700',
     '매칭완료': 'bg-green-100 text-green-700',
+    '전체거절': 'bg-red-100 text-red-700',
+    '대기': 'bg-gray-100 text-gray-500',
   }
   return map[status] || 'bg-gray-100 text-gray-500'
 }
 
-// 멘토매칭 - 소상공인 신청 상태 계산 (신청대기 → 매칭중 → 매칭완료)
-// 별도 컬럼으로 저장하지 않고 company_preferences/matchings 존재 여부로 즉시 계산한다.
-export function calcMentorMatchStatus({ hasInterest, isMatched }) {
+// 멘토매칭 - 소상공인 신청 상태 계산 (신청대기 → 심사중 → 매칭완료 / 전체거절)
+// small_businesses.review_stage(순차 심사 진행 단계)를 우선 기준으로 삼는다.
+export function calcMentorMatchStatus({ reviewStage, isMatched }) {
   if (isMatched) return '매칭완료'
-  if (hasInterest) return '매칭중'
+  if (reviewStage === '전체거절') return '전체거절'
+  if (reviewStage === '심사중') return '심사중'
   return '신청대기'
 }
 

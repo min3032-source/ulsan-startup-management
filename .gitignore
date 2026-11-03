@@ -28,3 +28,5 @@ dist-ssr
 src.egg
 창업지원_통합관리_웹앱_v12.최종/
 .claude/
+
+.tmp/

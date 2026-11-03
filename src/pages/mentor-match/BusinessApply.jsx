@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatPhone } from '../../utils/formatPhone'
 import { ULSAN_REGIONS } from '../../lib/constants'
-import { CheckCircle, ChevronDown, ChevronUp, Search, ClipboardList } from 'lucide-react'
+import { CheckCircle, ChevronDown, ChevronUp, Search, ClipboardList, Upload } from 'lucide-react'
 import PublicHeader from '../../components/common/PublicHeader'
 
 function emptyForm() {
@@ -19,6 +19,7 @@ export default function BusinessApply() {
   const [companySearch, setCompanySearch] = useState('')
   const [companyFieldFilter, setCompanyFieldFilter] = useState('')
   const [form, setForm] = useState(emptyForm())
+  const [planFile, setPlanFile] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
@@ -68,6 +69,25 @@ export default function BusinessApply() {
 
     try {
       const bizId = crypto.randomUUID()
+
+      // 사업계획서는 매칭 심사 시 1순위 멘토기업(거절 시 2, 3순위로 순차 이관)에게
+      // 그대로 공개되는 파일이므로, 신청과 동시에 업로드한다. 실패해도 신청 자체는
+      // 막지 않고(business_plan_url = null) 접수는 계속 진행한다.
+      let businessPlanUrl = null
+      if (planFile) {
+        const ext = planFile.name.split('.').pop()
+        const fileName = `${bizId}_${Date.now()}.${ext}`
+        const { error: uploadError } = await supabase.storage
+          .from('mentor-business-plans')
+          .upload(fileName, planFile)
+        if (uploadError) {
+          console.error('사업계획서 업로드 실패:', uploadError)
+        } else {
+          const { data: { publicUrl } } = supabase.storage.from('mentor-business-plans').getPublicUrl(fileName)
+          businessPlanUrl = publicUrl
+        }
+      }
+
       const { error: bizErr } = await supabase.from('small_businesses').insert({
         id: bizId,
         name: form.name.trim(),
@@ -78,6 +98,7 @@ export default function BusinessApply() {
         region: form.region || null,
         memo: form.memo || null,
         privacy_agreed: true,
+        business_plan_url: businessPlanUrl,
       })
 
       if (bizErr) throw bizErr
@@ -236,6 +257,15 @@ export default function BusinessApply() {
           <Field label="비고 (선택)">
             <textarea value={form.memo} onChange={e => set('memo', e.target.value)} rows={3}
               placeholder="멘토링을 통해 기대하는 점을 자유롭게 작성해주세요." className={inp() + ' resize-none'} />
+          </Field>
+          <Field label="사업계획서 (선택)">
+            <label className="flex items-center gap-2 px-3 py-2.5 text-sm border border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-gray-500">
+              <Upload size={14} className="flex-shrink-0" />
+              <span className="truncate">{planFile ? planFile.name : '파일 선택 (PDF·HWP·DOC, 최대 20MB)'}</span>
+              <input type="file" accept=".pdf,.hwp,.hwpx,.doc,.docx" className="hidden"
+                onChange={e => setPlanFile(e.target.files?.[0] || null)} />
+            </label>
+            <p className="text-[11px] text-gray-400 mt-1">1순위 멘토기업이 심사할 때 그대로 열람합니다. 나중에 신청 상태 조회 페이지에서도 등록/교체할 수 있습니다.</p>
           </Field>
         </div>
 
